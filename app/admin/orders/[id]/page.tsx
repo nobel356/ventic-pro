@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-
+import OrderActions from "./OrderActions";
 const statusLabels: Record<string, string> = {
   NEW: "جديد",
   CONFIRMED: "تم التأكيد",
@@ -63,6 +63,20 @@ export default async function OrderDetailsPage({
     },
   });
 
+  const technicians = await prisma.user.findMany({
+  where: {
+    role: "TECHNICIAN",
+    active: true,
+  },
+  select: {
+    id: true,
+    name: true,
+  },
+  orderBy: {
+    name: "asc",
+  },
+});
+  
   if (!order) notFound();
 
   return (
@@ -90,6 +104,13 @@ export default async function OrderDetailsPage({
           <span>{statusLabels[order.status] || order.status}</span>
         </div>
 
+<OrderActions
+  orderId={order.id}
+  currentStatus={order.status}
+  technicianId={order.technicianId}
+  technicians={technicians}
+/>
+        
         <div className="cards">
           <article className="miniCard">
             <strong>العميل</strong>
