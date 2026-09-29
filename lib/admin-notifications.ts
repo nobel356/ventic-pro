@@ -29,9 +29,31 @@ export async function notifyAdmins(input: NotifyAdminsInput) {
 
     if (!recipients.length) return;
 
+    let recipientIds = recipients.map((recipient) => recipient.id);
+
+    if (input.dedupeKey) {
+      const existing = await prisma.adminNotification.findMany({
+        where: {
+          recipientId: { in: recipientIds },
+          dedupeKey: input.dedupeKey,
+        },
+        select: { recipientId: true },
+      });
+
+      const existingRecipientIds = new Set(
+        existing.map((notification) => notification.recipientId),
+      );
+
+      recipientIds = recipientIds.filter(
+        (recipientId) => !existingRecipientIds.has(recipientId),
+      );
+    }
+
+    if (!recipientIds.length) return;
+
     await prisma.adminNotification.createMany({
-      data: recipients.map((recipient) => ({
-        recipientId: recipient.id,
+      data: recipientIds.map((recipientId) => ({
+        recipientId,
         orderId: input.orderId,
         type: input.type,
         title: input.title,
@@ -39,7 +61,6 @@ export async function notifyAdmins(input: NotifyAdminsInput) {
         href: input.href,
         dedupeKey: input.dedupeKey,
       })),
-      skipDuplicates: true,
     });
   } catch (error) {
     // A notification failure must never block the business action itself.
