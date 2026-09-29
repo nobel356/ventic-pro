@@ -82,6 +82,7 @@ model Order {
   attachments Attachment[]
   auditLogs AuditLog[]
   quotes Quote[]
+  venticEstimates VenticEstimate[]
   extraCharges ExtraCharge[]
   payments Payment[]
   invoice Invoice?
@@ -178,6 +179,51 @@ model Quote {
   respondedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum VenticEstimateStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+}
+
+model VenticEstimate {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  version Int @default(1)
+  status VenticEstimateStatus @default(DRAFT)
+  subtotal Decimal @default(0) @db.Decimal(12,2)
+  discount Decimal @default(0) @db.Decimal(12,2)
+  total Decimal @default(0) @db.Decimal(12,2)
+  notes String?
+  customerToken String @unique
+  sentAt DateTime?
+  respondedAt DateTime?
+  items VenticEstimateItem[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orderId, version])
+  @@index([orderId, status])
+}
+
+model VenticEstimateItem {
+  id String @id @default(cuid())
+  estimateId String
+  estimate VenticEstimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  description String
+  unit String @default("وحدة")
+  qty Decimal @default(1) @db.Decimal(12,2)
+  unitPrice Decimal @default(0) @db.Decimal(12,2)
+  total Decimal @default(0) @db.Decimal(12,2)
+  sortOrder Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estimateId])
 }
 
 model ExtraCharge {
