@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ventic
+      POSTGRES_PASSWORD: ventic
+      POSTGRES_DB: ventic_pro
+    ports:
+      - "5432:5432"
+    volumes:
+      - ventic_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ventic -d ventic_pro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ventic_pgdata:

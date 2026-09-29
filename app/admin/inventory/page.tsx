@@ -1,0 +1,2 @@
+import {prisma} from "@/lib/prisma";
+export default async function Inventory(){const items=await prisma.inventoryItem.findMany({orderBy:{nameAr:"asc"}});return <main className="order"><section className="panel"><h1>المخزون والخامات</h1><div className="review">{items.length?items.map(x=><p key={x.id}><b>{x.nameAr}</b> — {String(x.quantity)} {x.unit} {Number(x.quantity)<=Number(x.reorderLevel)?"⚠️ إعادة طلب":""}</p>):<p>لا توجد أصناف بعد.</p>}</div></section></main>}
