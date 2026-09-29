@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import OrderActions from "./OrderActions";
+import VenticEstimateEditor from "./VenticEstimateEditor";
+
 const statusLabels: Record<string, string> = {
   NEW: "جديد",
   CONFIRMED: "تم التأكيد",
@@ -63,21 +65,21 @@ export default async function OrderDetailsPage({
     },
   });
 
-  const technicians = await prisma.user.findMany({
-  where: {
-    role: "TECHNICIAN",
-    active: true,
-  },
-  select: {
-    id: true,
-    name: true,
-  },
-  orderBy: {
-    name: "asc",
-  },
-});
-  
   if (!order) notFound();
+
+  const technicians = await prisma.user.findMany({
+    where: {
+      role: "TECHNICIAN",
+      active: true,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
 
   return (
     <main className="admin">
@@ -104,13 +106,13 @@ export default async function OrderDetailsPage({
           <span>{statusLabels[order.status] || order.status}</span>
         </div>
 
-<OrderActions
-  orderId={order.id}
-  currentStatus={order.status}
-  technicianId={order.technicianId}
-  technicians={technicians}
-/>
-        
+        <OrderActions
+          orderId={order.id}
+          currentStatus={order.status}
+          technicianId={order.technicianId}
+          technicians={technicians}
+        />
+
         <div className="cards">
           <article className="miniCard">
             <strong>العميل</strong>
@@ -139,7 +141,7 @@ export default async function OrderDetailsPage({
           </article>
 
           <article className="miniCard">
-            <strong>السعر التقديري</strong>
+            <strong>السعر التقديري للعميل</strong>
             <h3>{money(order.estimatedTotal)} ج</h3>
             <p>
               {order.estimateAccepted
@@ -149,7 +151,7 @@ export default async function OrderDetailsPage({
           </article>
 
           <article className="miniCard">
-            <strong>السعر النهائي</strong>
+            <strong>السعر النهائي المعتمد</strong>
             <h3>
               {order.finalTotal
                 ? `${money(order.finalTotal)} ج`
@@ -159,7 +161,11 @@ export default async function OrderDetailsPage({
         </div>
 
         <div className="adminQuick" style={{ marginTop: 24 }}>
-          <h2>تفاصيل الأماكن والخدمات</h2>
+          <h2>مقايسة العميل الأصلية</h2>
+          <p>
+            هذه البنود محفوظة كما قدمها العميل وتُستخدم كمرجع فقط. تعديل السعر
+            النهائي يتم من خلال مقايسة Ventic Pro المستقلة بالأسفل.
+          </p>
 
           {order.spaces.length === 0 ? (
             <p>لا توجد تفاصيل مسجلة.</p>
@@ -176,48 +182,52 @@ export default async function OrderDetailsPage({
                 }}
               >
                 <h3>
-                  {space.label ||
-                    spaceLabels[space.type] ||
-                    space.type}
+                  {space.label || spaceLabels[space.type] || space.type}
                 </h3>
 
                 {space.services.length === 0 ? (
                   <p>لا توجد خدمات مسجلة لهذا المكان.</p>
                 ) : (
-                  <table style={{ width: "100%" }}>
-                    <thead>
-                      <tr>
-                        <th>الخدمة</th>
-                        <th>الكمية</th>
-                        <th>سعر الوحدة</th>
-                        <th>الإجمالي</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {space.services.map((service) => {
-                        const qty = Number(service.qty);
-                        const unit = Number(service.unitPriceSnapshot);
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", minWidth: 620 }}>
+                      <thead>
+                        <tr>
+                          <th>الخدمة</th>
+                          <th>الكمية</th>
+                          <th>سعر الوحدة</th>
+                          <th>الإجمالي</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {space.services.map((service) => {
+                          const qty = Number(service.qty);
+                          const unitPrice = Number(
+                            service.unitPriceSnapshot,
+                          );
 
-                        return (
-                          <tr key={service.id}>
-                            <td>{service.serviceNameSnapshot}</td>
-                            <td>{qty}</td>
-                            <td>{money(unit)} ج</td>
-                            <td>{money(qty * unit)} ج</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          return (
+                            <tr key={service.id}>
+                              <td>{service.serviceNameSnapshot}</td>
+                              <td>{qty}</td>
+                              <td>{money(unitPrice)} ج</td>
+                              <td>{money(qty * unitPrice)} ج</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             ))
           )}
         </div>
 
+        <VenticEstimateEditor orderId={order.id} />
+
         <div className="cards" style={{ marginTop: 24 }}>
           <article className="miniCard">
-            <h3>المدفوعات</h3>
+            <h3>المدفوعات والفاتورة</h3>
 
             {order.payments.length === 0 ? (
               <p>لا توجد مدفوعات حتى الآن.</p>
@@ -240,10 +250,10 @@ export default async function OrderDetailsPage({
           </article>
 
           <article className="miniCard">
-            <h3>عروض الأسعار</h3>
+            <h3>عروض الأسعار القديمة</h3>
 
             {order.quotes.length === 0 ? (
-              <p>لا يوجد عرض سعر حتى الآن.</p>
+              <p>لا يوجد عرض سعر قديم.</p>
             ) : (
               order.quotes.map((quote) => (
                 <p key={quote.id}>
