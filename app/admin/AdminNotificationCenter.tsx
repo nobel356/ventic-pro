@@ -17,7 +17,75 @@ type NotificationItem = {
 type ApiResponse = {
   items: NotificationItem[];
   unread: number;
+  staleMinutes?: number;
 };
+
+type FilterKey =
+  | "ALL"
+  | "UNREAD"
+  | "ORDERS"
+  | "PAYMENTS"
+  | "QUOTATIONS"
+  | "AFTERCARE";
+
+const filters: Array<{ key: FilterKey; label: string }> = [
+  { key: "ALL", label: "الكل" },
+  { key: "UNREAD", label: "غير مقروء" },
+  { key: "ORDERS", label: "الطلبات" },
+  { key: "PAYMENTS", label: "المدفوعات" },
+  { key: "QUOTATIONS", label: "المقايسات" },
+  { key: "AFTERCARE", label: "ما بعد البيع" },
+];
+
+function categoryMatches(item: NotificationItem, filter: FilterKey) {
+  if (filter === "ALL") return true;
+  if (filter === "UNREAD") return !item.isRead;
+  if (filter === "PAYMENTS") return item.type === "PAYMENT";
+  if (filter === "QUOTATIONS") {
+    return ["QUOTATION_RESPONSE", "EXTRA_CHARGE_RESPONSE"].includes(item.type);
+  }
+  if (filter === "AFTERCARE") {
+    return ["MAINTENANCE_REQUEST", "COMPLAINT"].includes(item.type);
+  }
+  return [
+    "NEW_ORDER",
+    "ORDER_STATUS",
+    "TECHNICIAN_ASSIGNMENT",
+    "ORDER_COMPLETED",
+    "OTP_ALERT",
+    "ORDER_STALE",
+  ].includes(item.type);
+}
+
+function iconFor(type: string) {
+  const map: Record<string, string> = {
+    NEW_ORDER: "🛎️",
+    ORDER_STATUS: "🔄",
+    TECHNICIAN_ASSIGNMENT: "👷",
+    ORDER_COMPLETED: "✅",
+    PAYMENT: "💳",
+    QUOTATION_RESPONSE: "📋",
+    EXTRA_CHARGE_RESPONSE: "🧾",
+    MAINTENANCE_REQUEST: "🛠️",
+    COMPLAINT: "⚠️",
+    OTP_ALERT: "🔐",
+    ORDER_STALE: "⏰",
+    SYSTEM: "ℹ️",
+  };
+  return map[type] || "🔔";
+}
+
+function accentFor(type: string) {
+  if (["COMPLAINT", "OTP_ALERT"].includes(type)) return "#dc2626";
+  if (type === "ORDER_STALE") return "#d97706";
+  if (type === "PAYMENT") return "#15803d";
+  if (["QUOTATION_RESPONSE", "EXTRA_CHARGE_RESPONSE"].includes(type)) {
+    return "#7c3aed";
+  }
+  if (type === "MAINTENANCE_REQUEST") return "#0369a1";
+  if (type === "ORDER_COMPLETED") return "#15803d";
+  return "#f97316";
+}
 
 export default function AdminNotificationCenter() {
   const router = useRouter();
@@ -25,13 +93,16 @@ export default function AdminNotificationCenter() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [filter, setFilter] = useState<FilterKey>("ALL");
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
+    "unsupported",
+  );
   const initialLoad = useRef(true);
   const latestSeenId = useRef<string | null>(null);
 
   async function loadNotifications() {
     try {
-      const response = await fetch("/api/admin/notifications?take=30", {
+      const response = await fetch("/api/admin/notifications?take=60", {
         cache: "no-store",
       });
       if (!response.ok) return;
@@ -48,10 +119,13 @@ export default function AdminNotificationCenter() {
         "Notification" in window &&
         window.Notification.permission === "granted"
       ) {
-        const browserNotification = new window.Notification(newest.title, {
-          body: newest.message,
-          tag: newest.id,
-        });
+        const browserNotification = new window.Notification(
+          `${iconFor(newest.type)} ${newest.title}`,
+          {
+            body: newest.message,
+            tag: newest.id,
+          },
+        );
 
         browserNotification.onclick = () => {
           window.focus();
@@ -117,6 +191,8 @@ export default function AdminNotificationCenter() {
     setUnread(0);
   }
 
+  const visibleItems = items.filter((item) => categoryMatches(item, filter));
+
   return (
     <div
       dir="rtl"
@@ -175,8 +251,8 @@ export default function AdminNotificationCenter() {
             position: "absolute",
             top: 54,
             left: 0,
-            width: "min(390px, calc(100vw - 28px))",
-            maxHeight: "70vh",
+            width: "min(430px, calc(100vw - 28px))",
+            maxHeight: "78vh",
             overflow: "hidden",
             borderRadius: 16,
             border: "1px solid #dbe3ea",
@@ -195,7 +271,7 @@ export default function AdminNotificationCenter() {
             }}
           >
             <div>
-              <strong style={{ color: "#0f2d4a" }}>الإشعارات</strong>
+              <strong style={{ color: "#0f2d4a" }}>مركز الإشعارات</strong>
               <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
                 {unread ? `${unread} غير مقروء` : "لا توجد إشعارات جديدة"}
               </div>
@@ -217,8 +293,46 @@ export default function AdminNotificationCenter() {
             )}
           </div>
 
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              overflowX: "auto",
+              padding: "10px 12px",
+              borderBottom: "1px solid #edf2f7",
+              background: "#f8fafc",
+            }}
+          >
+            {filters.map((entry) => (
+              <button
+                type="button"
+                key={entry.key}
+                onClick={() => setFilter(entry.key)}
+                style={{
+                  border: filter === entry.key ? "1px solid #0f5f95" : "1px solid #dbe3ea",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  background: filter === entry.key ? "#e0f2fe" : "white",
+                  color: filter === entry.key ? "#0f5f95" : "#475569",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+
           {permission === "default" && (
-            <div style={{ padding: 12, background: "#f8fafc", borderBottom: "1px solid #edf2f7" }}>
+            <div
+              style={{
+                padding: 12,
+                background: "#f8fafc",
+                borderBottom: "1px solid #edf2f7",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => void requestBrowserPermission()}
@@ -238,56 +352,72 @@ export default function AdminNotificationCenter() {
             </div>
           )}
 
-          <div style={{ maxHeight: "55vh", overflowY: "auto" }}>
+          <div style={{ maxHeight: "56vh", overflowY: "auto" }}>
             {loading ? (
               <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}>
                 جاري تحميل الإشعارات...
               </div>
-            ) : items.length === 0 ? (
+            ) : visibleItems.length === 0 ? (
               <div style={{ padding: 28, textAlign: "center", color: "#64748b" }}>
-                لا توجد إشعارات حتى الآن.
+                لا توجد إشعارات في هذا القسم.
               </div>
             ) : (
-              items.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  onClick={() => void markRead(item)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "right",
-                    border: 0,
-                    borderBottom: "1px solid #edf2f7",
-                    padding: "13px 15px",
-                    background: item.isRead ? "white" : "#fff7ed",
-                    cursor: item.href ? "pointer" : "default",
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {!item.isRead && (
-                      <span
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 999,
-                          background: "#f97316",
-                          flex: "0 0 auto",
-                        }}
-                      />
-                    )}
-                    <strong style={{ color: "#0f2d4a", fontSize: 14 }}>
-                      {item.title}
-                    </strong>
-                  </div>
-                  <div style={{ color: "#475569", fontSize: 13, marginTop: 5, lineHeight: 1.6 }}>
-                    {item.message}
-                  </div>
-                  <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 6 }}>
-                    {new Date(item.createdAt).toLocaleString("ar-EG")}
-                  </div>
-                </button>
-              ))
+              visibleItems.map((item) => {
+                const accent = accentFor(item.type);
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    onClick={() => void markRead(item)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "right",
+                      border: 0,
+                      borderBottom: "1px solid #edf2f7",
+                      borderRight: `4px solid ${accent}`,
+                      padding: "13px 15px",
+                      background: item.isRead ? "white" : "#fffaf5",
+                      cursor: item.href ? "pointer" : "default",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
+                      <span style={{ fontSize: 19 }}>{iconFor(item.type)}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                          {!item.isRead && (
+                            <span
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: 999,
+                                background: accent,
+                                flex: "0 0 auto",
+                              }}
+                            />
+                          )}
+                          <strong style={{ color: "#0f2d4a", fontSize: 14 }}>
+                            {item.title}
+                          </strong>
+                        </div>
+                        <div
+                          style={{
+                            color: "#475569",
+                            fontSize: 13,
+                            marginTop: 5,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {item.message}
+                        </div>
+                        <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 6 }}>
+                          {new Date(item.createdAt).toLocaleString("ar-EG")}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>

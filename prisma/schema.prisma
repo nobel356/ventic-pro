@@ -521,6 +521,11 @@ enum AdminNotificationType {
   ORDER_COMPLETED
   PAYMENT
   QUOTATION_RESPONSE
+  EXTRA_CHARGE_RESPONSE
+  MAINTENANCE_REQUEST
+  COMPLAINT
+  OTP_ALERT
+  ORDER_STALE
   SYSTEM
 }
 
@@ -534,10 +539,12 @@ model AdminNotification {
   title String
   message String
   href String?
+  dedupeKey String?
   isRead Boolean @default(false)
   readAt DateTime?
   createdAt DateTime @default(now())
 
+  @@unique([recipientId,dedupeKey])
   @@index([recipientId,isRead,createdAt])
   @@index([orderId])
 }

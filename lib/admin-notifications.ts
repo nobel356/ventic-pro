@@ -1,7 +1,4 @@
-import {
-  AdminNotificationType,
-  UserRole,
-} from "@prisma/client";
+import { AdminNotificationType, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_ROLES: UserRole[] = [
@@ -17,6 +14,7 @@ type NotifyAdminsInput = {
   orderId?: string;
   href?: string;
   roles?: UserRole[];
+  dedupeKey?: string;
 };
 
 export async function notifyAdmins(input: NotifyAdminsInput) {
@@ -39,10 +37,12 @@ export async function notifyAdmins(input: NotifyAdminsInput) {
         title: input.title,
         message: input.message,
         href: input.href,
+        dedupeKey: input.dedupeKey,
       })),
+      skipDuplicates: true,
     });
   } catch (error) {
-    // Notification failures must never block the main order workflow.
+    // A notification failure must never block the business action itself.
     console.error("ADMIN_NOTIFICATION_ERROR", error);
   }
 }

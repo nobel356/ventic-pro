@@ -1,5 +1,7 @@
+import { AdminNotificationType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyAdmins } from "@/lib/admin-notifications";
 
 function moneyNumber(value: unknown) {
   return Number(value || 0);
@@ -18,14 +20,8 @@ export async function GET(
   const estimate = await prisma.venticEstimate.findUnique({
     where: { customerToken: token },
     include: {
-      items: {
-        orderBy: { sortOrder: "asc" },
-      },
-      order: {
-        select: {
-          orderNo: true,
-        },
-      },
+      items: { orderBy: { sortOrder: "asc" } },
+      order: { select: { orderNo: true } },
     },
   });
 
@@ -45,7 +41,6 @@ export async function GET(
       items: estimate.items.map((item) => {
         const qty = moneyNumber(item.qty);
         const unitPrice = moneyNumber(item.unitPrice);
-
         return {
           id: item.id,
           description: item.description,
@@ -58,10 +53,7 @@ export async function GET(
     });
   }
 
-  const quote = await prisma.quote.findUnique({
-    where: { customerToken: token },
-  });
-
+  const quote = await prisma.quote.findUnique({ where: { customerToken: token } });
   if (quote) {
     return NextResponse.json({
       type: "quote",
@@ -71,10 +63,7 @@ export async function GET(
     });
   }
 
-  const extra = await prisma.extraCharge.findUnique({
-    where: { customerToken: token },
-  });
-
+  const extra = await prisma.extraCharge.findUnique({ where: { customerToken: token } });
   if (extra) {
     return NextResponse.json({
       type: "extra",
@@ -103,7 +92,10 @@ export async function POST(
 
   const estimate = await prisma.venticEstimate.findUnique({
     where: { customerToken: token },
-    include: { items: true },
+    include: {
+      items: true,
+      order: { select: { orderNo: true } },
+    },
   });
 
   if (estimate) {
@@ -122,36 +114,23 @@ export async function POST(
             status: "ACCEPTED",
             NOT: { id: estimate.id },
           },
-          data: {
-            status: "SUPERSEDED",
-          },
+          data: { status: "SUPERSEDED" },
         });
 
         await tx.venticEstimate.update({
           where: { id: estimate.id },
-          data: {
-            status: "ACCEPTED",
-            respondedAt: new Date(),
-          },
+          data: { status: "ACCEPTED", respondedAt: new Date() },
         });
 
         await tx.order.update({
           where: { id: estimate.orderId },
-          data: {
-            finalTotal: estimate.total,
-          },
+          data: { finalTotal: estimate.total },
         });
 
         const paidAggregate = await tx.payment.aggregate({
-          where: {
-            orderId: estimate.orderId,
-            status: "PAID",
-          },
-          _sum: {
-            amount: true,
-          },
+          where: { orderId: estimate.orderId, status: "PAID" },
+          _sum: { amount: true },
         });
-
         const paid = moneyNumber(paidAggregate._sum.amount);
         const subtotal = moneyNumber(estimate.subtotal);
         const discount = moneyNumber(estimate.discount);
@@ -159,29 +138,18 @@ export async function POST(
         const due = Math.max(0, total - paid);
 
         const existingInvoice = await tx.invoice.findUnique({
-          where: {
-            orderId: estimate.orderId,
-          },
+          where: { orderId: estimate.orderId },
         });
 
         if (existingInvoice) {
           await tx.invoice.update({
-            where: {
-              orderId: estimate.orderId,
-            },
-            data: {
-              subtotal,
-              discount,
-              total,
-              paid,
-              due,
-            },
+            where: { orderId: estimate.orderId },
+            data: { subtotal, discount, total, paid, due },
           });
         } else {
           const invoiceNo = `INV-${new Date().getFullYear()}-${Date.now()
             .toString()
             .slice(-8)}`;
-
           await tx.invoice.create({
             data: {
               invoiceNo,
@@ -210,10 +178,7 @@ export async function POST(
       } else {
         await tx.venticEstimate.update({
           where: { id: estimate.id },
-          data: {
-            status: "REJECTED",
-            respondedAt: new Date(),
-          },
+          data: { status: "REJECTED", respondedAt: new Date() },
         });
 
         await tx.auditLog.create({
@@ -221,24 +186,27 @@ export async function POST(
             orderId: estimate.orderId,
             actorLabel: "العميل",
             action: "VENTIC_ESTIMATE_REJECTED",
-            newValue: {
-              estimateId: estimate.id,
-              version: estimate.version,
-            },
+            newValue: { estimateId: estimate.id, version: estimate.version },
           },
         });
       }
     });
 
-    return NextResponse.json({
-      ok: true,
-      type: "venticEstimate",
-      decision,
+    await notifyAdmins({
+      type: AdminNotificationType.QUOTATION_RESPONSE,
+      title: `${accepted ? "تمت الموافقة على" : "تم رفض"} مقايسة ${estimate.order.orderNo}`,
+      message: `العميل ${accepted ? "وافق على" : "رفض"} مقايسة Ventic Pro إصدار ${estimate.version}${accepted ? ` بإجمالي ${moneyNumber(estimate.total).toLocaleString("ar-EG")} ج` : ""}.`,
+      orderId: estimate.orderId,
+      href: `/admin/orders/${estimate.orderId}`,
+      dedupeKey: `estimate-response:${estimate.id}`,
     });
+
+    return NextResponse.json({ ok: true, type: "venticEstimate", decision });
   }
 
   const quote = await prisma.quote.findUnique({
     where: { customerToken: token },
+    include: { order: { select: { orderNo: true } } },
   });
 
   if (quote) {
@@ -260,21 +228,25 @@ export async function POST(
     if (accepted) {
       await prisma.order.update({
         where: { id: quote.orderId },
-        data: {
-          finalTotal: quote.amount,
-        },
+        data: { finalTotal: quote.amount },
       });
     }
 
-    return NextResponse.json({
-      ok: true,
-      type: "quote",
-      decision,
+    await notifyAdmins({
+      type: AdminNotificationType.QUOTATION_RESPONSE,
+      title: `${accepted ? "تمت الموافقة على" : "تم رفض"} عرض ${quote.order.orderNo}`,
+      message: `العميل ${accepted ? "وافق على" : "رفض"} عرض السعر بقيمة ${moneyNumber(quote.amount).toLocaleString("ar-EG")} ج.`,
+      orderId: quote.orderId,
+      href: `/admin/orders/${quote.orderId}`,
+      dedupeKey: `quote-response:${quote.id}`,
     });
+
+    return NextResponse.json({ ok: true, type: "quote", decision });
   }
 
   const extra = await prisma.extraCharge.findUnique({
     where: { customerToken: token },
+    include: { order: { select: { orderNo: true } } },
   });
 
   if (extra) {
@@ -293,11 +265,16 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      type: "extra",
-      decision,
+    await notifyAdmins({
+      type: AdminNotificationType.EXTRA_CHARGE_RESPONSE,
+      title: `${accepted ? "تم قبول" : "تم رفض"} تكلفة إضافية — ${extra.order.orderNo}`,
+      message: `العميل ${accepted ? "وافق على" : "رفض"} ${extra.title} بقيمة ${moneyNumber(extra.amount).toLocaleString("ar-EG")} ج.`,
+      orderId: extra.orderId,
+      href: `/admin/orders/${extra.orderId}`,
+      dedupeKey: `extra-response:${extra.id}`,
     });
+
+    return NextResponse.json({ ok: true, type: "extra", decision });
   }
 
   return NextResponse.json({ error: "الرابط غير صالح" }, { status: 404 });

@@ -1,6 +1,42 @@
+import { AdminNotificationType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth-v7";
+import { notifyAdmins } from "@/lib/admin-notifications";
+
+function staleWindowMinutes() {
+  const configured = Number(process.env.ORDER_STALE_NOTIFICATION_MINUTES || 30);
+  return Number.isFinite(configured) && configured >= 5 ? configured : 30;
+}
+
+async function createStaleOrderAlerts() {
+  const minutes = staleWindowMinutes();
+  const cutoff = new Date(Date.now() - minutes * 60_000);
+  const staleOrders = await prisma.order.findMany({
+    where: { status: "NEW", createdAt: { lte: cutoff } },
+    select: {
+      id: true,
+      orderNo: true,
+      area: true,
+      customer: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 25,
+  });
+
+  await Promise.all(
+    staleOrders.map((order) =>
+      notifyAdmins({
+        type: AdminNotificationType.ORDER_STALE,
+        title: `طلب جديد بدون تأكيد — ${order.orderNo}`,
+        message: `الطلب باسم ${order.customer.name}${order.area ? ` في ${order.area}` : ""} ما زال جديدًا منذ أكثر من ${minutes} دقيقة.`,
+        orderId: order.id,
+        href: `/admin/orders/${order.id}`,
+        dedupeKey: `stale-order:${order.id}:${minutes}`,
+      }),
+    ),
+  );
+}
 
 export async function GET(req: Request) {
   const user = await currentUser();
@@ -8,11 +44,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
   }
 
+  await createStaleOrderAlerts();
+
   const { searchParams } = new URL(req.url);
-  const requestedTake = Number(searchParams.get("take") || 30);
+  const requestedTake = Number(searchParams.get("take") || 50);
   const take = Number.isFinite(requestedTake)
-    ? Math.min(50, Math.max(1, requestedTake))
-    : 30;
+    ? Math.min(100, Math.max(1, requestedTake))
+    : 50;
 
   const [items, unread] = await Promise.all([
     prisma.adminNotification.findMany({
@@ -35,7 +73,7 @@ export async function GET(req: Request) {
     }),
   ]);
 
-  return NextResponse.json({ items, unread });
+  return NextResponse.json({ items, unread, staleMinutes: staleWindowMinutes() });
 }
 
 export async function PATCH(req: Request) {

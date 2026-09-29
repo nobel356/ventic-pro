@@ -42,12 +42,26 @@ export async function POST(
     );
   }
 
-  if (
+  const expired =
     !order.completionOtpHash ||
     !order.completionOtpExpiresAt ||
-    order.completionOtpExpiresAt < new Date() ||
-    !otpMatches(id, String(otp), order.completionOtpHash)
-  ) {
+    order.completionOtpExpiresAt < new Date();
+  const invalid =
+    !expired && !otpMatches(id, String(otp), order.completionOtpHash!);
+
+  if (expired || invalid) {
+    const bucket = Math.floor(Date.now() / (10 * 60_000));
+    await notifyAdmins({
+      type: AdminNotificationType.OTP_ALERT,
+      title: `${expired ? "كود إتمام منتهي" : "محاولة كود إتمام غير صحيحة"} — ${order.orderNo}`,
+      message: `الفني ${tech.name} حاول إتمام الطلب ولم يتم اعتماد كود العميل.`,
+      orderId: id,
+      href: `/admin/orders/${id}`,
+      dedupeKey: expired
+        ? `otp-expired:${id}`
+        : `otp-invalid:${id}:${bucket}`,
+    });
+
     return NextResponse.json(
       { error: "كود التأكيد غير صحيح أو منتهي" },
       { status: 400 },
@@ -78,6 +92,7 @@ export async function POST(
     message: `الفني ${tech.name} أنهى التركيب وتم تأكيده بكود العميل.`,
     orderId: order.id,
     href: `/admin/orders/${order.id}`,
+    dedupeKey: `order-completed:${order.id}`,
   });
 
   return NextResponse.json({ ok: true });
