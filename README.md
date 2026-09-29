@@ -1,4 +1,3 @@
-V11.8 GitHub deployment enabled.
 # Ventic Pro V11 — Staging Foundation
 
 هذه النسخة تركز على تثبيت وتشغيل المشروع بدل إضافة Features جديدة.

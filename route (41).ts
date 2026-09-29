@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {prisma} from "@/lib/prisma";import {requirePermission} from "@/lib/auth-v7";
+export async function POST(req:Request){try{await requirePermission("price.edit");const {governorate,area,travelFee=0,serviceDays}=await req.json();return NextResponse.json(await prisma.serviceArea.upsert({where:{governorate_area:{governorate,area}},update:{travelFee,serviceDays,active:true},create:{governorate,area,travelFee,serviceDays}}))}catch(e:any){return NextResponse.json({error:e.message},{status:403})}}

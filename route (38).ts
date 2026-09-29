@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {prisma} from "@/lib/prisma";import {requirePermission} from "@/lib/auth-v7";
+export async function POST(req:Request){try{await requirePermission("orders.edit");const {orderId,months=12,notes}=await req.json();const startsAt=new Date(),endsAt=new Date(startsAt);endsAt.setMonth(endsAt.getMonth()+Number(months));return NextResponse.json(await prisma.warranty.create({data:{orderId,startsAt,endsAt,notes}}))}catch(e:any){return NextResponse.json({error:e.message},{status:403})}}
