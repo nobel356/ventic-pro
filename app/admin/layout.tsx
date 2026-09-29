@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth-v7";
 import AdminNotificationCenter from "./AdminNotificationCenter";
+import AccountMenu from "@/app/shared/AccountMenu";
 
 export default async function AdminLayout({
   children,
@@ -13,8 +14,13 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
+  if (user.role === "TECHNICIAN") {
+    redirect("/technician");
+  }
+
   return (
     <>
+      <AccountMenu />
       <AdminNotificationCenter />
       {children}
     </>

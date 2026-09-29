@@ -1,3 +1,25 @@
-'use client';import {useEffect,useState} from 'react';
-export default function Techs(){const [x,setX]=useState<any[]>([]),[name,setName]=useState(''),[email,setEmail]=useState('');const load=()=>fetch('/api/admin/technicians').then(r=>r.json()).then(setX);useEffect(()=>{void load();},[]);async function add(e:React.FormEvent){e.preventDefault();await fetch('/api/admin/technicians',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email})});setName('');setEmail('');load()}return <main className="admin"><AdminNav/><section><h1>الفنيون</h1><form className="inlineForm" onSubmit={add}><input placeholder="اسم الفني" value={name} onChange={e=>setName(e.target.value)} required/><input type="email" placeholder="البريد" value={email} onChange={e=>setEmail(e.target.value)} required/><button className="button">إضافة فني</button></form><div className="cards">{x.map(t=><article className="miniCard" key={t.id}><b>{t.name}</b><small>{t.email}</small></article>)}</div></section></main>}
-function AdminNav(){return <header><div className="brand"><i>V</i> Ventic Pro</div><nav><a href="/admin/orders">الطلبات</a><a href="/admin/technicians">الفنيون</a><a href="/admin/pricing">الأسعار</a></nav></header>}
+import Link from "next/link";
+import TechnicianManagement from "./TechnicianManagement";
+
+export default function TechniciansPage() {
+  return (
+    <main className="admin" dir="rtl">
+      <header>
+        <div className="brand"><i>V</i> Ventic Pro</div>
+        <nav>
+          <Link href="/admin/orders">الطلبات</Link>
+          <Link href="/admin/technicians">الفنيون</Link>
+          <Link href="/admin/pricing">الأسعار</Link>
+          <Link href="/admin/users">المستخدمون</Link>
+        </nav>
+      </header>
+      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "26px 18px 60px" }}>
+        <h1 style={{ marginBottom: 6 }}>الفنيون</h1>
+        <p style={{ color: "#64748b", marginTop: 0, marginBottom: 22 }}>
+          إدارة حسابات الفنيين وتعديل بيانات الفنيين الموجودين.
+        </p>
+        <TechnicianManagement />
+      </section>
+    </main>
+  );
+}
