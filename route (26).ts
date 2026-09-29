@@ -1,2 +1,0 @@
-import {NextResponse} from 'next/server';import {prisma} from '@/lib/prisma';import {currentTechnician} from '@/lib/technician';
-export async function GET(){const tech=await currentTechnician();if(!tech)return NextResponse.json({error:'سجل دخول الفني أولاً'},{status:401});const orders=await prisma.order.findMany({where:{technicianId:tech.id,status:{notIn:['COMPLETED','CANCELLED']}},include:{customer:true,attachments:true},orderBy:[{preferredDate:'asc'},{createdAt:'asc'}]});return NextResponse.json({technician:{id:tech.id,name:tech.name},orders})}

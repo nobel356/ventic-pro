@@ -1,3 +1,0 @@
-export const PERMISSIONS={ORDERS_VIEW:'orders.view',ORDERS_EDIT:'orders.edit',ASSIGN_TECH:'orders.assign',PRICE_EDIT:'pricing.edit',CUSTOMER_SENSITIVE:'customer.sensitive',TECH_JOB:'technician.job'} as const;
-export function can(role:string, permissions:string[]|undefined, permission:string){if(role==='SUPER_ADMIN')return true;const defaults:Record<string,string[]>={ADMIN:['orders.view','orders.edit','orders.assign','pricing.edit','customer.sensitive'],CUSTOMER_SERVICE:['orders.view','orders.edit','customer.sensitive'],TECHNICIAN:['technician.job']};return [...(defaults[role]||[]),...(permissions||[])].includes(permission)}
-export function maskPhone(phone:string){return phone.length>4?phone.slice(0,2)+'*******'+phone.slice(-2):'***'}

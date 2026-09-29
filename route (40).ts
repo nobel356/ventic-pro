@@ -1,2 +1,0 @@
-import {NextResponse} from "next/server";import {prisma} from "@/lib/prisma";
-export async function POST(req:Request){const x=await req.json();const data={phone:x.phone||null,name:x.name||null,source:x.source||null,currentStep:Math.max(1,Number(x.currentStep||1)),payload:x.payload||{},consentToFollowUp:Boolean(x.consentToFollowUp),lastActivityAt:new Date()};if(x.id){return NextResponse.json(await prisma.lead.update({where:{id:x.id},data}))}return NextResponse.json(await prisma.lead.create({data}))}
