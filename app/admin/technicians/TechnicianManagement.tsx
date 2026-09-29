@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 
 type Technician = {
   id: string;
@@ -40,13 +40,32 @@ export default function TechnicianManagement() {
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/technicians", { cache: "no-store" });
+      const response = await fetch("/api/admin/technicians", {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "تعذر تحميل الفنيين");
-      setTechnicians(data.technicians || []);
-      setCanManage(Boolean(data.canManage));
+      if (!response.ok) {
+        throw new Error(data?.error || "تعذر تحميل الفنيين");
+      }
+
+      // Supports both the old array API and the short-lived object API.
+      // Most importantly, technicians is ALWAYS an array before rendering.
+      const list: Technician[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.technicians)
+          ? data.technicians
+          : [];
+
+      setTechnicians(list);
+      setCanManage(
+        response.headers.get("x-ventic-can-manage") === "1" ||
+          (!Array.isArray(data) && Boolean(data?.canManage)),
+      );
+      setError("");
     } catch (err: any) {
-      setError(err.message);
+      setTechnicians([]);
+      setError(err?.message || "تعذر تحميل الفنيين");
     } finally {
       setLoading(false);
     }
@@ -77,7 +96,7 @@ export default function TechnicianManagement() {
     setMessage("");
   }
 
-  async function save(event: React.FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
     setError("");
     setMessage("");
@@ -98,7 +117,9 @@ export default function TechnicianManagement() {
     setSaving(true);
     try {
       const response = await fetch(
-        editingId ? `/api/admin/technicians/${editingId}` : "/api/admin/technicians",
+        editingId
+          ? `/api/admin/technicians/${editingId}`
+          : "/api/admin/technicians",
         {
           method: editingId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
@@ -106,14 +127,21 @@ export default function TechnicianManagement() {
         },
       );
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "تعذر حفظ الفني");
+      if (!response.ok) {
+        throw new Error(data?.error || "تعذر حفظ الفني");
+      }
 
-      setMessage(editingId ? "تم تحديث بيانات الفني." : "تم إضافة الفني بنجاح.");
+      setMessage(
+        editingId ? "تم تحديث بيانات الفني." : "تم إضافة الفني بنجاح.",
+      );
       await load();
-      if (!editingId) setForm(emptyForm);
-      else setForm((current) => ({ ...current, password: "" }));
+      if (!editingId) {
+        setForm(emptyForm);
+      } else {
+        setForm((current) => ({ ...current, password: "" }));
+      }
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message || "تعذر حفظ الفني");
     } finally {
       setSaving(false);
     }
@@ -123,9 +151,11 @@ export default function TechnicianManagement() {
     <div style={{ display: "grid", gap: 22 }}>
       {canManage && (
         <form onSubmit={save} style={cardStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={topRowStyle}>
             <div>
-              <h2 style={{ margin: 0 }}>{editingId ? "تعديل الفني" : "إضافة فني جديد"}</h2>
+              <h2 style={{ margin: 0 }}>
+                {editingId ? "تعديل الفني" : "إضافة فني جديد"}
+              </h2>
               <p style={{ marginBottom: 0, color: "#64748b" }}>
                 تقدر تعدل الاسم، اسم الدخول، الهاتف، حالة الحساب أو تغير كلمة المرور.
               </p>
@@ -137,30 +167,58 @@ export default function TechnicianManagement() {
             )}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12, marginTop: 18 }}>
-            <label style={fieldStyle}>
-              <span>اسم الفني</span>
-              <input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            </label>
-            <label style={fieldStyle}>
-              <span>اسم الدخول / البريد</span>
-              <input style={inputStyle} value={form.login} onChange={(e) => setForm({ ...form, login: e.target.value })} required />
-            </label>
-            <label style={fieldStyle}>
-              <span>رقم الهاتف</span>
-              <input style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="01xxxxxxxxx" />
-            </label>
-            <label style={fieldStyle}>
-              <span>{editingId ? "كلمة مرور جديدة (اختياري)" : "كلمة المرور"}</span>
-              <input style={inputStyle} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="12 حرفًا على الأقل" autoComplete="new-password" />
-            </label>
-            <label style={fieldStyle}>
-              <span>حالة الحساب</span>
-              <span style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 9 }}>
-                <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+          <div style={fieldsGridStyle}>
+            <Field label="اسم الفني">
+              <input
+                style={inputStyle}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </Field>
+            <Field label="اسم الدخول / البريد">
+              <input
+                style={inputStyle}
+                value={form.login}
+                onChange={(e) => setForm({ ...form, login: e.target.value })}
+                required
+              />
+            </Field>
+            <Field label="رقم الهاتف">
+              <input
+                style={inputStyle}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="01xxxxxxxxx"
+              />
+            </Field>
+            <Field label={editingId ? "كلمة مرور جديدة (اختياري)" : "كلمة المرور"}>
+              <input
+                style={inputStyle}
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="12 حرفًا على الأقل"
+                autoComplete="new-password"
+              />
+            </Field>
+            <Field label="حالة الحساب">
+              <span
+                style={{
+                  ...inputStyle,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(e) => setForm({ ...form, active: e.target.checked })}
+                />
                 {form.active ? "نشط" : "موقوف"}
               </span>
-            </label>
+            </Field>
           </div>
 
           {error && <div style={errorStyle}>{error}</div>}
@@ -168,7 +226,11 @@ export default function TechnicianManagement() {
 
           <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
             <button className="button" type="submit" disabled={saving}>
-              {saving ? "جاري الحفظ..." : editingId ? "حفظ التعديلات" : "إضافة الفني"}
+              {saving
+                ? "جاري الحفظ..."
+                : editingId
+                  ? "حفظ التعديلات"
+                  : "إضافة الفني"}
             </button>
             {editingId && (
               <button type="button" onClick={reset} style={secondaryButtonStyle}>
@@ -180,55 +242,48 @@ export default function TechnicianManagement() {
       )}
 
       <section style={cardStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={topRowStyle}>
           <div>
             <h2 style={{ margin: 0 }}>الفنيون الموجودون</h2>
             <p style={{ color: "#64748b", marginBottom: 0 }}>
-              {canManage ? "اضغط تعديل لأي فني لتغيير بياناته أو حالة حسابه." : "عرض قائمة الفنيين المتاحين."}
+              {canManage
+                ? "اضغط تعديل لأي فني لتغيير بياناته أو حالة حسابه."
+                : "عرض قائمة الفنيين المتاحين."}
             </p>
           </div>
-          <span style={{ fontWeight: 800, color: "#0f2d4a" }}>{technicians.length} فني</span>
+          <span style={{ fontWeight: 800, color: "#0f2d4a" }}>
+            {technicians.length} فني
+          </span>
         </div>
 
         {loading ? (
           <p>جاري تحميل الفنيين...</p>
+        ) : error && technicians.length === 0 ? (
+          <div style={errorStyle}>{error}</div>
         ) : technicians.length === 0 ? (
           <p>لا يوجد فنيون حاليًا.</p>
         ) : (
           <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
             {technicians.map((technician) => (
-              <div
-                key={technician.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(180px,1.3fr) minmax(150px,1fr) minmax(120px,.7fr) auto",
-                  gap: 12,
-                  alignItems: "center",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 12,
-                  padding: 14,
-                }}
-              >
+              <div key={technician.id} style={techRowStyle}>
                 <div>
                   <strong style={{ color: "#0f2d4a" }}>{technician.name}</strong>
-                  <div style={{ color: "#64748b", fontSize: 13, marginTop: 3 }}>{technician.login}</div>
+                  <div style={{ color: "#64748b", fontSize: 13, marginTop: 3 }}>
+                    {technician.login}
+                  </div>
                 </div>
-                <div style={{ color: "#475569" }}>{technician.phone || "بدون رقم هاتف"}</div>
-                <span
-                  style={{
-                    width: "fit-content",
-                    padding: "5px 10px",
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    background: technician.active ? "#dcfce7" : "#fee2e2",
-                    color: technician.active ? "#166534" : "#991b1b",
-                  }}
-                >
+                <div style={{ color: "#475569" }}>
+                  {technician.phone || "بدون رقم هاتف"}
+                </div>
+                <span style={statusStyle(technician.active)}>
                   {technician.active ? "نشط" : "موقوف"}
                 </span>
                 {canManage && (
-                  <button type="button" onClick={() => startEdit(technician)} style={secondaryButtonStyle}>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(technician)}
+                    style={secondaryButtonStyle}
+                  >
                     تعديل
                   </button>
                 )}
@@ -241,6 +296,15 @@ export default function TechnicianManagement() {
   );
 }
 
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label style={fieldStyle}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 const cardStyle: CSSProperties = {
   background: "white",
   border: "1px solid #e2e8f0",
@@ -248,9 +312,78 @@ const cardStyle: CSSProperties = {
   padding: 20,
   boxShadow: "0 10px 30px rgba(15,23,42,.05)",
 };
-
-const fieldStyle: CSSProperties = { display: "grid", gap: 7, fontWeight: 800, color: "#334155" };
-const inputStyle: CSSProperties = { minHeight: 44, boxSizing: "border-box", width: "100%", border: "1px solid #cbd5e1", borderRadius: 10, padding: "0 12px", background: "white", font: "inherit" };
-const secondaryButtonStyle: CSSProperties = { minHeight: 40, border: "1px solid #cbd5e1", borderRadius: 10, background: "white", color: "#0f2d4a", padding: "0 14px", cursor: "pointer", fontWeight: 800 };
-const errorStyle: CSSProperties = { marginTop: 14, padding: 12, borderRadius: 10, background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" };
-const successStyle: CSSProperties = { marginTop: 14, padding: 12, borderRadius: 10, background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" };
+const topRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+const fieldsGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))",
+  gap: 12,
+  marginTop: 18,
+};
+const fieldStyle: CSSProperties = {
+  display: "grid",
+  gap: 7,
+  fontWeight: 800,
+  color: "#334155",
+};
+const inputStyle: CSSProperties = {
+  minHeight: 44,
+  boxSizing: "border-box",
+  width: "100%",
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  padding: "0 12px",
+  background: "white",
+  font: "inherit",
+};
+const secondaryButtonStyle: CSSProperties = {
+  minHeight: 40,
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  background: "white",
+  color: "#0f2d4a",
+  padding: "0 14px",
+  cursor: "pointer",
+  fontWeight: 800,
+};
+const errorStyle: CSSProperties = {
+  marginTop: 14,
+  padding: 12,
+  borderRadius: 10,
+  background: "#fef2f2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+};
+const successStyle: CSSProperties = {
+  marginTop: 14,
+  padding: 12,
+  borderRadius: 10,
+  background: "#f0fdf4",
+  color: "#166534",
+  border: "1px solid #bbf7d0",
+};
+const techRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(180px,1.3fr) minmax(150px,1fr) minmax(120px,.7fr) auto",
+  gap: 12,
+  alignItems: "center",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: 14,
+};
+function statusStyle(active: boolean): CSSProperties {
+  return {
+    width: "fit-content",
+    padding: "5px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 800,
+    background: active ? "#dcfce7" : "#fee2e2",
+    color: active ? "#166534" : "#991b1b",
+  };
+}

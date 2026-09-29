@@ -8,6 +8,7 @@ function safeTech(user: any) {
     id: user.id,
     name: user.name,
     login: user.email,
+    email: user.email,
     phone: user.phone,
     active: user.active,
     createdAt: user.createdAt,
@@ -22,10 +23,16 @@ export async function GET() {
       orderBy: [{ active: "desc" }, { name: "asc" }],
     });
 
-    return NextResponse.json({
-      technicians: technicians.map(safeTech),
-      canManage: actor.role === "SUPER_ADMIN",
-    });
+    // Keep the response as an array for backwards compatibility with the
+    // previous technicians page, which called .map() directly on the JSON.
+    // The current page reads management capability from this response header.
+    const response = NextResponse.json(technicians.map(safeTech));
+    response.headers.set(
+      "X-Ventic-Can-Manage",
+      actor.role === "SUPER_ADMIN" ? "1" : "0",
+    );
+    response.headers.set("Cache-Control", "no-store, max-age=0");
+    return response;
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "تعذر تحميل الفنيين" },
@@ -44,13 +51,22 @@ export async function POST(req: Request) {
     const password = String(body?.password || "");
 
     if (!name || !login) {
-      return NextResponse.json({ error: "اسم الفني واسم الدخول مطلوبان" }, { status: 400 });
+      return NextResponse.json(
+        { error: "اسم الفني واسم الدخول مطلوبان" },
+        { status: 400 },
+      );
     }
     if (login.length < 3 || /\s/.test(login)) {
-      return NextResponse.json({ error: "اسم الدخول يجب أن يكون 3 أحرف على الأقل وبدون مسافات" }, { status: 400 });
+      return NextResponse.json(
+        { error: "اسم الدخول يجب أن يكون 3 أحرف على الأقل وبدون مسافات" },
+        { status: 400 },
+      );
     }
     if (password.length < 12) {
-      return NextResponse.json({ error: "كلمة المرور يجب ألا تقل عن 12 حرفًا" }, { status: 400 });
+      return NextResponse.json(
+        { error: "كلمة المرور يجب ألا تقل عن 12 حرفًا" },
+        { status: 400 },
+      );
     }
 
     const technician = await prisma.user.create({
@@ -82,7 +98,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ technician: safeTech(technician) }, { status: 201 });
   } catch (error: any) {
     if (error?.code === "P2002") {
-      return NextResponse.json({ error: "اسم الدخول مستخدم بالفعل" }, { status: 409 });
+      return NextResponse.json(
+        { error: "اسم الدخول مستخدم بالفعل" },
+        { status: 409 },
+      );
     }
     return NextResponse.json(
       { error: error.message || "تعذر إضافة الفني" },
