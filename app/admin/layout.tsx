@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth-v7";
+import AdminNotificationCenter from "./AdminNotificationCenter";
 
 export default async function AdminLayout({
   children,
@@ -12,5 +13,10 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <AdminNotificationCenter />
+      {children}
+    </>
+  );
 }

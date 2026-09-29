@@ -50,6 +50,7 @@ model User {
   technicianSlots TechnicianSlot[]
   technicianReviews Review[]
   inventoryMovements InventoryMovement[]
+  adminNotifications AdminNotification[]
 }
 model Customer {
   id String @id @default(cuid())
@@ -94,6 +95,7 @@ model Order {
   inventoryMovements InventoryMovement[]
   convertedLead Lead?
   notifications Notification[]
+  adminNotifications AdminNotification[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -180,7 +182,6 @@ model Quote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
 
 enum VenticEstimateStatus {
   DRAFT
@@ -511,4 +512,32 @@ model Notification {
   error String?
   sentAt DateTime?
   createdAt DateTime @default(now())
+}
+
+enum AdminNotificationType {
+  NEW_ORDER
+  ORDER_STATUS
+  TECHNICIAN_ASSIGNMENT
+  ORDER_COMPLETED
+  PAYMENT
+  QUOTATION_RESPONSE
+  SYSTEM
+}
+
+model AdminNotification {
+  id String @id @default(cuid())
+  recipientId String
+  recipient User @relation(fields:[recipientId], references:[id], onDelete:Cascade)
+  orderId String?
+  order Order? @relation(fields:[orderId], references:[id], onDelete:SetNull)
+  type AdminNotificationType
+  title String
+  message String
+  href String?
+  isRead Boolean @default(false)
+  readAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([recipientId,isRead,createdAt])
+  @@index([orderId])
 }
