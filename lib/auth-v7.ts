@@ -1,34 +1,57 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import {
+  CUSTOM_PERMISSIONS_MARKER,
+  ROLE_DEFAULT_PERMISSIONS,
+} from "@/lib/permission-config";
 
-export const PERMISSIONS = {
-  ORDERS_VIEW:"orders.view", ORDERS_EDIT:"orders.edit", ASSIGN_TECH:"orders.assign",
-  PRICE_EDIT:"price.edit", QUOTE_SEND:"quote.send", EXTRA_APPROVE:"extra.approve",
-  CUSTOMER_SENSITIVE:"customer.sensitive", USERS_MANAGE:"users.manage"
-} as const;
+export { PERMISSIONS } from "@/lib/permission-config";
 
-export async function currentUser(){
-  const jar=await cookies();
-  const raw=jar.get("ventic_session")?.value;
-  if(!raw) return null;
-  const hash=crypto.createHash("sha256").update(raw).digest("hex");
-  const session=await prisma.session.findUnique({where:{tokenHash:hash},include:{user:true}});
-  if(!session || session.expiresAt < new Date()) return null;
+export async function currentUser() {
+  const jar = await cookies();
+  const raw = jar.get("ventic_session")?.value;
+  if (!raw) return null;
+
+  const hash = crypto.createHash("sha256").update(raw).digest("hex");
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: hash },
+    include: { user: true },
+  });
+
+  if (!session || session.expiresAt < new Date() || !session.user.active) {
+    return null;
+  }
+
   return session.user;
 }
-export function can(role:string, permission:string){
-  if(role==="SUPER_ADMIN") return true;
-  const matrix:Record<string,string[]>={
-    ADMIN:["orders.view","orders.edit","orders.assign","price.edit","quote.send","extra.approve","customer.sensitive"],
-    CUSTOMER_SERVICE:["orders.view","orders.edit","quote.send","customer.sensitive"],
-    TECHNICIAN:["orders.view"]
-  };
-  return (matrix[role]||[]).includes(permission);
+
+export function can(
+  role: string,
+  permission: string,
+  permissions: string[] = [],
+) {
+  if (role === "SUPER_ADMIN") return true;
+
+  if (permissions.includes(CUSTOM_PERMISSIONS_MARKER)) {
+    return permissions.includes(permission);
+  }
+
+  return (ROLE_DEFAULT_PERMISSIONS[role] || []).some(
+    (item) => item === permission,
+  );
 }
-export async function requirePermission(permission:string){
-  const user=await currentUser();
-  if(!user) throw new Error("UNAUTHENTICATED");
-  if(!can(user.role,permission)) throw new Error("FORBIDDEN");
+
+export async function requirePermission(permission: string) {
+  const user = await currentUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  if (!can(user.role, permission, user.permissions)) throw new Error("FORBIDDEN");
+  return user;
+}
+
+export async function requireSuperAdmin() {
+  const user = await currentUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  if (user.role !== "SUPER_ADMIN") throw new Error("FORBIDDEN");
   return user;
 }

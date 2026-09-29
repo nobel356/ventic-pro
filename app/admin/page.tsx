@@ -1,5 +1,70 @@
-import Link from "next/link";import {prisma} from "@/lib/prisma";
-export default async function Admin(){
- const [orders,newOrders,customers,openTickets,leads]=await Promise.all([prisma.order.count(),prisma.order.count({where:{status:"NEW"}}),prisma.customer.count(),prisma.complaint.count({where:{status:{in:["OPEN","SCHEDULED","IN_PROGRESS"]}}}),prisma.lead.count({where:{status:{in:["STARTED","CONTACTED"]}}})]);
- return <main className="adminShell"><aside className="adminSide"><div className="brand"><i>V</i> Ventic Pro</div><nav><Link href="/admin">الرئيسية</Link><Link href="/admin/orders">الطلبات</Link><Link href="/admin/customers">العملاء</Link><Link href="/admin/leads">الطلبات غير المكتملة</Link><Link href="/admin/inventory">المخزون</Link><Link href="/admin/aftercare">ما بعد التركيب</Link><Link href="/admin/reports">التقارير</Link></nav></aside><section className="adminMain"><h1>لوحة التشغيل</h1><p>نظرة سريعة على Ventic Pro اليوم.</p><div className="adminStats"><Card n={orders} t="كل الطلبات"/><Card n={newOrders} t="طلبات جديدة"/><Card n={customers} t="العملاء"/><Card n={openTickets} t="شكاوى مفتوحة"/><Card n={leads} t="طلبات غير مكتملة"/></div><div className="adminQuick"><h2>اختصارات</h2><div><Link href="/admin/orders">إدارة الطلبات</Link><Link href="/admin/inventory">مراجعة المخزون</Link><Link href="/admin/aftercare">الصيانة والضمان</Link><Link href="/admin/reports">التقارير</Link></div></div></section></main>}
-function Card({n,t}:{n:number|string,t:string}){return <div className="statCard"><b>{n}</b><span>{t}</span></div>}
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { currentUser } from "@/lib/auth-v7";
+
+export default async function Admin() {
+  const user = await currentUser();
+  const [orders, newOrders, customers, openTickets, leads] = await Promise.all([
+    prisma.order.count(),
+    prisma.order.count({ where: { status: "NEW" } }),
+    prisma.customer.count(),
+    prisma.complaint.count({
+      where: { status: { in: ["OPEN", "SCHEDULED", "IN_PROGRESS"] } },
+    }),
+    prisma.lead.count({ where: { status: { in: ["STARTED", "CONTACTED"] } } }),
+  ]);
+
+  return (
+    <main className="adminShell">
+      <aside className="adminSide">
+        <div className="brand">
+          <i>V</i> Ventic Pro
+        </div>
+        <nav>
+          <Link href="/admin">الرئيسية</Link>
+          <Link href="/admin/orders">الطلبات</Link>
+          <Link href="/admin/customers">العملاء</Link>
+          <Link href="/admin/leads">الطلبات غير المكتملة</Link>
+          <Link href="/admin/inventory">المخزون</Link>
+          <Link href="/admin/aftercare">ما بعد التركيب</Link>
+          <Link href="/admin/reports">التقارير</Link>
+          {user?.role === "SUPER_ADMIN" && (
+            <Link href="/admin/users">المستخدمون والصلاحيات</Link>
+          )}
+        </nav>
+      </aside>
+      <section className="adminMain">
+        <h1>لوحة التشغيل</h1>
+        <p>نظرة سريعة على Ventic Pro اليوم.</p>
+        <div className="adminStats">
+          <Card n={orders} t="كل الطلبات" />
+          <Card n={newOrders} t="طلبات جديدة" />
+          <Card n={customers} t="العملاء" />
+          <Card n={openTickets} t="شكاوى مفتوحة" />
+          <Card n={leads} t="طلبات غير مكتملة" />
+        </div>
+        <div className="adminQuick">
+          <h2>اختصارات</h2>
+          <div>
+            <Link href="/admin/orders">إدارة الطلبات</Link>
+            <Link href="/admin/inventory">مراجعة المخزون</Link>
+            <Link href="/admin/aftercare">الصيانة والضمان</Link>
+            <Link href="/admin/reports">التقارير</Link>
+            {user?.role === "SUPER_ADMIN" && (
+              <Link href="/admin/users">المستخدمون والصلاحيات</Link>
+            )}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Card({ n, t }: { n: number | string; t: string }) {
+  return (
+    <div className="statCard">
+      <b>{n}</b>
+      <span>{t}</span>
+    </div>
+  );
+}
