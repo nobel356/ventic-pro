@@ -18,6 +18,8 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [techs, setTechs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionMessage, setActionMessage] = useState("");
+  const [actionError, setActionError] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [technician, setTechnician] = useState("");
@@ -95,22 +97,51 @@ export default function AdminOrders() {
   }, [orders, search, status, technician, area, date]);
 
   async function change(id: string, nextStatus: string) {
-    await fetch(`/api/admin/orders/${id}`, {
+    setActionMessage("");
+    const response = await fetch(`/api/admin/orders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: nextStatus }),
     });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setActionError(true);
+      setActionMessage(data?.error || "تعذر تحديث حالة الطلب");
+      return;
+    }
+
+    setActionError(false);
+    setActionMessage("تم تحديث حالة الطلب.");
     await load();
   }
 
   async function assign(id: string, technicianId: string) {
     if (!technicianId) return;
 
-    await fetch(`/api/admin/orders/${id}/assign`, {
+    setActionMessage("");
+
+    const response = await fetch(`/api/admin/orders/${id}/assign`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ technicianId }),
     });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setActionError(true);
+      setActionMessage(
+        data?.error ||
+          "تعذر تعيين الفني أو إنشاء الموعد في الجدول",
+      );
+      return;
+    }
+
+    setActionError(false);
+    setActionMessage(
+      "تم تعيين الفني وإنشاء الموعد تلقائيًا في جدول الفنيين.",
+    );
     await load();
   }
 
@@ -141,12 +172,32 @@ export default function AdminOrders() {
         <div className="adminTitle">
           <div>
             <h1>الطلبات</h1>
-            <p>بحث وفلترة ومتابعة الحالة وتعيين الفني.</p>
+            <p>
+              بحث وفلترة ومتابعة الحالة. اختيار الفني ينشئ موعده تلقائيًا.
+            </p>
           </div>
           <span>
             {filtered.length} من {orders.length} طلب
           </span>
         </div>
+
+        {actionMessage && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: 12,
+              borderRadius: 12,
+              background: actionError ? "#fef2f2" : "#f0fdf4",
+              border: `1px solid ${
+                actionError ? "#fecaca" : "#bbf7d0"
+              }`,
+              color: actionError ? "#991b1b" : "#166534",
+              fontWeight: 800,
+            }}
+          >
+            {actionMessage}
+          </div>
+        )}
 
         <div
           style={{

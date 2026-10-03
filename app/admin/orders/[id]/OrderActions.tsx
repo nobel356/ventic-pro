@@ -14,24 +14,43 @@ const statuses = {
   CANCELLED: "ملغي",
 };
 
+const standardTimes = [
+  "10 ص - 1 م",
+  "1 م - 4 م",
+  "4 م - 7 م",
+  "7 م - 10 م",
+];
+
 export default function OrderActions({
   orderId,
   currentStatus,
   technicianId,
+  preferredDate,
+  preferredTime,
   technicians,
 }: {
   orderId: string;
   currentStatus: string;
   technicianId?: string | null;
+  preferredDate?: string | null;
+  preferredTime?: string | null;
   technicians: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageError, setMessageError] = useState(false);
+  const [date, setDate] = useState(preferredDate || "");
+  const [time, setTime] = useState(preferredTime || "");
 
-  async function request(url: string, body: any) {
+  async function request(
+    url: string,
+    body: any,
+    successMessage = "تم الحفظ بنجاح",
+  ) {
     setLoading(true);
     setMessage("");
+    setMessageError(false);
 
     try {
       const res = await fetch(url, {
@@ -46,14 +65,21 @@ export default function OrderActions({
         throw new Error(data.error || "حدث خطأ");
       }
 
-      setMessage("تم الحفظ بنجاح");
+      setMessage(successMessage);
+      setMessageError(false);
       router.refresh();
+      return true;
     } catch (e: any) {
       setMessage(e.message || "تعذر تنفيذ العملية");
+      setMessageError(true);
+      return false;
     } finally {
       setLoading(false);
     }
   }
+
+  const hasCustomTime =
+    Boolean(time) && !standardTimes.includes(time);
 
   return (
     <div
@@ -81,16 +107,13 @@ export default function OrderActions({
             disabled={loading}
             defaultValue={currentStatus}
             onChange={(e) =>
-              request(`/api/admin/orders/${orderId}`, {
-                status: e.target.value,
-              })
+              void request(
+                `/api/admin/orders/${orderId}`,
+                { status: e.target.value },
+                "تم تحديث حالة الطلب",
+              )
             }
-            style={{
-              width: "100%",
-              marginTop: 8,
-              padding: 12,
-              borderRadius: 10,
-            }}
+            style={fieldStyle}
           >
             {Object.entries(statuses).map(([value, label]) => (
               <option key={value} value={value}>
@@ -109,16 +132,15 @@ export default function OrderActions({
             onChange={(e) => {
               if (!e.target.value) return;
 
-              request(`/api/admin/orders/${orderId}/assign`, {
-                technicianId: e.target.value,
-              });
+              void request(
+                `/api/admin/orders/${orderId}/assign`,
+                {
+                  technicianId: e.target.value,
+                },
+                "تم تعيين الفني وإنشاء الموعد تلقائيًا في جدول الفنيين",
+              );
             }}
-            style={{
-              width: "100%",
-              marginTop: 8,
-              padding: 12,
-              borderRadius: 10,
-            }}
+            style={fieldStyle}
           >
             <option value="">غير معين</option>
 
@@ -128,8 +150,77 @@ export default function OrderActions({
               </option>
             ))}
           </select>
+
+          <small
+            style={{
+              display: "block",
+              color: "#64748b",
+              marginTop: 6,
+            }}
+          >
+            عند اختيار الفني يتم حجز موعد الطلب تلقائيًا بعد فحص التعارض.
+          </small>
+        </label>
+
+        <label>
+          <strong>تاريخ الموعد</strong>
+          <input
+            type="date"
+            value={date}
+            disabled={loading}
+            onChange={(event) => setDate(event.target.value)}
+            style={fieldStyle}
+          />
+        </label>
+
+        <label>
+          <strong>فترة الموعد</strong>
+          <select
+            value={time}
+            disabled={loading}
+            onChange={(event) => setTime(event.target.value)}
+            style={fieldStyle}
+          >
+            <option value="">اختر الفترة</option>
+            {hasCustomTime && <option value={time}>{time}</option>}
+            {standardTimes.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
+
+      <button
+        type="button"
+        disabled={loading || !date || !time}
+        onClick={() =>
+          void request(
+            `/api/admin/orders/${orderId}`,
+            {
+              preferredDate: date,
+              preferredTime: time,
+            },
+            technicianId
+              ? "تم تحديث الموعد وتحديث جدول الفني تلقائيًا"
+              : "تم تحديث موعد الطلب",
+          )
+        }
+        style={{
+          marginTop: 16,
+          border: 0,
+          borderRadius: 10,
+          background: "#0f2d4a",
+          color: "white",
+          minHeight: 42,
+          padding: "0 16px",
+          fontWeight: 800,
+          cursor: loading ? "wait" : "pointer",
+        }}
+      >
+        حفظ الموعد
+      </button>
 
       {message && (
         <p
@@ -137,6 +228,7 @@ export default function OrderActions({
             marginBottom: 0,
             marginTop: 14,
             fontWeight: 700,
+            color: messageError ? "#b91c1c" : "#166534",
           }}
         >
           {message}
@@ -145,3 +237,15 @@ export default function OrderActions({
     </div>
   );
 }
+
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: 8,
+  minHeight: 44,
+  padding: "0 12px",
+  borderRadius: 10,
+  border: "1px solid #cbd5e1",
+  boxSizing: "border-box",
+  background: "white",
+  font: "inherit",
+};

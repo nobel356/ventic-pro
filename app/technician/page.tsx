@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AccountMenu from "@/app/shared/AccountMenu";
 
 const status: Record<string, string> = {
   ASSIGNED: "تم التعيين",
@@ -39,7 +38,6 @@ export default function Technician() {
 
   return (
     <main className="tech">
-      <AccountMenu />
       <header>
         <div className="brand">
           <i>V</i> Ventic Pro
@@ -82,11 +80,20 @@ export default function Technician() {
                     اتصال بالعميل
                   </a>
                   <div className="jobActions">
-                    <button onClick={() => void change(order.id, "ON_THE_WAY")}>في الطريق</button>
-                    <button onClick={() => void change(order.id, "ARRIVED")}>وصلت</button>
-                    <button onClick={() => void change(order.id, "IN_PROGRESS")}>بدأت التركيب</button>
+                    <button onClick={() => void change(order.id, "ON_THE_WAY")}>
+                      في الطريق
+                    </button>
+                    <button onClick={() => void change(order.id, "ARRIVED")}>
+                      وصلت
+                    </button>
+                    <button onClick={() => void change(order.id, "IN_PROGRESS")}>
+                      بدأت التركيب
+                    </button>
                   </div>
-                  <a className="button full" href={`/technician/orders/${order.id}`}>
+                  <a
+                    className="button full"
+                    href={`/technician/orders/${order.id}`}
+                  >
                     فتح تفاصيل التنفيذ ←
                   </a>
                 </article>

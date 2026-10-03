@@ -93,7 +93,19 @@ export default async function Admin() {
       _sum: { due: true },
     }),
     prisma.technicianSlot.findMany({
-      where: { startsAt: { gte: now } },
+      where: {
+        startsAt: { gte: now },
+        OR: [
+          { orderId: null },
+          {
+            order: {
+              status: {
+                notIn: ["COMPLETED", "CANCELLED"],
+              },
+            },
+          },
+        ],
+      },
       include: {
         technician: { select: { id: true, name: true } },
         order: {

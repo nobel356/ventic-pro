@@ -23,6 +23,7 @@ const spaceLabels: Record<string, string> = {
 const actionLabels: Record<string, string> = {
   ORDER_CREATED: "إنشاء الطلب",
   ORDER_STATUS_CHANGED: "تغيير حالة الطلب",
+  ORDER_APPOINTMENT_CHANGED: "تعديل موعد الطلب",
   TECHNICIAN_ASSIGNED: "تعيين فني",
   PAYMENT_RECORDED: "تسجيل دفعة",
   VENTIC_ESTIMATE_CREATED: "إنشاء مقايسة Ventic Pro",
@@ -34,7 +35,7 @@ const actionLabels: Record<string, string> = {
   ORDER_COMPLETED: "إتمام الطلب",
   COMPLETION_OTP_SENT: "إصدار كود إتمام",
   TECHNICIAN_SLOT_CREATED: "إضافة موعد للفني",
-  TECHNICIAN_SLOT_DELETED: "حذف موعد فني",
+  TECHNICIAN_SLOT_DELETED: "إلغاء موعد فني",
 };
 
 function money(value: unknown) {
@@ -94,7 +95,7 @@ export default async function OrderDetailsPage({
           },
         },
         orderBy: { startsAt: "desc" },
-        take: 10,
+        take: 20,
       },
     },
   });
@@ -171,6 +172,8 @@ export default async function OrderDetailsPage({
           orderId={order.id}
           currentStatus={order.status}
           technicianId={order.technicianId}
+          preferredDate={order.preferredDate}
+          preferredTime={order.preferredTime}
           technicians={technicians}
         />
 
@@ -221,10 +224,7 @@ export default async function OrderDetailsPage({
           </article>
         </div>
 
-        <div
-          className="adminQuick"
-          style={{ marginTop: 24 }}
-        >
+        <div className="adminQuick" style={{ marginTop: 24 }}>
           <div
             style={{
               display: "flex",
@@ -237,7 +237,7 @@ export default async function OrderDetailsPage({
             <div>
               <h2 style={{ marginBottom: 6 }}>مواعيد الفني على الطلب</h2>
               <p style={{ marginTop: 0 }}>
-                المواعيد المسجلة فعليًا في تقويم الفنيين.
+                الموعد المرتبط بالطلب. أي تغيير في الموعد يتم تسجيله بالكامل في Timeline.
               </p>
             </div>
             <Link href="/admin/schedule">إدارة الجدول</Link>
@@ -251,12 +251,34 @@ export default async function OrderDetailsPage({
                 <div
                   key={slot.id}
                   style={{
-                    border: "1px solid #e2e8f0",
+                    border: "1px solid #bbf7d0",
+                    background: "#f0fdf4",
                     borderRadius: 12,
                     padding: 12,
                   }}
                 >
-                  <strong>{slot.technician.name}</strong>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <strong>{slot.technician.name}</strong>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 800,
+                        borderRadius: 999,
+                        padding: "4px 9px",
+                        background: "#dcfce7",
+                        color: "#166534",
+                      }}
+                    >
+                      موعد مرتبط بالطلب
+                    </span>
+                  </div>
                   <p style={{ margin: "5px 0 0" }}>
                     {cairoDateTime(slot.startsAt)} →{" "}
                     {cairoDateTime(slot.endsAt)}
@@ -338,11 +360,7 @@ export default async function OrderDetailsPage({
           <VenticEstimateEditor orderId={order.id} />
         </div>
 
-        <div
-          id="financials"
-          className="cards"
-          style={{ marginTop: 24 }}
-        >
+        <div id="financials" className="cards" style={{ marginTop: 24 }}>
           <article className="miniCard">
             <h3>المدفوعات والفاتورة</h3>
 
@@ -405,11 +423,7 @@ export default async function OrderDetailsPage({
           </article>
         </div>
 
-        <div
-          id="timeline"
-          className="adminQuick"
-          style={{ marginTop: 24 }}
-        >
+        <div id="timeline" className="adminQuick" style={{ marginTop: 24 }}>
           <h2>Timeline الطلب</h2>
           <p>
             أحدث الأحداث أولًا، مع المستخدم أو الجهة التي نفذت كل تغيير.

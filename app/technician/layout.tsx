@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth-v7";
-import AdminNotificationCenter from "./AdminNotificationCenter";
 import AccountMenu from "@/app/shared/AccountMenu";
 import BackButton from "@/app/shared/BackButton";
 
-export default async function AdminLayout({
+export default async function TechnicianLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -15,15 +14,14 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  if (user.role === "TECHNICIAN") {
-    redirect("/technician");
+  if (user.role !== "TECHNICIAN") {
+    redirect("/admin");
   }
 
   return (
     <>
       <AccountMenu />
-      <AdminNotificationCenter />
-      <BackButton fallbackHref="/admin" />
+      <BackButton fallbackHref="/technician" />
       {children}
     </>
   );

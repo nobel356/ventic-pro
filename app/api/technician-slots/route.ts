@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth-v7";
 import { audit } from "@/lib/audit";
 import { notifyAdmins } from "@/lib/admin-notifications";
+import { formatAppointmentForOrder } from "@/lib/order-appointment";
 
 function validDate(value: string | null) {
   if (!value) return null;
@@ -39,6 +40,16 @@ export async function GET(req: Request) {
       where: {
         startsAt: { lt: end },
         endsAt: { gt: start },
+        OR: [
+          { orderId: null },
+          {
+            order: {
+              status: {
+                notIn: ["COMPLETED", "CANCELLED"],
+              },
+            },
+          },
+        ],
       },
       include: {
         technician: {
@@ -125,12 +136,34 @@ export async function POST(req: Request) {
         technicianId,
         startsAt: { lt: end },
         endsAt: { gt: start },
+        ...(orderId ? { NOT: { orderId } } : {}),
+        OR: [
+          { orderId: null },
+          {
+            order: {
+              status: {
+                notIn: ["COMPLETED", "CANCELLED"],
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        order: {
+          select: { orderNo: true },
+        },
       },
     });
 
     if (clash) {
       return NextResponse.json(
-        { error: "الفني لديه حجز متعارض في هذا الوقت" },
+        {
+          error: `الفني لديه حجز متعارض${
+            clash.order?.orderNo
+              ? ` مع الطلب ${clash.order.orderNo}`
+              : ""
+          } في هذا الوقت`,
+        },
         { status: 409 },
       );
     }
@@ -173,35 +206,69 @@ export async function POST(req: Request) {
       }
     }
 
+    const oldSlot = orderId
+      ? await prisma.technicianSlot.findFirst({
+          where: { orderId },
+          orderBy: { createdAt: "desc" },
+        })
+      : null;
+
+    const orderAppointment = formatAppointmentForOrder(start, end);
+
     const slot = await prisma.$transaction(async (tx) => {
-      const created = await tx.technicianSlot.create({
-        data: {
-          technicianId,
-          orderId,
-          startsAt: start,
-          endsAt: end,
-        },
-        include: {
-          technician: {
-            select: { id: true, name: true },
-          },
-          order: {
-            select: {
-              id: true,
-              orderNo: true,
-              customer: {
-                select: { name: true },
+      const savedSlot = oldSlot
+        ? await tx.technicianSlot.update({
+            where: { id: oldSlot.id },
+            data: {
+              technicianId,
+              startsAt: start,
+              endsAt: end,
+            },
+            include: {
+              technician: {
+                select: { id: true, name: true },
+              },
+              order: {
+                select: {
+                  id: true,
+                  orderNo: true,
+                  customer: {
+                    select: { name: true },
+                  },
+                },
               },
             },
-          },
-        },
-      });
+          })
+        : await tx.technicianSlot.create({
+            data: {
+              technicianId,
+              orderId,
+              startsAt: start,
+              endsAt: end,
+            },
+            include: {
+              technician: {
+                select: { id: true, name: true },
+              },
+              order: {
+                select: {
+                  id: true,
+                  orderNo: true,
+                  customer: {
+                    select: { name: true },
+                  },
+                },
+              },
+            },
+          });
 
       if (orderId && order) {
         await tx.order.update({
           where: { id: orderId },
           data: {
             technicianId,
+            preferredDate: orderAppointment.preferredDate,
+            preferredTime: orderAppointment.preferredTime,
             status:
               order.status === "NEW" ||
               order.status === "CONFIRMED"
@@ -211,7 +278,7 @@ export async function POST(req: Request) {
         });
       }
 
-      return created;
+      return savedSlot;
     });
 
     await audit({
@@ -219,12 +286,22 @@ export async function POST(req: Request) {
       actorId: actor.id,
       actorLabel: actor.name,
       action: "TECHNICIAN_SLOT_CREATED",
+      oldValue: oldSlot
+        ? {
+            slotId: oldSlot.id,
+            technicianId: oldSlot.technicianId,
+            startsAt: oldSlot.startsAt.toISOString(),
+            endsAt: oldSlot.endsAt.toISOString(),
+          }
+        : undefined,
       newValue: {
         slotId: slot.id,
         technicianId,
         technicianName: technician.name,
         startsAt: start.toISOString(),
         endsAt: end.toISOString(),
+        preferredDate: orderAppointment.preferredDate,
+        preferredTime: orderAppointment.preferredTime,
       },
     });
 
@@ -238,7 +315,9 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json(slot, { status: 201 });
+    return NextResponse.json(slot, {
+      status: oldSlot ? 200 : 201,
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "تعذر إنشاء الموعد" },
