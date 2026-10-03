@@ -42,6 +42,7 @@ export default function OrderActions({
   const [messageError, setMessageError] = useState(false);
   const [date, setDate] = useState(preferredDate || "");
   const [time, setTime] = useState(preferredTime || "");
+  const completed = currentStatus === "COMPLETED";
 
   async function request(
     url: string,
@@ -58,12 +59,8 @@ export default function OrderActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "حدث خطأ");
-      }
+      if (!res.ok) throw new Error(data.error || "حدث خطأ");
 
       setMessage(successMessage);
       setMessageError(false);
@@ -78,8 +75,10 @@ export default function OrderActions({
     }
   }
 
-  const hasCustomTime =
-    Boolean(time) && !standardTimes.includes(time);
+  const hasCustomTime = Boolean(time) && !standardTimes.includes(time);
+  const statusOptions = Object.entries(statuses).filter(
+    ([value]) => value !== "COMPLETED" || currentStatus === "COMPLETED",
+  );
 
   return (
     <div
@@ -93,6 +92,22 @@ export default function OrderActions({
     >
       <h2 style={{ marginTop: 0 }}>إدارة الطلب</h2>
 
+      {completed && (
+        <div
+          style={{
+            marginBottom: 14,
+            padding: 11,
+            borderRadius: 10,
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            color: "#166534",
+            fontWeight: 700,
+          }}
+        >
+          الطلب مكتمل ومغلق تشغيليًا. بيانات الفني والميعاد محفوظة كسجل تاريخي.
+        </div>
+      )}
+
       <div
         style={{
           display: "grid",
@@ -102,9 +117,8 @@ export default function OrderActions({
       >
         <label>
           <strong>حالة الطلب</strong>
-
           <select
-            disabled={loading}
+            disabled={loading || completed}
             defaultValue={currentStatus}
             onChange={(e) =>
               void request(
@@ -115,50 +129,43 @@ export default function OrderActions({
             }
             style={fieldStyle}
           >
-            {Object.entries(statuses).map(([value, label]) => (
+            {statusOptions.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
           </select>
+          {!completed && (
+            <small style={hintStyle}>
+              الإتمام النهائي لا يتم من هنا؛ يتم من شاشة الفني بعد الصور والخامات وكود العميل، حتى تعمل الفاتورة والضمان تلقائيًا.
+            </small>
+          )}
         </label>
 
         <label>
           <strong>الفني المسؤول</strong>
-
           <select
-            disabled={loading}
+            disabled={loading || completed}
             defaultValue={technicianId || ""}
             onChange={(e) => {
               if (!e.target.value) return;
-
               void request(
                 `/api/admin/orders/${orderId}/assign`,
-                {
-                  technicianId: e.target.value,
-                },
+                { technicianId: e.target.value },
                 "تم تعيين الفني وإنشاء الموعد تلقائيًا في جدول الفنيين",
               );
             }}
             style={fieldStyle}
           >
             <option value="">غير معين</option>
-
             {technicians.map((tech) => (
               <option key={tech.id} value={tech.id}>
                 {tech.name}
               </option>
             ))}
           </select>
-
-          <small
-            style={{
-              display: "block",
-              color: "#64748b",
-              marginTop: 6,
-            }}
-          >
-            عند اختيار الفني يتم حجز موعد الطلب تلقائيًا بعد فحص التعارض.
+          <small style={hintStyle}>
+            اختيار الفني يحجز موعد الطلب تلقائيًا بعد فحص التعارض.
           </small>
         </label>
 
@@ -167,7 +174,7 @@ export default function OrderActions({
           <input
             type="date"
             value={date}
-            disabled={loading}
+            disabled={loading || completed}
             onChange={(event) => setDate(event.target.value)}
             style={fieldStyle}
           />
@@ -177,7 +184,7 @@ export default function OrderActions({
           <strong>فترة الموعد</strong>
           <select
             value={time}
-            disabled={loading}
+            disabled={loading || completed}
             onChange={(event) => setTime(event.target.value)}
             style={fieldStyle}
           >
@@ -192,35 +199,34 @@ export default function OrderActions({
         </label>
       </div>
 
-      <button
-        type="button"
-        disabled={loading || !date || !time}
-        onClick={() =>
-          void request(
-            `/api/admin/orders/${orderId}`,
-            {
-              preferredDate: date,
-              preferredTime: time,
-            },
-            technicianId
-              ? "تم تحديث الموعد وتحديث جدول الفني تلقائيًا"
-              : "تم تحديث موعد الطلب",
-          )
-        }
-        style={{
-          marginTop: 16,
-          border: 0,
-          borderRadius: 10,
-          background: "#0f2d4a",
-          color: "white",
-          minHeight: 42,
-          padding: "0 16px",
-          fontWeight: 800,
-          cursor: loading ? "wait" : "pointer",
-        }}
-      >
-        حفظ الموعد
-      </button>
+      {!completed && (
+        <button
+          type="button"
+          disabled={loading || !date || !time}
+          onClick={() =>
+            void request(
+              `/api/admin/orders/${orderId}`,
+              { preferredDate: date, preferredTime: time },
+              technicianId
+                ? "تم تحديث الموعد وتحديث جدول الفني تلقائيًا"
+                : "تم تحديث موعد الطلب",
+            )
+          }
+          style={{
+            marginTop: 16,
+            border: 0,
+            borderRadius: 10,
+            background: "#0f2d4a",
+            color: "white",
+            minHeight: 42,
+            padding: "0 16px",
+            fontWeight: 800,
+            cursor: loading ? "wait" : "pointer",
+          }}
+        >
+          حفظ الموعد
+        </button>
+      )}
 
       {message && (
         <p
@@ -248,4 +254,11 @@ const fieldStyle: React.CSSProperties = {
   boxSizing: "border-box",
   background: "white",
   font: "inherit",
+};
+
+const hintStyle: React.CSSProperties = {
+  display: "block",
+  color: "#64748b",
+  marginTop: 6,
+  lineHeight: 1.5,
 };

@@ -1,15 +1,69 @@
-import {NextResponse} from "next/server";
-import {prisma} from "@/lib/prisma";
-import {requirePermission} from "@/lib/auth-v7";
-export async function POST(req:Request,{params}:{params:Promise<{orderId:string}>}){
- try{
-  await requirePermission("orders.edit"); const {orderId}=await params; const {discount=0}=await req.json();
-  const o=await prisma.order.findUnique({where:{id:orderId},include:{payments:true}});
-  if(!o)return NextResponse.json({error:"الطلب غير موجود"},{status:404});
-  const subtotal=Number(o.finalTotal??o.estimatedTotal??0),total=Math.max(0,subtotal-Number(discount));
-  const paid=o.payments.filter(x=>x.status==="PAID").reduce((s,x)=>s+Number(x.amount),0);
-  const invoiceNo=`INV-${new Date().getFullYear()}-${Date.now().toString().slice(-7)}`;
-  const inv=await prisma.invoice.upsert({where:{orderId},update:{subtotal,discount,total,paid,due:Math.max(0,total-paid)},create:{invoiceNo,orderId,subtotal,discount,total,paid,due:Math.max(0,total-paid)}});
-  return NextResponse.json(inv);
- }catch(e:any){return NextResponse.json({error:e.message},{status:403})}
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/auth-v7";
+import { syncOrderInvoice } from "@/lib/order-financials";
+
+export async function POST(
+  _req: Request,
+  { params }: { params: Promise<{ orderId: string }> },
+) {
+  try {
+    const user = await requirePermission("orders.edit");
+    const { orderId } = await params;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, orderNo: true },
+    });
+    if (!order) {
+      return NextResponse.json({ error: "الطلب غير موجود" }, { status: 404 });
+    }
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const synced = await syncOrderInvoice(tx, orderId);
+        await tx.auditLog.create({
+          data: {
+            orderId,
+            actorId: user.id,
+            actorLabel: user.name,
+            action: "INVOICE_SYNCED",
+            newValue: {
+              invoiceId: synced.invoice.id,
+              subtotal: synced.financials.subtotal,
+              discount: synced.financials.discount,
+              approvedExtras: synced.financials.approvedExtras,
+              total: synced.financials.total,
+              paid: synced.financials.paid,
+              due: synced.financials.due,
+              source: synced.financials.source,
+            },
+          },
+        });
+        return synced;
+      },
+      { isolationLevel: "Serializable" },
+    );
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    if (error.message === "QUOTE_NOT_ACCEPTED") {
+      return NextResponse.json(
+        { error: "لا يمكن إصدار فاتورة نهائية قبل اعتماد مقايسة Ventic Pro من العميل." },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json(
+      { error: error.message || "تعذر مزامنة الفاتورة" },
+      {
+        status:
+          error.message === "UNAUTHENTICATED"
+            ? 401
+            : error.message === "FORBIDDEN"
+              ? 403
+              : 500,
+      },
+    );
+  }
 }

@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import OrderActions from "./OrderActions";
 import VenticEstimateEditor from "./VenticEstimateEditor";
+import UnifiedOrderCenter from "./UnifiedOrderCenter";
+import { calculateOrderFinancials } from "@/lib/order-financials";
+import { getOrderMaterialState } from "@/lib/order-materials";
+import { parseInventoryNote } from "@/lib/inventory";
 
 const statusLabels: Record<string, string> = {
   NEW: "جديد",
@@ -26,20 +30,30 @@ const actionLabels: Record<string, string> = {
   ORDER_APPOINTMENT_CHANGED: "تعديل موعد الطلب",
   TECHNICIAN_ASSIGNED: "تعيين فني",
   PAYMENT_RECORDED: "تسجيل دفعة",
+  INVOICE_SYNCED: "مزامنة الفاتورة",
   VENTIC_ESTIMATE_CREATED: "إنشاء مقايسة Ventic Pro",
   VENTIC_ESTIMATE_UPDATED: "تعديل المقايسة",
   VENTIC_ESTIMATE_SENT: "إرسال المقايسة للعميل",
   VENTIC_ESTIMATE_ACCEPTED: "العميل وافق على المقايسة",
   VENTIC_ESTIMATE_REJECTED: "العميل رفض المقايسة",
   EXTRA_CHARGE_REQUESTED: "طلب تكلفة إضافية",
+  EXTRA_CHARGE_ACCEPTED: "العميل وافق على تكلفة إضافية",
+  EXTRA_CHARGE_REJECTED: "العميل رفض تكلفة إضافية",
+  ORDER_MATERIAL_USED: "استخدام خامة في التنفيذ",
+  ORDER_MATERIALS_CONFIRMED_NONE: "تأكيد عدم استخدام خامات",
+  WARRANTY_AUTO_CREATED: "تفعيل الضمان تلقائيًا",
   ORDER_COMPLETED: "إتمام الطلب",
+  ORDER_COMPLETED_WITH_OTP: "إتمام الطلب بكود العميل",
   COMPLETION_OTP_SENT: "إصدار كود إتمام",
+  COMPLETION_OTP_ISSUED: "إصدار كود إتمام",
   TECHNICIAN_SLOT_CREATED: "إضافة موعد للفني",
   TECHNICIAN_SLOT_DELETED: "إلغاء موعد فني",
 };
 
 function money(value: unknown) {
-  return Number(value || 0).toLocaleString("ar-EG");
+  return Number(value || 0).toLocaleString("ar-EG", {
+    maximumFractionDigits: 2,
+  });
 }
 
 function cairoDateTime(value: Date | string) {
@@ -81,12 +95,38 @@ export default async function OrderDetailsPage({
       quotes: {
         orderBy: { createdAt: "desc" },
       },
+      venticEstimates: {
+        orderBy: { version: "desc" },
+      },
       extraCharges: {
+        orderBy: { createdAt: "desc" },
+      },
+      warranties: {
+        orderBy: { createdAt: "desc" },
+      },
+      review: true,
+      inventoryMovements: {
+        include: {
+          item: {
+            select: {
+              id: true,
+              sku: true,
+              nameAr: true,
+              unit: true,
+            },
+          },
+          technician: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
         orderBy: { createdAt: "desc" },
       },
       auditLogs: {
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 80,
       },
       technicianSlots: {
         include: {
@@ -102,45 +142,197 @@ export default async function OrderDetailsPage({
 
   if (!order) notFound();
 
-  const technicians = await prisma.user.findMany({
-    where: {
-      role: "TECHNICIAN",
-      active: true,
+  const [technicians, finance, materialState] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        role: "TECHNICIAN",
+        active: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    }),
+    calculateOrderFinancials(prisma, id),
+    getOrderMaterialState(
+      prisma,
+      id,
+      order.technicianId,
+    ),
+  ]);
+
+  const acceptedEstimate =
+    order.venticEstimates.find(
+      (estimate) => estimate.status === "ACCEPTED",
+    ) || null;
+
+  const latestEstimate =
+    order.venticEstimates[0] || null;
+
+  const beforeCount = order.attachments.filter(
+    (item) => item.kind === "BEFORE",
+  ).length;
+
+  const afterCount = order.attachments.filter(
+    (item) => item.kind === "AFTER",
+  ).length;
+
+  const hasAppointment =
+    Boolean(order.technicianId) &&
+    Boolean(order.preferredDate) &&
+    Boolean(order.preferredTime) &&
+    order.technicianSlots.length > 0;
+
+  const invoice = order.invoice
+    ? {
+        id: order.invoice.id,
+        invoiceNo: order.invoice.invoiceNo,
+        total: Number(order.invoice.total),
+        paid: Number(order.invoice.paid),
+        due: Number(order.invoice.due),
+      }
+    : null;
+
+  const invoiceNeedsSync =
+    finance.authoritative &&
+    (!invoice ||
+    Math.abs(invoice.total - finance.total) > 0.009 ||
+    Math.abs(invoice.paid - finance.paid) > 0.009 ||
+    Math.abs(invoice.due - finance.due) > 0.009);
+
+  const warranty = order.warranties[0] || null;
+
+  const steps = [
+    {
+      key: "quote",
+      label: "المقايسة",
+      detail: acceptedEstimate
+        ? `معتمدة — إصدار ${acceptedEstimate.version}`
+        : latestEstimate?.status === "SENT"
+          ? "مرسلة للعميل وننتظر الرد"
+          : "تحتاج إعداد/إرسال مقايسة Ventic Pro",
+      state: acceptedEstimate
+        ? ("DONE" as const)
+        : latestEstimate?.status === "SENT"
+          ? ("WAIT" as const)
+          : ("ACTION" as const),
+      anchor: "#ventic-estimate",
     },
-    select: {
-      id: true,
-      name: true,
+    {
+      key: "schedule",
+      label: "الفني والميعاد",
+      detail: hasAppointment
+        ? `${order.technician?.name || ""} — ${order.preferredDate} — ${order.preferredTime}`
+        : order.technicianId
+          ? "الفني معين ويجب استكمال ربط الموعد"
+          : "اختر الفني والميعاد",
+      state: hasAppointment
+        ? ("DONE" as const)
+        : ("ACTION" as const),
+      anchor: "#order-management",
     },
-    orderBy: {
-      name: "asc",
+    {
+      key: "execution",
+      label: "التنفيذ والصور",
+      detail:
+        beforeCount && afterCount
+          ? "صور قبل وبعد مسجلة"
+          : `قبل: ${beforeCount} — بعد: ${afterCount}`,
+      state:
+        order.status === "COMPLETED" ||
+        (beforeCount > 0 && afterCount > 0)
+          ? ("DONE" as const)
+          : order.status === "IN_PROGRESS" ||
+              order.status === "ARRIVED"
+            ? ("ACTION" as const)
+            : ("INFO" as const),
+      anchor: "#execution",
     },
-  });
+    {
+      key: "materials",
+      label: "الخامات",
+      detail: materialState.confirmed
+        ? materialState.confirmedNone
+          ? "تم تأكيد عدم استخدام خامات"
+          : `${materialState.usedMovements.length} حركة استخدام مرتبطة بالأوردر`
+        : "لم يتم تأكيد الخامات بعد",
+      state: materialState.confirmed
+        ? ("DONE" as const)
+        : order.status === "IN_PROGRESS" ||
+            order.status === "ARRIVED"
+          ? ("ACTION" as const)
+          : ("INFO" as const),
+      anchor: "#materials",
+    },
+    {
+      key: "finance",
+      label: "الفاتورة والتحصيل",
+      detail: acceptedEstimate
+        ? finance.due <= 0
+          ? "الفاتورة المعتمدة مسددة"
+          : `متبقي ${money(finance.due)} ج`
+        : "تتثبت الفاتورة تلقائيًا بعد اعتماد مقايسة Ventic Pro",
+      state: acceptedEstimate
+        ? finance.due <= 0
+          ? ("DONE" as const)
+          : ("ACTION" as const)
+        : ("INFO" as const),
+      anchor: "#financials",
+    },
+    {
+      key: "warranty",
+      label: "الضمان",
+      detail: warranty
+        ? `نشط حتى ${new Date(
+            warranty.endsAt,
+          ).toLocaleDateString("ar-EG")}`
+        : order.status === "COMPLETED"
+          ? "طلب قديم مكتمل بدون ضمان مسجل"
+          : "يتفعل تلقائيًا عند إتمام التركيب",
+      state: warranty
+        ? ("DONE" as const)
+        : order.status === "COMPLETED"
+          ? ("ACTION" as const)
+          : ("INFO" as const),
+      anchor: "#after-completion",
+    },
+    {
+      key: "review",
+      label: "التقييم",
+      detail: order.review
+        ? `تم التقييم — ${order.review.overall}/5`
+        : order.status === "COMPLETED"
+          ? "في انتظار تقييم العميل"
+          : "يتاح بعد الإتمام",
+      state: order.review
+        ? ("DONE" as const)
+        : order.status === "COMPLETED"
+          ? ("WAIT" as const)
+          : ("INFO" as const),
+      anchor: "#after-completion",
+    },
+  ];
 
   return (
     <main className="admin" dir="rtl">
-      <header>
-        <div className="brand">
-          <i>V</i> Ventic Pro
-        </div>
-
-        <nav>
-          <Link href="/admin">الرئيسية</Link>
-          <Link href="/admin/orders">الطلبات</Link>
-          <Link href="/admin/schedule">جدول الفنيين</Link>
-          <Link href="/admin/technicians">الفنيون</Link>
-          <Link href="/admin/pricing">الأسعار</Link>
-        </nav>
-      </header>
-
       <section>
         <div className="adminTitle">
           <div>
-            <Link href="/admin/orders">← العودة للطلبات</Link>
+            <Link href="/admin/orders">
+              ← العودة للطلبات
+            </Link>
             <h1>{order.orderNo}</h1>
-            <p>مركز الطلب: العميل، التنفيذ، المقايسة، المدفوعات وسجل الأحداث.</p>
+            <p>
+              مركز الطلب الموحد: التشغيل، المقايسة، الفاتورة، الخامات، الضمان وسجل التغييرات.
+            </p>
           </div>
 
-          <span>{statusLabels[order.status] || order.status}</span>
+          <span>
+            {statusLabels[order.status] || order.status}
+          </span>
         </div>
 
         <div
@@ -151,31 +343,53 @@ export default async function OrderDetailsPage({
             marginBottom: 8,
           }}
         >
-          <a href="#customer-estimate" style={quickLinkStyle}>
-            مقايسة العميل
+          <a href="#order-management" style={quickLinkStyle}>
+            التشغيل
           </a>
           <a href="#ventic-estimate" style={quickLinkStyle}>
-            مقايسة Ventic Pro
+            المقايسة
+          </a>
+          <a href="#materials" style={quickLinkStyle}>
+            الخامات
           </a>
           <a href="#financials" style={quickLinkStyle}>
-            المدفوعات
+            الفاتورة والمدفوعات
+          </a>
+          <a href="#after-completion" style={quickLinkStyle}>
+            الضمان والتقييم
           </a>
           <a href="#timeline" style={quickLinkStyle}>
             Timeline
           </a>
-          <Link href="/admin/schedule" style={quickLinkStyle}>
-            جدول الفنيين
-          </Link>
         </div>
 
-        <OrderActions
+        <UnifiedOrderCenter
           orderId={order.id}
-          currentStatus={order.status}
-          technicianId={order.technicianId}
-          preferredDate={order.preferredDate}
-          preferredTime={order.preferredTime}
-          technicians={technicians}
+          steps={steps}
+          finance={{
+            source: finance.source,
+            authoritative: finance.authoritative,
+            baseSubtotal: finance.baseSubtotal,
+            approvedExtras: finance.approvedExtras,
+            discount: finance.discount,
+            total: finance.total,
+            paid: finance.paid,
+            due: finance.due,
+          }}
+          invoice={invoice}
+          invoiceNeedsSync={invoiceNeedsSync}
         />
+
+        <div id="order-management">
+          <OrderActions
+            orderId={order.id}
+            currentStatus={order.status}
+            technicianId={order.technicianId}
+            preferredDate={order.preferredDate}
+            preferredTime={order.preferredTime}
+            technicians={technicians}
+          />
+        </div>
 
         <div className="cards">
           <article className="miniCard">
@@ -187,44 +401,53 @@ export default async function OrderDetailsPage({
           <article className="miniCard">
             <strong>العنوان</strong>
             <h3>
-              {order.governorate || "-"} - {order.area || "-"}
+              {order.governorate || "-"} -{" "}
+              {order.area || "-"}
             </h3>
-            <p>{order.address || "لا يوجد عنوان تفصيلي"}</p>
+            <p>
+              {order.address ||
+                "لا يوجد عنوان تفصيلي"}
+            </p>
           </article>
 
           <article className="miniCard">
-            <strong>الموعد المطلوب</strong>
+            <strong>الموعد</strong>
             <h3>{order.preferredDate || "-"}</h3>
             <p>{order.preferredTime || "-"}</p>
           </article>
 
           <article className="miniCard">
             <strong>الفني</strong>
-            <h3>{order.technician?.name || "غير معين"}</h3>
-            <p>{order.technician?.phone || "-"}</p>
-          </article>
-
-          <article className="miniCard">
-            <strong>السعر التقديري للعميل</strong>
-            <h3>{money(order.estimatedTotal)} ج</h3>
+            <h3>
+              {order.technician?.name ||
+                "غير معين"}
+            </h3>
             <p>
-              {order.estimateAccepted
-                ? "العميل وافق على كون السعر تقديريًا"
-                : "لم يتم تسجيل الموافقة"}
+              {order.technician?.phone || "-"}
             </p>
           </article>
 
           <article className="miniCard">
-            <strong>السعر النهائي المعتمد</strong>
-            <h3>
-              {order.finalTotal
-                ? `${money(order.finalTotal)} ج`
-                : "لم يتم تحديده"}
-            </h3>
+            <strong>إجمالي الفاتورة الحالي</strong>
+            <h3>{money(finance.total)} ج</h3>
+            <p>
+              يشمل الإضافات المعتمدة تلقائيًا
+            </p>
+          </article>
+
+          <article className="miniCard">
+            <strong>المتبقي</strong>
+            <h3>{money(finance.due)} ج</h3>
+            <p>
+              المدفوع {money(finance.paid)} ج
+            </p>
           </article>
         </div>
 
-        <div className="adminQuick" style={{ marginTop: 24 }}>
+        <div
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
           <div
             style={{
               display: "flex",
@@ -235,50 +458,38 @@ export default async function OrderDetailsPage({
             }}
           >
             <div>
-              <h2 style={{ marginBottom: 6 }}>مواعيد الفني على الطلب</h2>
+              <h2 style={{ marginBottom: 6 }}>
+                الميعاد المرتبط بالأوردر
+              </h2>
               <p style={{ marginTop: 0 }}>
-                الموعد المرتبط بالطلب. أي تغيير في الموعد يتم تسجيله بالكامل في Timeline.
+                تغيير الفني أو الموعد من الأوردر يحدث التقويم تلقائيًا.
               </p>
             </div>
-            <Link href="/admin/schedule">إدارة الجدول</Link>
+            <Link href="/admin/schedule">
+              فتح التقويم
+            </Link>
           </div>
 
           {order.technicianSlots.length === 0 ? (
-            <p>لا يوجد موعد تقويم مسجل لهذا الطلب حتى الآن.</p>
+            <p>
+              لا يوجد موعد تقويم مرتبط بالطلب.
+            </p>
           ) : (
             <div style={{ display: "grid", gap: 9 }}>
               {order.technicianSlots.map((slot) => (
                 <div
                   key={slot.id}
                   style={{
-                    border: "1px solid #bbf7d0",
+                    border:
+                      "1px solid #bbf7d0",
                     background: "#f0fdf4",
                     borderRadius: 12,
                     padding: 12,
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <strong>{slot.technician.name}</strong>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 800,
-                        borderRadius: 999,
-                        padding: "4px 9px",
-                        background: "#dcfce7",
-                        color: "#166534",
-                      }}
-                    >
-                      موعد مرتبط بالطلب
-                    </span>
-                  </div>
+                  <strong>
+                    {slot.technician.name}
+                  </strong>
                   <p style={{ margin: "5px 0 0" }}>
                     {cairoDateTime(slot.startsAt)} →{" "}
                     {cairoDateTime(slot.endsAt)}
@@ -290,14 +501,35 @@ export default async function OrderDetailsPage({
         </div>
 
         <div
+          id="execution"
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
+          <h2>توثيق التنفيذ</h2>
+          <div className="cards">
+            <article className="miniCard">
+              <strong>صور قبل</strong>
+              <h3>{beforeCount}</h3>
+            </article>
+            <article className="miniCard">
+              <strong>صور بعد</strong>
+              <h3>{afterCount}</h3>
+            </article>
+            <article className="miniCard">
+              <strong>إجمالي المرفقات</strong>
+              <h3>{order.attachments.length}</h3>
+            </article>
+          </div>
+        </div>
+
+        <div
           id="customer-estimate"
           className="adminQuick"
           style={{ marginTop: 24 }}
         >
           <h2>مقايسة العميل الأصلية</h2>
           <p>
-            هذه البنود محفوظة كما قدمها العميل وتُستخدم كمرجع فقط. تعديل السعر
-            النهائي يتم من خلال مقايسة Ventic Pro المستقلة بالأسفل.
+            مرجع فقط ولا يتم تعديلها عند إعداد مقايسة Ventic Pro.
           </p>
 
           {order.spaces.length === 0 ? (
@@ -310,19 +542,33 @@ export default async function OrderDetailsPage({
                   display: "block",
                   marginTop: 16,
                   padding: 18,
-                  border: "1px solid #e5e7eb",
+                  border:
+                    "1px solid #e5e7eb",
                   borderRadius: 14,
                 }}
               >
                 <h3>
-                  {space.label || spaceLabels[space.type] || space.type}
+                  {space.label ||
+                    spaceLabels[space.type] ||
+                    space.type}
                 </h3>
 
                 {space.services.length === 0 ? (
-                  <p>لا توجد خدمات مسجلة لهذا المكان.</p>
+                  <p>
+                    لا توجد خدمات مسجلة لهذا المكان.
+                  </p>
                 ) : (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", minWidth: 620 }}>
+                  <div
+                    style={{
+                      overflowX: "auto",
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: "100%",
+                        minWidth: 620,
+                      }}
+                    >
                       <thead>
                         <tr>
                           <th>الخدمة</th>
@@ -332,21 +578,41 @@ export default async function OrderDetailsPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {space.services.map((service) => {
-                          const qty = Number(service.qty);
-                          const unitPrice = Number(
-                            service.unitPriceSnapshot,
-                          );
+                        {space.services.map(
+                          (service) => {
+                            const qty = Number(
+                              service.qty,
+                            );
+                            const unitPrice =
+                              Number(
+                                service.unitPriceSnapshot,
+                              );
 
-                          return (
-                            <tr key={service.id}>
-                              <td>{service.serviceNameSnapshot}</td>
-                              <td>{qty}</td>
-                              <td>{money(unitPrice)} ج</td>
-                              <td>{money(qty * unitPrice)} ج</td>
-                            </tr>
-                          );
-                        })}
+                            return (
+                              <tr key={service.id}>
+                                <td>
+                                  {
+                                    service.serviceNameSnapshot
+                                  }
+                                </td>
+                                <td>{qty}</td>
+                                <td>
+                                  {money(
+                                    unitPrice,
+                                  )}{" "}
+                                  ج
+                                </td>
+                                <td>
+                                  {money(
+                                    qty *
+                                      unitPrice,
+                                  )}{" "}
+                                  ج
+                                </td>
+                              </tr>
+                            );
+                          },
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -357,76 +623,277 @@ export default async function OrderDetailsPage({
         </div>
 
         <div id="ventic-estimate">
-          <VenticEstimateEditor orderId={order.id} />
+          <VenticEstimateEditor
+            orderId={order.id}
+          />
         </div>
 
-        <div id="financials" className="cards" style={{ marginTop: 24 }}>
-          <article className="miniCard">
-            <h3>المدفوعات والفاتورة</h3>
+        <div
+          id="materials"
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 style={{ marginBottom: 6 }}>
+                خامات الأوردر
+              </h2>
+              <p style={{ marginTop: 0 }}>
+                الفني يسجل الاستخدام من شاشة التنفيذ؛ الخصم من العهدة والربط بالأوردر يحدثان مرة واحدة تلقائيًا.
+              </p>
+            </div>
+            <Link href="/admin/inventory">
+              فتح المخزون
+            </Link>
+          </div>
 
-            {order.payments.length === 0 ? (
-              <p>لا توجد مدفوعات حتى الآن.</p>
-            ) : (
-              order.payments.map((payment) => (
-                <p key={payment.id}>
-                  {money(payment.amount)} ج — {payment.method}
-                </p>
-              ))
-            )}
+          {materialState.confirmedNone ? (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 12,
+                background: "#f0fdf4",
+                color: "#166534",
+                border:
+                  "1px solid #bbf7d0",
+              }}
+            >
+              الفني أكد عدم استخدام خامات في هذا الطلب.
+            </div>
+          ) : materialState.usedMovements.length === 0 ? (
+            <p>
+              لم يتم تسجيل خامات مستخدمة حتى الآن.
+            </p>
+          ) : (
+            <div
+              style={{
+                overflowX: "auto",
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: 700,
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th>الخامة</th>
+                    <th>الكمية</th>
+                    <th>الفني</th>
+                    <th>الوقت</th>
+                    <th>الملاحظة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {materialState.usedMovements.map(
+                    (movement: any) => {
+                      const parsed =
+                        parseInventoryNote(
+                          movement.note,
+                        );
 
-            {order.invoice && (
-              <>
-                <hr />
-                <p>الإجمالي: {money(order.invoice.total)} ج</p>
-                <p>المدفوع: {money(order.invoice.paid)} ج</p>
-                <p>المتبقي: {money(order.invoice.due)} ج</p>
-              </>
-            )}
-          </article>
-
-          <article className="miniCard">
-            <h3>عروض الأسعار القديمة</h3>
-
-            {order.quotes.length === 0 ? (
-              <p>لا يوجد عرض سعر قديم.</p>
-            ) : (
-              order.quotes.map((quote) => (
-                <p key={quote.id}>
-                  {money(quote.amount)} ج — {quote.status}
-                </p>
-              ))
-            )}
-          </article>
-
-          <article className="miniCard">
-            <h3>التكاليف الإضافية</h3>
-
-            {order.extraCharges.length === 0 ? (
-              <p>لا توجد تكاليف إضافية.</p>
-            ) : (
-              order.extraCharges.map((charge) => (
-                <p key={charge.id}>
-                  {charge.title}: {money(charge.amount)} ج —{" "}
-                  {charge.status}
-                </p>
-              ))
-            )}
-          </article>
-
-          <article className="miniCard">
-            <h3>الصور والمرفقات</h3>
-            <p>{order.attachments.length} ملف</p>
-
-            {order.attachments.length === 0 && (
-              <small>لم يتم رفع صور حتى الآن.</small>
-            )}
-          </article>
+                      return (
+                        <tr key={movement.id}>
+                          <td>
+                            {movement.item.sku} —{" "}
+                            {movement.item.nameAr}
+                          </td>
+                          <td>
+                            {money(
+                              movement.quantity,
+                            )}{" "}
+                            {movement.item.unit}
+                          </td>
+                          <td>
+                            {movement.technician
+                              ?.name || "-"}
+                          </td>
+                          <td>
+                            {cairoDateTime(
+                              movement.createdAt,
+                            )}
+                          </td>
+                          <td>
+                            {parsed.note || "-"}
+                          </td>
+                        </tr>
+                      );
+                    },
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        <div id="timeline" className="adminQuick" style={{ marginTop: 24 }}>
+        <div
+          id="financials"
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
+          <h2>الفاتورة والمدفوعات</h2>
+          <p>
+            المقايسة المعتمدة + الإضافات التي وافق عليها العميل = إجمالي الفاتورة. تسجيل أي دفعة يحدث الفاتورة تلقائيًا.
+          </p>
+
+          <div className="cards">
+            <article className="miniCard">
+              <strong>أساس المقايسة</strong>
+              <h3>
+                {money(
+                  finance.baseSubtotal,
+                )}{" "}
+                ج
+              </h3>
+            </article>
+            <article className="miniCard">
+              <strong>إضافات معتمدة</strong>
+              <h3>
+                {money(
+                  finance.approvedExtras,
+                )}{" "}
+                ج
+              </h3>
+            </article>
+            <article className="miniCard">
+              <strong>الخصم</strong>
+              <h3>
+                {money(finance.discount)} ج
+              </h3>
+            </article>
+            <article className="miniCard">
+              <strong>الإجمالي</strong>
+              <h3>
+                {money(finance.total)} ج
+              </h3>
+            </article>
+            <article className="miniCard">
+              <strong>المدفوع</strong>
+              <h3>
+                {money(finance.paid)} ج
+              </h3>
+            </article>
+            <article className="miniCard">
+              <strong>المتبقي</strong>
+              <h3>
+                {money(finance.due)} ج
+              </h3>
+            </article>
+          </div>
+
+          {order.payments.length > 0 && (
+            <div
+              style={{
+                overflowX: "auto",
+                marginTop: 14,
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: 620,
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th>التاريخ</th>
+                    <th>المبلغ</th>
+                    <th>الطريقة</th>
+                    <th>المرجع</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.payments.map(
+                    (payment) => (
+                      <tr key={payment.id}>
+                        <td>
+                          {cairoDateTime(
+                            payment.createdAt,
+                          )}
+                        </td>
+                        <td>
+                          {money(
+                            payment.amount,
+                          )}{" "}
+                          ج
+                        </td>
+                        <td>
+                          {payment.method}
+                        </td>
+                        <td>
+                          {payment.reference ||
+                            "-"}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div
+          id="after-completion"
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
+          <h2>بعد الإتمام</h2>
+
+          <div className="cards">
+            <article className="miniCard">
+              <strong>الضمان</strong>
+              <h3>
+                {warranty
+                  ? "نشط"
+                  : "غير مفعل"}
+              </h3>
+              <p>
+                {warranty
+                  ? `${new Date(
+                      warranty.startsAt,
+                    ).toLocaleDateString(
+                      "ar-EG",
+                    )} → ${new Date(
+                      warranty.endsAt,
+                    ).toLocaleDateString(
+                      "ar-EG",
+                    )}`
+                  : "يُنشأ تلقائيًا عند إتمام الطلب الجديد"}
+              </p>
+            </article>
+
+            <article className="miniCard">
+              <strong>تقييم العميل</strong>
+              <h3>
+                {order.review
+                  ? `${order.review.overall}/5`
+                  : "لم يصل بعد"}
+              </h3>
+              <p>
+                {order.review?.comment ||
+                  "التقييم مرتبط بنفس الطلب والفني"}
+              </p>
+            </article>
+          </div>
+        </div>
+
+        <div
+          id="timeline"
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
           <h2>Timeline الطلب</h2>
           <p>
-            أحدث الأحداث أولًا، مع المستخدم أو الجهة التي نفذت كل تغيير.
+            السجل الموحد لكل تغيير مالي وتشغيلي ومخزني على الطلب.
           </p>
 
           {order.auditLogs.length === 0 ? (
@@ -436,7 +903,8 @@ export default async function OrderDetailsPage({
               style={{
                 position: "relative",
                 paddingRight: 22,
-                borderRight: "2px solid #dbeafe",
+                borderRight:
+                  "2px solid #dbeafe",
               }}
             >
               {order.auditLogs.map((log) => (
@@ -444,7 +912,8 @@ export default async function OrderDetailsPage({
                   key={log.id}
                   style={{
                     position: "relative",
-                    padding: "0 12px 18px 0",
+                    padding:
+                      "0 12px 18px 0",
                   }}
                 >
                   <span
@@ -456,18 +925,37 @@ export default async function OrderDetailsPage({
                       height: 14,
                       borderRadius: "50%",
                       background: "#f97316",
-                      border: "3px solid white",
-                      boxShadow: "0 0 0 1px #fed7aa",
+                      border:
+                        "3px solid white",
+                      boxShadow:
+                        "0 0 0 1px #fed7aa",
                     }}
                   />
-                  <strong style={{ color: "#0f2d4a" }}>
-                    {actionLabels[log.action] || log.action}
+                  <strong
+                    style={{
+                      color: "#0f2d4a",
+                    }}
+                  >
+                    {actionLabels[
+                      log.action
+                    ] || log.action}
                   </strong>
-                  <p style={{ margin: "5px 0", color: "#475569" }}>
+                  <p
+                    style={{
+                      margin: "5px 0",
+                      color: "#475569",
+                    }}
+                  >
                     بواسطة {log.actorLabel}
                   </p>
-                  <small style={{ color: "#64748b" }}>
-                    {cairoDateTime(log.createdAt)}
+                  <small
+                    style={{
+                      color: "#64748b",
+                    }}
+                  >
+                    {cairoDateTime(
+                      log.createdAt,
+                    )}
                   </small>
                 </div>
               ))}

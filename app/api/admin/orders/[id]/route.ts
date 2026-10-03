@@ -3,10 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { notifyAdmins } from "@/lib/admin-notifications";
-import {
-  PERMISSIONS,
-  requirePermission,
-} from "@/lib/auth-v7";
+import { PERMISSIONS, requirePermission } from "@/lib/auth-v7";
 import { parsePreferredAppointment } from "@/lib/order-appointment";
 
 const allowed = [
@@ -41,24 +38,32 @@ export async function PATCH(
     const body = await req.json();
 
     if (body.status && !allowed.includes(body.status)) {
-      return NextResponse.json(
-        { error: "حالة غير صالحة" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "حالة غير صالحة" }, { status: 400 });
     }
 
     const old = await prisma.order.findUnique({
       where: { id },
-      include: {
-        customer: true,
-        technician: true,
-      },
+      include: { customer: true, technician: true },
     });
 
     if (!old) {
+      return NextResponse.json({ error: "الطلب غير موجود" }, { status: 404 });
+    }
+
+    if (body.status === "COMPLETED" && old.status !== "COMPLETED") {
       return NextResponse.json(
-        { error: "الطلب غير موجود" },
-        { status: 404 },
+        {
+          error:
+            "إتمام الطلب يتم من شاشة الفني بعد صور قبل/بعد وتأكيد الخامات وكود العميل؛ وقتها الفاتورة والضمان يتحدثان تلقائيًا.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (old.status === "COMPLETED") {
+      return NextResponse.json(
+        { error: "الطلب مكتمل ومغلق تشغيليًا ولا يتم تغيير حالته أو موعده مباشرة." },
+        { status: 409 },
       );
     }
 
@@ -74,20 +79,16 @@ export async function PATCH(
     const nextDate = hasPreferredDate
       ? String(body.preferredDate || "").trim()
       : old.preferredDate;
-
     const nextTime = hasPreferredTime
       ? String(body.preferredTime || "").trim()
       : old.preferredTime;
 
     const appointmentChanged =
-      nextDate !== old.preferredDate ||
-      nextTime !== old.preferredTime;
-
+      nextDate !== old.preferredDate || nextTime !== old.preferredTime;
     const nextStatus = body.status || old.status;
-    const terminal =
-      nextStatus === "CANCELLED" || nextStatus === "COMPLETED";
+    const terminal = nextStatus === "CANCELLED" || nextStatus === "COMPLETED";
 
-    let appointment =
+    const appointment =
       appointmentChanged && old.technicianId && !terminal
         ? parsePreferredAppointment(nextDate, nextTime)
         : null;
@@ -113,29 +114,17 @@ export async function PATCH(
           NOT: { orderId: id },
           OR: [
             { orderId: null },
-            {
-              order: {
-                status: {
-                  notIn: ["COMPLETED", "CANCELLED"],
-                },
-              },
-            },
+            { order: { status: { notIn: ["COMPLETED", "CANCELLED"] } } },
           ],
         },
-        include: {
-          order: {
-            select: { orderNo: true },
-          },
-        },
+        include: { order: { select: { orderNo: true } } },
       });
 
       if (clash) {
         return NextResponse.json(
           {
             error: `الفني لديه موعد متعارض${
-              clash.order?.orderNo
-                ? ` مع الطلب ${clash.order.orderNo}`
-                : ""
+              clash.order?.orderNo ? ` مع الطلب ${clash.order.orderNo}` : ""
             }. اختر موعدًا آخر.`,
           },
           { status: 409 },
@@ -156,27 +145,15 @@ export async function PATCH(
         where: { id },
         data: {
           status: body.status || undefined,
-          preferredDate: hasPreferredDate
-            ? nextDate || null
-            : undefined,
-          preferredTime: hasPreferredTime
-            ? nextTime || null
-            : undefined,
+          preferredDate: hasPreferredDate ? nextDate || null : undefined,
+          preferredTime: hasPreferredTime ? nextTime || null : undefined,
         },
-        include: {
-          customer: true,
-          technician: true,
-        },
+        include: { customer: true, technician: true },
       });
 
       let slotId: string | null = null;
 
-      if (
-        appointmentChanged &&
-        old.technicianId &&
-        appointment &&
-        !terminal
-      ) {
+      if (appointmentChanged && old.technicianId && appointment && !terminal) {
         const slot = oldSlot
           ? await tx.technicianSlot.update({
               where: { id: oldSlot.id },
@@ -194,7 +171,6 @@ export async function PATCH(
                 endsAt: appointment.endsAt,
               },
             });
-
         slotId = slot.id;
       }
 
@@ -210,7 +186,6 @@ export async function PATCH(
         oldValue: { status: old.status },
         newValue: { status: result.order.status },
       });
-
       await notifyAdmins({
         type: AdminNotificationType.ORDER_STATUS,
         title: `تحديث حالة ${result.order.orderNo}`,
@@ -243,22 +218,16 @@ export async function PATCH(
           slotEndsAt: appointment?.endsAt.toISOString() || null,
         },
       });
-
       await notifyAdmins({
         type: AdminNotificationType.SYSTEM,
         title: `تم تحديث موعد ${result.order.orderNo}`,
-        message: `${result.order.preferredDate || "-"} — ${
-          result.order.preferredTime || "-"
-        }`,
+        message: `${result.order.preferredDate || "-"} — ${result.order.preferredTime || "-"}`,
         orderId: result.order.id,
         href: `/admin/orders/${result.order.id}`,
       });
     }
 
-    return NextResponse.json({
-      ...result.order,
-      slotId: result.slotId,
-    });
+    return NextResponse.json({ ...result.order, slotId: result.slotId });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "تعذر تحديث الطلب" },
