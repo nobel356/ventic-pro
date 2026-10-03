@@ -9,9 +9,16 @@ export const PERMISSIONS = {
   EXTRA_APPROVE: "extra.approve",
   CUSTOMER_SENSITIVE: "customer.sensitive",
   USERS_MANAGE: "users.manage",
+
+  INVENTORY_VIEW: "inventory.view",
+  INVENTORY_EDIT: "inventory.edit",
+  INVENTORY_MOVE: "inventory.move",
+  INVENTORY_ADJUST: "inventory.adjust",
+  INVENTORY_COST_VIEW: "inventory.cost.view",
 } as const;
 
-export type PermissionValue = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+export type PermissionValue =
+  (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 export const PERMISSION_OPTIONS: Array<{
   value: PermissionValue;
@@ -26,17 +33,20 @@ export const PERMISSION_OPTIONS: Array<{
   {
     value: PERMISSIONS.ORDERS_EDIT,
     label: "تعديل الطلبات",
-    description: "تغيير حالة الطلب وتنفيذ التعديلات التشغيلية المسموح بها.",
+    description:
+      "تغيير حالة الطلب وتنفيذ التعديلات التشغيلية المسموح بها.",
   },
   {
     value: PERMISSIONS.ASSIGN_TECH,
     label: "تعيين الفنيين",
-    description: "تعيين الفني للطلب وإدارة المواعيد المرتبطة به.",
+    description:
+      "تعيين الفني للطلب وإدارة المواعيد المرتبطة به.",
   },
   {
     value: PERMISSIONS.PRICE_EDIT,
     label: "تعديل الأسعار",
-    description: "تعديل الأسعار وإنشاء أو تعديل مقايسة Ventic Pro.",
+    description:
+      "تعديل الأسعار وإنشاء أو تعديل مقايسة Ventic Pro.",
   },
   {
     value: PERMISSIONS.QUOTE_SEND,
@@ -46,16 +56,51 @@ export const PERMISSION_OPTIONS: Array<{
   {
     value: PERMISSIONS.EXTRA_APPROVE,
     label: "التكاليف الإضافية",
-    description: "إدارة واعتماد التكاليف الإضافية المرتبطة بالطلبات.",
+    description:
+      "إدارة واعتماد التكاليف الإضافية المرتبطة بالطلبات.",
   },
   {
     value: PERMISSIONS.CUSTOMER_SENSITIVE,
     label: "بيانات العملاء الحساسة",
-    description: "مشاهدة رقم الهاتف والعنوان والبيانات الكاملة للعميل.",
+    description:
+      "مشاهدة رقم الهاتف والعنوان والبيانات الكاملة للعميل.",
+  },
+  {
+    value: PERMISSIONS.INVENTORY_VIEW,
+    label: "مشاهدة المخزون",
+    description:
+      "مشاهدة الأصناف والأرصدة وحركة المخزون ومخزون الفنيين.",
+  },
+  {
+    value: PERMISSIONS.INVENTORY_EDIT,
+    label: "إدارة أصناف المخزون",
+    description:
+      "إضافة الأصناف وتعديل الاسم والكود والوحدة وحد إعادة الطلب.",
+  },
+  {
+    value: PERMISSIONS.INVENTORY_MOVE,
+    label: "حركات المخزون",
+    description:
+      "إضافة وارد وصرف وتحويل خامات بين الشركة والفنيين وربط الصرف بالأوردر.",
+  },
+  {
+    value: PERMISSIONS.INVENTORY_ADJUST,
+    label: "تسويات المخزون",
+    description:
+      "تسجيل تسوية رصيد بعد مراجعة فعلية. لا يتم مسح الحركة القديمة.",
+  },
+  {
+    value: PERMISSIONS.INVENTORY_COST_VIEW,
+    label: "مشاهدة تكاليف المخزون",
+    description:
+      "صلاحية مخصصة لتكاليف الخامات والتقارير المالية للمخزون عند تفعيلها لاحقًا.",
   },
 ];
 
-export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionValue[]> = {
+export const ROLE_DEFAULT_PERMISSIONS: Record<
+  string,
+  PermissionValue[]
+> = {
   ADMIN: [
     PERMISSIONS.ORDERS_VIEW,
     PERMISSIONS.ORDERS_EDIT,
@@ -64,12 +109,18 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, PermissionValue[]> = {
     PERMISSIONS.QUOTE_SEND,
     PERMISSIONS.EXTRA_APPROVE,
     PERMISSIONS.CUSTOMER_SENSITIVE,
+    PERMISSIONS.INVENTORY_VIEW,
+    PERMISSIONS.INVENTORY_EDIT,
+    PERMISSIONS.INVENTORY_MOVE,
+    PERMISSIONS.INVENTORY_ADJUST,
+    PERMISSIONS.INVENTORY_COST_VIEW,
   ],
   CUSTOMER_SERVICE: [
     PERMISSIONS.ORDERS_VIEW,
     PERMISSIONS.ORDERS_EDIT,
     PERMISSIONS.QUOTE_SEND,
     PERMISSIONS.CUSTOMER_SENSITIVE,
+    PERMISSIONS.INVENTORY_VIEW,
   ],
   TECHNICIAN: [],
 };

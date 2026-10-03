@@ -1,2 +1,44 @@
-import {prisma} from "@/lib/prisma";
-export default async function Inventory(){const items=await prisma.inventoryItem.findMany({orderBy:{nameAr:"asc"}});return <main className="order"><section className="panel"><h1>المخزون والخامات</h1><div className="review">{items.length?items.map(x=><p key={x.id}><b>{x.nameAr}</b> — {String(x.quantity)} {x.unit} {Number(x.quantity)<=Number(x.reorderLevel)?"⚠️ إعادة طلب":""}</p>):<p>لا توجد أصناف بعد.</p>}</div></section></main>}
+import { redirect } from "next/navigation";
+import {
+  can,
+  currentUser,
+  PERMISSIONS,
+} from "@/lib/auth-v7";
+import InventoryManagement from "./InventoryManagement";
+
+export default async function InventoryPage() {
+  const user = await currentUser();
+
+  if (!user) redirect("/login");
+
+  if (
+    !can(
+      user.role,
+      PERMISSIONS.INVENTORY_VIEW,
+      user.permissions,
+    )
+  ) {
+    redirect("/admin");
+  }
+
+  return (
+    <main className="admin" dir="rtl">
+      <section
+        style={{
+          maxWidth: 1440,
+          margin: "0 auto",
+          padding: "26px 18px 70px",
+        }}
+      >
+        <div style={{ marginBottom: 20 }}>
+          <h1 style={{ marginBottom: 6 }}>المخزون والخامات</h1>
+          <p style={{ color: "#64748b", margin: 0 }}>
+            مخزن الشركة ومخزون الفنيين وحركة وارد وصرف وتحويل وتسوية بسجل دائم لا يتم مسحه.
+          </p>
+        </div>
+
+        <InventoryManagement />
+      </section>
+    </main>
+  );
+}

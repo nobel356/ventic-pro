@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
-import { currentUser } from "@/lib/auth-v7";
+import {
+  can,
+  currentUser,
+  PERMISSIONS,
+} from "@/lib/auth-v7";
 import AdminNotificationCenter from "./AdminNotificationCenter";
 import AdminSidebar from "./AdminSidebar";
 import AccountMenu from "@/app/shared/AccountMenu";
@@ -20,9 +24,18 @@ export default async function AdminLayout({
     redirect("/technician");
   }
 
+  const canViewInventory = can(
+    user.role,
+    PERMISSIONS.INVENTORY_VIEW,
+    user.permissions,
+  );
+
   return (
     <div className="vpAdminWorkspace">
-      <AdminSidebar isSuperAdmin={user.role === "SUPER_ADMIN"} />
+      <AdminSidebar
+        isSuperAdmin={user.role === "SUPER_ADMIN"}
+        canViewInventory={canViewInventory}
+      />
 
       <div className="vpAdminContent">
         <AccountMenu />
@@ -168,7 +181,6 @@ export default async function AdminLayout({
           line-height: 1.5;
         }
 
-        /* Old page-level navigation is replaced by the permanent sidebar. */
         .vpAdminContent > .admin > header {
           display: none !important;
         }

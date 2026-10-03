@@ -8,6 +8,7 @@ type NavItem = {
   label: string;
   icon: string;
   superAdminOnly?: boolean;
+  inventoryPermission?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -16,7 +17,12 @@ const navItems: NavItem[] = [
   { href: "/admin/schedule", label: "المواعيد", icon: "🗓️" },
   { href: "/admin/customers", label: "العملاء", icon: "👥" },
   { href: "/admin/technicians", label: "الفنيون", icon: "👷" },
-  { href: "/admin/inventory", label: "المخزون", icon: "📦" },
+  {
+    href: "/admin/inventory",
+    label: "المخزون",
+    icon: "📦",
+    inventoryPermission: true,
+  },
   { href: "/admin/pricing", label: "الأسعار", icon: "💰" },
   { href: "/admin/aftercare", label: "ما بعد التركيب", icon: "🛠️" },
   { href: "/admin/reports", label: "التقارير", icon: "📊" },
@@ -36,8 +42,10 @@ function isActive(pathname: string, href: string) {
 
 export default function AdminSidebar({
   isSuperAdmin,
+  canViewInventory,
 }: {
   isSuperAdmin: boolean;
+  canViewInventory: boolean;
 }) {
   const pathname = usePathname();
 
@@ -58,7 +66,13 @@ export default function AdminSidebar({
 
       <nav className="vpAdminNav" aria-label="القائمة الرئيسية">
         {navItems
-          .filter((item) => !item.superAdminOnly || isSuperAdmin)
+          .filter((item) => {
+            if (item.superAdminOnly && !isSuperAdmin) return false;
+            if (item.inventoryPermission && !canViewInventory) {
+              return false;
+            }
+            return true;
+          })
           .map((item) => {
             const active = isActive(pathname, item.href);
 
