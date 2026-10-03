@@ -1,18 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CustomerRegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState(searchParams.get("phone") || "");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("phone");
+
+    if (value) {
+      setPhone(value);
+    }
+  }, []);
 
   async function register(event: FormEvent) {
     event.preventDefault();
@@ -36,6 +43,7 @@ export default function CustomerRegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, phone, password }),
       });
+
       const data = await response.json();
 
       if (!response.ok) {
