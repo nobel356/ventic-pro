@@ -20,8 +20,33 @@ const spaceLabels: Record<string, string> = {
   KITCHEN: "مطبخ",
 };
 
+const actionLabels: Record<string, string> = {
+  ORDER_CREATED: "إنشاء الطلب",
+  ORDER_STATUS_CHANGED: "تغيير حالة الطلب",
+  TECHNICIAN_ASSIGNED: "تعيين فني",
+  PAYMENT_RECORDED: "تسجيل دفعة",
+  VENTIC_ESTIMATE_CREATED: "إنشاء مقايسة Ventic Pro",
+  VENTIC_ESTIMATE_UPDATED: "تعديل المقايسة",
+  VENTIC_ESTIMATE_SENT: "إرسال المقايسة للعميل",
+  VENTIC_ESTIMATE_ACCEPTED: "العميل وافق على المقايسة",
+  VENTIC_ESTIMATE_REJECTED: "العميل رفض المقايسة",
+  EXTRA_CHARGE_REQUESTED: "طلب تكلفة إضافية",
+  ORDER_COMPLETED: "إتمام الطلب",
+  COMPLETION_OTP_SENT: "إصدار كود إتمام",
+  TECHNICIAN_SLOT_CREATED: "إضافة موعد للفني",
+  TECHNICIAN_SLOT_DELETED: "حذف موعد فني",
+};
+
 function money(value: unknown) {
   return Number(value || 0).toLocaleString("ar-EG");
+}
+
+function cairoDateTime(value: Date | string) {
+  return new Date(value).toLocaleString("ar-EG", {
+    timeZone: "Africa/Cairo",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 export default async function OrderDetailsPage({
@@ -60,7 +85,16 @@ export default async function OrderDetailsPage({
       },
       auditLogs: {
         orderBy: { createdAt: "desc" },
-        take: 30,
+        take: 50,
+      },
+      technicianSlots: {
+        include: {
+          technician: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy: { startsAt: "desc" },
+        take: 10,
       },
     },
   });
@@ -82,14 +116,16 @@ export default async function OrderDetailsPage({
   });
 
   return (
-    <main className="admin">
+    <main className="admin" dir="rtl">
       <header>
         <div className="brand">
           <i>V</i> Ventic Pro
         </div>
 
         <nav>
+          <Link href="/admin">الرئيسية</Link>
           <Link href="/admin/orders">الطلبات</Link>
+          <Link href="/admin/schedule">جدول الفنيين</Link>
           <Link href="/admin/technicians">الفنيون</Link>
           <Link href="/admin/pricing">الأسعار</Link>
         </nav>
@@ -100,10 +136,35 @@ export default async function OrderDetailsPage({
           <div>
             <Link href="/admin/orders">← العودة للطلبات</Link>
             <h1>{order.orderNo}</h1>
-            <p>تفاصيل الطلب ومتابعة التنفيذ</p>
+            <p>مركز الطلب: العميل، التنفيذ، المقايسة، المدفوعات وسجل الأحداث.</p>
           </div>
 
           <span>{statusLabels[order.status] || order.status}</span>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 9,
+            flexWrap: "wrap",
+            marginBottom: 8,
+          }}
+        >
+          <a href="#customer-estimate" style={quickLinkStyle}>
+            مقايسة العميل
+          </a>
+          <a href="#ventic-estimate" style={quickLinkStyle}>
+            مقايسة Ventic Pro
+          </a>
+          <a href="#financials" style={quickLinkStyle}>
+            المدفوعات
+          </a>
+          <a href="#timeline" style={quickLinkStyle}>
+            Timeline
+          </a>
+          <Link href="/admin/schedule" style={quickLinkStyle}>
+            جدول الفنيين
+          </Link>
         </div>
 
         <OrderActions
@@ -129,7 +190,7 @@ export default async function OrderDetailsPage({
           </article>
 
           <article className="miniCard">
-            <strong>الموعد</strong>
+            <strong>الموعد المطلوب</strong>
             <h3>{order.preferredDate || "-"}</h3>
             <p>{order.preferredTime || "-"}</p>
           </article>
@@ -160,7 +221,57 @@ export default async function OrderDetailsPage({
           </article>
         </div>
 
-        <div className="adminQuick" style={{ marginTop: 24 }}>
+        <div
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 style={{ marginBottom: 6 }}>مواعيد الفني على الطلب</h2>
+              <p style={{ marginTop: 0 }}>
+                المواعيد المسجلة فعليًا في تقويم الفنيين.
+              </p>
+            </div>
+            <Link href="/admin/schedule">إدارة الجدول</Link>
+          </div>
+
+          {order.technicianSlots.length === 0 ? (
+            <p>لا يوجد موعد تقويم مسجل لهذا الطلب حتى الآن.</p>
+          ) : (
+            <div style={{ display: "grid", gap: 9 }}>
+              {order.technicianSlots.map((slot) => (
+                <div
+                  key={slot.id}
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    padding: 12,
+                  }}
+                >
+                  <strong>{slot.technician.name}</strong>
+                  <p style={{ margin: "5px 0 0" }}>
+                    {cairoDateTime(slot.startsAt)} →{" "}
+                    {cairoDateTime(slot.endsAt)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div
+          id="customer-estimate"
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
           <h2>مقايسة العميل الأصلية</h2>
           <p>
             هذه البنود محفوظة كما قدمها العميل وتُستخدم كمرجع فقط. تعديل السعر
@@ -223,9 +334,15 @@ export default async function OrderDetailsPage({
           )}
         </div>
 
-        <VenticEstimateEditor orderId={order.id} />
+        <div id="ventic-estimate">
+          <VenticEstimateEditor orderId={order.id} />
+        </div>
 
-        <div className="cards" style={{ marginTop: 24 }}>
+        <div
+          id="financials"
+          className="cards"
+          style={{ marginTop: 24 }}
+        >
           <article className="miniCard">
             <h3>المدفوعات والفاتورة</h3>
 
@@ -288,25 +405,55 @@ export default async function OrderDetailsPage({
           </article>
         </div>
 
-        <div className="adminQuick" style={{ marginTop: 24 }}>
-          <h2>سجل الطلب</h2>
+        <div
+          id="timeline"
+          className="adminQuick"
+          style={{ marginTop: 24 }}
+        >
+          <h2>Timeline الطلب</h2>
+          <p>
+            أحدث الأحداث أولًا، مع المستخدم أو الجهة التي نفذت كل تغيير.
+          </p>
 
           {order.auditLogs.length === 0 ? (
             <p>لا توجد أحداث مسجلة.</p>
           ) : (
-            <div style={{ display: "block" }}>
+            <div
+              style={{
+                position: "relative",
+                paddingRight: 22,
+                borderRight: "2px solid #dbeafe",
+              }}
+            >
               {order.auditLogs.map((log) => (
                 <div
                   key={log.id}
                   style={{
-                    padding: "12px 0",
-                    borderBottom: "1px solid #edf2f5",
+                    position: "relative",
+                    padding: "0 12px 18px 0",
                   }}
                 >
-                  <strong>{log.action}</strong>
-                  <p style={{ margin: "5px 0" }}>{log.actorLabel}</p>
-                  <small>
-                    {new Date(log.createdAt).toLocaleString("ar-EG")}
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: -30,
+                      top: 3,
+                      width: 14,
+                      height: 14,
+                      borderRadius: "50%",
+                      background: "#f97316",
+                      border: "3px solid white",
+                      boxShadow: "0 0 0 1px #fed7aa",
+                    }}
+                  />
+                  <strong style={{ color: "#0f2d4a" }}>
+                    {actionLabels[log.action] || log.action}
+                  </strong>
+                  <p style={{ margin: "5px 0", color: "#475569" }}>
+                    بواسطة {log.actorLabel}
+                  </p>
+                  <small style={{ color: "#64748b" }}>
+                    {cairoDateTime(log.createdAt)}
                   </small>
                 </div>
               ))}
@@ -317,3 +464,14 @@ export default async function OrderDetailsPage({
     </main>
   );
 }
+
+const quickLinkStyle: React.CSSProperties = {
+  textDecoration: "none",
+  border: "1px solid #cbd5e1",
+  borderRadius: 999,
+  padding: "7px 11px",
+  background: "white",
+  color: "#0f2d4a",
+  fontSize: 13,
+  fontWeight: 800,
+};
