@@ -9,6 +9,7 @@ type NavItem = {
   icon: string;
   superAdminOnly?: boolean;
   inventoryPermission?: boolean;
+  accountingPermission?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -24,6 +25,12 @@ const navItems: NavItem[] = [
     inventoryPermission: true,
   },
   { href: "/admin/pricing", label: "الأسعار", icon: "💰" },
+  {
+    href: "/admin/accounting",
+    label: "الحسابات",
+    icon: "🧾",
+    accountingPermission: true,
+  },
   { href: "/admin/aftercare", label: "ما بعد التركيب", icon: "🛠️" },
   { href: "/admin/reports", label: "التقارير", icon: "📊" },
   { href: "/admin/leads", label: "غير المكتملة", icon: "🕓" },
@@ -43,9 +50,11 @@ function isActive(pathname: string, href: string) {
 export default function AdminSidebar({
   isSuperAdmin,
   canViewInventory,
+  canViewAccounting,
 }: {
   isSuperAdmin: boolean;
   canViewInventory: boolean;
+  canViewAccounting: boolean;
 }) {
   const pathname = usePathname();
 
@@ -69,6 +78,9 @@ export default function AdminSidebar({
           .filter((item) => {
             if (item.superAdminOnly && !isSuperAdmin) return false;
             if (item.inventoryPermission && !canViewInventory) {
+              return false;
+            }
+            if (item.accountingPermission && !canViewAccounting) {
               return false;
             }
             return true;

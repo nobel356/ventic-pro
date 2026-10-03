@@ -83,9 +83,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (password.length < 12) {
+    if (password.length < 6) {
       return NextResponse.json(
-        { error: "كلمة المرور يجب ألا تقل عن 12 حرفًا" },
+        { error: "كلمة المرور يجب ألا تقل عن 6 أحرف" },
         { status: 400 },
       );
     }

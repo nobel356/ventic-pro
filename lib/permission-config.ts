@@ -9,6 +9,7 @@ export const PERMISSIONS = {
   EXTRA_APPROVE: "extra.approve",
   CUSTOMER_SENSITIVE: "customer.sensitive",
   USERS_MANAGE: "users.manage",
+  ACCOUNTING_VIEW: "accounting.view",
 
   INVENTORY_VIEW: "inventory.view",
   INVENTORY_EDIT: "inventory.edit",
@@ -66,6 +67,12 @@ export const PERMISSION_OPTIONS: Array<{
       "مشاهدة رقم الهاتف والعنوان والبيانات الكاملة للعميل.",
   },
   {
+    value: PERMISSIONS.ACCOUNTING_VIEW,
+    label: "مشاهدة الحسابات والفواتير",
+    description:
+      "فتح قسم الحسابات ومراجعة الفواتير والمدفوع والمتبقي.",
+  },
+  {
     value: PERMISSIONS.INVENTORY_VIEW,
     label: "مشاهدة المخزون",
     description:
@@ -109,6 +116,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.QUOTE_SEND,
     PERMISSIONS.EXTRA_APPROVE,
     PERMISSIONS.CUSTOMER_SENSITIVE,
+    PERMISSIONS.ACCOUNTING_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.INVENTORY_EDIT,
     PERMISSIONS.INVENTORY_MOVE,
@@ -120,6 +128,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.ORDERS_EDIT,
     PERMISSIONS.QUOTE_SEND,
     PERMISSIONS.CUSTOMER_SENSITIVE,
+    PERMISSIONS.ACCOUNTING_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
   ],
   TECHNICIAN: [],

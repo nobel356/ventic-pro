@@ -56,9 +56,12 @@ model Customer {
   id String @id @default(cuid())
   name String
   phone String @unique
+  passwordHash String?
+  active Boolean @default(true)
   orders Order[]
   properties Property[]
   notifications Notification[]
+  sessions CustomerSession[]
   createdAt DateTime @default(now())
 }
 model Order {
@@ -247,6 +250,18 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+
+model CustomerSession {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([customerId, expiresAt])
 }
 
 

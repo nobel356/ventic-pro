@@ -148,12 +148,12 @@ export default function UserManagement({
       setError("اكتب الاسم واسم الدخول.");
       return;
     }
-    if (!editingId && form.password.length < 12) {
-      setError("كلمة المرور يجب ألا تقل عن 12 حرفًا.");
+    if (!editingId && form.password.length < 6) {
+      setError("كلمة المرور يجب ألا تقل عن 6 أحرف.");
       return;
     }
-    if (editingId && form.password && form.password.length < 12) {
-      setError("كلمة المرور الجديدة يجب ألا تقل عن 12 حرفًا.");
+    if (editingId && form.password && form.password.length < 6) {
+      setError("كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف.");
       return;
     }
 
@@ -271,7 +271,7 @@ export default function UserManagement({
               type="password"
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
-              placeholder="12 حرفًا على الأقل"
+              placeholder="6 أحرف على الأقل"
               autoComplete="new-password"
             />
           </Field>

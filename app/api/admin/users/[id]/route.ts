@@ -78,9 +78,9 @@ export async function PATCH(
       );
     }
 
-    if (password && password.length < 12) {
+    if (password && password.length < 6) {
       return NextResponse.json(
-        { error: "كلمة المرور الجديدة يجب ألا تقل عن 12 حرفًا" },
+        { error: "كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف" },
         { status: 400 },
       );
     }

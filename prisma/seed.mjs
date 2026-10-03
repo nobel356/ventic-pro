@@ -9,8 +9,8 @@ if (!email || !password) {
   console.error("Missing SEED_ADMIN_EMAIL or SEED_ADMIN_PASSWORD");
   process.exit(1);
 }
-if (password.length < 12) {
-  console.error("SEED_ADMIN_PASSWORD must be at least 12 characters");
+if (password.length < 6) {
+  console.error("SEED_ADMIN_PASSWORD must be at least 6 characters");
   process.exit(1);
 }
 
