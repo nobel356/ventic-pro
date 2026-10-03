@@ -36,6 +36,7 @@ export default function AccountMenu() {
   async function logout() {
     if (loggingOut) return;
     setLoggingOut(true);
+
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
@@ -51,7 +52,7 @@ export default function AccountMenu() {
       style={{
         position: "fixed",
         top: 14,
-        right: 14,
+        left: 72,
         zIndex: 2100,
         fontFamily: "inherit",
       }}
@@ -76,13 +77,19 @@ export default function AccountMenu() {
         }}
       >
         <span style={{ fontSize: 20 }}>👤</span>
+
         <span style={{ textAlign: "right", lineHeight: 1.2 }}>
-          <strong style={{ display: "block", fontSize: 13 }}>{me.name}</strong>
+          <strong style={{ display: "block", fontSize: 13 }}>
+            {me.name}
+          </strong>
           <small style={{ color: "#64748b", fontSize: 11 }}>
             {roleLabels[me.role] || me.role}
           </small>
         </span>
-        <span style={{ color: "#94a3b8", fontSize: 11 }}>{open ? "▲" : "▼"}</span>
+
+        <span style={{ color: "#94a3b8", fontSize: 11 }}>
+          {open ? "▲" : "▼"}
+        </span>
       </button>
 
       {open && (
@@ -90,7 +97,7 @@ export default function AccountMenu() {
           style={{
             position: "absolute",
             top: 54,
-            right: 0,
+            left: 0,
             width: 270,
             background: "white",
             border: "1px solid #dbe3ea",
@@ -99,15 +106,35 @@ export default function AccountMenu() {
             overflow: "hidden",
           }}
         >
-          <div style={{ padding: 14, borderBottom: "1px solid #edf2f7" }}>
-            <strong style={{ display: "block", color: "#0f2d4a" }}>{me.name}</strong>
-            <small style={{ display: "block", color: "#64748b", marginTop: 4 }}>
+          <div
+            style={{
+              padding: 14,
+              borderBottom: "1px solid #edf2f7",
+            }}
+          >
+            <strong style={{ display: "block", color: "#0f2d4a" }}>
+              {me.name}
+            </strong>
+            <small
+              style={{
+                display: "block",
+                color: "#64748b",
+                marginTop: 4,
+              }}
+            >
               {me.login}
             </small>
-            <small style={{ display: "block", color: "#64748b", marginTop: 3 }}>
+            <small
+              style={{
+                display: "block",
+                color: "#64748b",
+                marginTop: 3,
+              }}
+            >
               {roleLabels[me.role] || me.role}
             </small>
           </div>
+
           <button
             type="button"
             onClick={() => void logout()}
@@ -127,7 +154,9 @@ export default function AccountMenu() {
             }}
           >
             <span>↪</span>
-            {loggingOut ? "جاري تسجيل الخروج..." : "تسجيل الخروج"}
+            {loggingOut
+              ? "جاري تسجيل الخروج..."
+              : "تسجيل الخروج"}
           </button>
         </div>
       )}

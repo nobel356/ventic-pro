@@ -1,0 +1,87 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  superAdminOnly?: boolean;
+};
+
+const navItems: NavItem[] = [
+  { href: "/admin", label: "الرئيسية", icon: "⌂" },
+  { href: "/admin/orders", label: "الطلبات", icon: "📋" },
+  { href: "/admin/schedule", label: "المواعيد", icon: "🗓️" },
+  { href: "/admin/customers", label: "العملاء", icon: "👥" },
+  { href: "/admin/technicians", label: "الفنيون", icon: "👷" },
+  { href: "/admin/inventory", label: "المخزون", icon: "📦" },
+  { href: "/admin/pricing", label: "الأسعار", icon: "💰" },
+  { href: "/admin/aftercare", label: "ما بعد التركيب", icon: "🛠️" },
+  { href: "/admin/reports", label: "التقارير", icon: "📊" },
+  { href: "/admin/leads", label: "غير المكتملة", icon: "🕓" },
+  {
+    href: "/admin/users",
+    label: "المستخدمون",
+    icon: "🔐",
+    superAdminOnly: true,
+  },
+];
+
+function isActive(pathname: string, href: string) {
+  if (href === "/admin") return pathname === "/admin";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export default function AdminSidebar({
+  isSuperAdmin,
+}: {
+  isSuperAdmin: boolean;
+}) {
+  const pathname = usePathname();
+
+  return (
+    <aside className="vpAdminSidebar" dir="rtl">
+      <Link
+        href="/admin"
+        className="vpAdminLogo"
+        title="العودة للشاشة الرئيسية"
+        aria-label="العودة للشاشة الرئيسية"
+      >
+        <span className="vpAdminLogoMark">V</span>
+        <span className="vpAdminLogoText">
+          <strong>Ventic Pro</strong>
+          <small>لوحة التشغيل</small>
+        </span>
+      </Link>
+
+      <nav className="vpAdminNav" aria-label="القائمة الرئيسية">
+        {navItems
+          .filter((item) => !item.superAdminOnly || isSuperAdmin)
+          .map((item) => {
+            const active = isActive(pathname, item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`vpAdminNavLink${active ? " active" : ""}`}
+                title={item.label}
+              >
+                <span className="vpAdminNavIcon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                <span className="vpAdminNavLabel">{item.label}</span>
+              </Link>
+            );
+          })}
+      </nav>
+
+      <div className="vpAdminSidebarHint">
+        <span>Ventic Pro</span>
+        <small>كل أقسام التشغيل من مكان واحد</small>
+      </div>
+    </aside>
+  );
+}

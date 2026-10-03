@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const status: Record<string, string> = {
@@ -39,11 +40,17 @@ export default function Technician() {
   return (
     <main className="tech">
       <header>
-        <div className="brand">
+        <Link
+          href="/technician"
+          className="brand"
+          title="العودة للرئيسية"
+          aria-label="العودة للرئيسية"
+        >
           <i>V</i> Ventic Pro
-        </div>
+        </Link>
         <b>واجهة الفني</b>
       </header>
+
       <section>
         {error && (
           <div className="errorText">
@@ -51,6 +58,7 @@ export default function Technician() {
             <small>تأكد من تسجيل الدخول بحساب فني نشط.</small>
           </div>
         )}
+
         {data && (
           <>
             <div className="techHello">
@@ -58,6 +66,7 @@ export default function Technician() {
               <h1>{data.technician.name}</h1>
               <p>الطلبات المسندة ليك حاليًا</p>
             </div>
+
             {data.orders.length === 0 ? (
               <div className="empty">لا توجد طلبات نشطة حاليًا.</div>
             ) : (
@@ -70,32 +79,50 @@ export default function Technician() {
                     </div>
                     <span>{status[order.status] || order.status}</span>
                   </div>
+
                   <p>
                     📍 {order.governorate}، {order.area} — {order.address}
                   </p>
+
                   <p>
                     🗓️ {order.preferredDate} · {order.preferredTime}
                   </p>
-                  <a className="phoneBtn" href={`tel:${order.customer.phone}`}>
+
+                  <a
+                    className="phoneBtn"
+                    href={`tel:${order.customer.phone}`}
+                  >
                     اتصال بالعميل
                   </a>
+
                   <div className="jobActions">
-                    <button onClick={() => void change(order.id, "ON_THE_WAY")}>
+                    <button
+                      onClick={() =>
+                        void change(order.id, "ON_THE_WAY")
+                      }
+                    >
                       في الطريق
                     </button>
-                    <button onClick={() => void change(order.id, "ARRIVED")}>
+                    <button
+                      onClick={() => void change(order.id, "ARRIVED")}
+                    >
                       وصلت
                     </button>
-                    <button onClick={() => void change(order.id, "IN_PROGRESS")}>
+                    <button
+                      onClick={() =>
+                        void change(order.id, "IN_PROGRESS")
+                      }
+                    >
                       بدأت التركيب
                     </button>
                   </div>
-                  <a
+
+                  <Link
                     className="button full"
                     href={`/technician/orders/${order.id}`}
                   >
                     فتح تفاصيل التنفيذ ←
-                  </a>
+                  </Link>
                 </article>
               ))
             )}

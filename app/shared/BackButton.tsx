@@ -1,6 +1,35 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
+const STORAGE_KEY = "ventic_navigation_stack";
+const MAX_HISTORY = 30;
+
+function readStack() {
+  if (typeof window === "undefined") return [] as string[];
+
+  try {
+    const parsed = JSON.parse(
+      window.sessionStorage.getItem(STORAGE_KEY) || "[]",
+    );
+
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStack(stack: string[]) {
+  if (typeof window === "undefined") return;
+
+  window.sessionStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(stack.slice(-MAX_HISTORY)),
+  );
+}
 
 export default function BackButton({
   fallbackHref,
@@ -8,10 +37,37 @@ export default function BackButton({
   fallbackHref: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const stack = readStack();
+    const last = stack[stack.length - 1];
+
+    if (last === pathname) return;
+
+    const previous = stack[stack.length - 2];
+
+    if (previous === pathname) {
+      stack.pop();
+    } else {
+      stack.push(pathname);
+    }
+
+    saveStack(stack);
+  }, [pathname]);
 
   function goBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
+    const stack = readStack();
+
+    if (stack[stack.length - 1] === pathname) {
+      stack.pop();
+    }
+
+    const target = stack[stack.length - 1];
+
+    if (target && target !== pathname) {
+      saveStack(stack);
+      router.push(target);
       return;
     }
 
