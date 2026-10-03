@@ -1,2 +1,92 @@
-import {NextResponse} from 'next/server';import {prisma} from '@/lib/prisma';import {currentTechnician} from '@/lib/technician';import {audit} from '@/lib/audit';
-export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){const tech=await currentTechnician();if(!tech)return NextResponse.json({error:'غير مصرح'},{status:401});const {id}=await params;const order=await prisma.order.findFirst({where:{id,technicianId:tech.id}});if(!order)return NextResponse.json({error:'الطلب غير مسند لهذا الفني'},{status:403});const form=await req.formData(),file=form.get('file'),kind=String(form.get('kind')||'');if(!(file instanceof File)||!['BEFORE','AFTER'].includes(kind))return NextResponse.json({error:'الصورة والنوع مطلوبان'},{status:400});if(!file.type.startsWith('image/')||file.size>8*1024*1024)return NextResponse.json({error:'الصورة يجب أن تكون أقل من 8MB'},{status:400});/* Adapter point: replace local metadata with S3/R2/Cloudinary upload in production. */const item=await prisma.attachment.create({data:{orderId:id,kind:kind as any,fileName:file.name,mimeType:file.type,storagePath:`pending://${crypto.randomUUID()}/${file.name}`,uploadedBy:tech.id}});await audit({orderId:id,actorId:tech.id,actorLabel:tech.name,action:`${kind}_PHOTO_ADDED`,newValue:{fileName:file.name}});return NextResponse.json(item)}
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { currentTechnician } from "@/lib/technician";
+import {
+  addExecutionAttachment,
+  executionErrorResponse,
+} from "@/lib/order-execution";
+
+export async function POST(
+  req: Request,
+  {
+    params,
+  }: {
+    params: Promise<{ id: string }>;
+  },
+) {
+  const tech = await currentTechnician();
+
+  if (!tech) {
+    return NextResponse.json(
+      { error: "غير مصرح" },
+      { status: 401 },
+    );
+  }
+
+  const { id } = await params;
+
+  const order = await prisma.order.findFirst({
+    where: {
+      id,
+      technicianId: tech.id,
+    },
+    select: { id: true },
+  });
+
+  if (!order) {
+    return NextResponse.json(
+      {
+        error:
+          "الطلب غير مسند لهذا الفني",
+      },
+      { status: 403 },
+    );
+  }
+
+  const form = await req.formData();
+  const file = form.get("file");
+  const kind = String(
+    form.get("kind") || "",
+  );
+
+  if (
+    !(file instanceof File) ||
+    !["BEFORE", "AFTER"].includes(kind)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "الصورة والنوع مطلوبان",
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    return NextResponse.json(
+      await addExecutionAttachment(
+        prisma,
+        {
+          orderId: id,
+          actor: {
+            id: tech.id,
+            name: tech.name,
+            mode: "TECHNICIAN",
+          },
+          kind: kind as
+            | "BEFORE"
+            | "AFTER",
+          file,
+        },
+      ),
+    );
+  } catch (error: any) {
+    const mapped =
+      executionErrorResponse(error);
+
+    return NextResponse.json(
+      mapped.body,
+      { status: mapped.status },
+    );
+  }
+}

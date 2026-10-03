@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import Link from "next/link";
+import {
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useRouter } from "next/navigation";
 
 type Step = {
   key: string;
   label: string;
   detail: string;
-  state: "DONE" | "ACTION" | "WAIT" | "INFO";
+  state:
+    | "DONE"
+    | "ACTION"
+    | "WAIT"
+    | "INFO";
   anchor?: string;
 };
 
@@ -50,12 +59,32 @@ export default function UnifiedOrderCenter({
   invoiceNeedsSync,
 }: Props) {
   const router = useRouter();
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("CASH");
-  const [reference, setReference] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [amount, setAmount] =
+    useState("");
+  const [method, setMethod] =
+    useState("CASH");
+  const [reference, setReference] =
+    useState("");
+  const [loading, setLoading] =
+    useState(false);
+  const [message, setMessage] =
+    useState("");
+  const [error, setError] =
+    useState("");
+
+  const nextStep = useMemo(
+    () =>
+      steps.find(
+        (step) =>
+          step.state === "ACTION",
+      ) ||
+      steps.find(
+        (step) =>
+          step.state === "WAIT",
+      ) ||
+      null,
+    [steps],
+  );
 
   async function recordPayment() {
     setMessage("");
@@ -63,32 +92,42 @@ export default function UnifiedOrderCenter({
 
     const numeric = Number(amount);
 
-    if (!Number.isFinite(numeric) || numeric <= 0) {
-      setError("اكتب قيمة دفعة صحيحة.");
+    if (
+      !Number.isFinite(numeric) ||
+      numeric <= 0
+    ) {
+      setError(
+        "اكتب قيمة دفعة صحيحة.",
+      );
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch("/api/payments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        "/api/payments",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            orderId,
+            amount: numeric,
+            method,
+            reference,
+          }),
         },
-        body: JSON.stringify({
-          orderId,
-          amount: numeric,
-          method,
-          reference,
-        }),
-      });
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data?.error || "تعذر تسجيل الدفعة",
+          data?.error ||
+            "تعذر تسجيل الدفعة",
         );
       }
 
@@ -99,12 +138,13 @@ export default function UnifiedOrderCenter({
           ? `تم تسجيل الدفعة ومزامنة الفاتورة تلقائيًا. المتبقي ${Number(
               data?.financials?.due || 0,
             ).toLocaleString("ar-EG")} ج.`
-          : `تم تسجيل الدفعة كمقدم. ستدخل تلقائيًا في الفاتورة بعد اعتماد مقايسة Ventic Pro.`,
+          : "تم تسجيل الدفعة كمقدم. ستدخل تلقائيًا في الفاتورة بعد اعتماد مقايسة Ventic Pro.",
       );
       router.refresh();
     } catch (err: any) {
       setError(
-        err?.message || "تعذر تسجيل الدفعة",
+        err?.message ||
+          "تعذر تسجيل الدفعة",
       );
     } finally {
       setLoading(false);
@@ -119,11 +159,8 @@ export default function UnifiedOrderCenter({
     try {
       const response = await fetch(
         `/api/invoices/${orderId}`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
-
       const data = await response.json();
 
       if (!response.ok) {
@@ -148,28 +185,50 @@ export default function UnifiedOrderCenter({
   }
 
   return (
-    <section
-      style={{
-        ...cardStyle,
-        border: "1px solid #bfdbfe",
-        background:
-          "linear-gradient(135deg,#ffffff,#f8fbff)",
-      }}
-    >
+    <section style={cardStyle}>
       <div style={headerStyle}>
         <div>
           <h2 style={{ margin: 0 }}>
             مركز تنفيذ الطلب
           </h2>
           <p style={mutedStyle}>
-            شاشة واحدة توضح أين وصل الطلب وما هي الخطوة التالية. الأنظمة المرتبطة تتحدث تلقائيًا.
+            حالة واحدة مترابطة للمقايسة والمواعيد والتنفيذ والخامات والتحصيل والضمان.
           </p>
         </div>
 
-        <span style={sourceBadgeStyle}>
-          المصدر المالي: {finance.source}
-        </span>
+        <div style={headerActionsStyle}>
+          <span style={sourceBadgeStyle}>
+            المصدر المالي:{" "}
+            {finance.source}
+          </span>
+
+          <Link
+            href={`/admin/orders/${orderId}/execute`}
+            style={executeButtonStyle}
+          >
+            فتح شاشة التنفيذ
+          </Link>
+        </div>
       </div>
+
+      {nextStep ? (
+        <a
+          href={nextStep.anchor || "#"}
+          style={nextActionStyle}
+        >
+          <span>الخطوة المطلوبة الآن</span>
+          <strong>
+            {nextStep.label}
+          </strong>
+          <small>
+            {nextStep.detail}
+          </small>
+        </a>
+      ) : (
+        <div style={completeBannerStyle}>
+          ✓ لا توجد خطوة تشغيلية ناقصة ظاهرة حاليًا.
+        </div>
+      )}
 
       <div style={stepsGridStyle}>
         {steps.map((step, index) => (
@@ -184,9 +243,6 @@ export default function UnifiedOrderCenter({
               background: stepColor(
                 step.state,
               ).background,
-              cursor: step.anchor
-                ? "pointer"
-                : "default",
             }}
           >
             <span
@@ -225,11 +281,15 @@ export default function UnifiedOrderCenter({
       <div style={financeGridStyle}>
         <Finance
           label="أساس المقايسة"
-          value={finance.baseSubtotal}
+          value={
+            finance.baseSubtotal
+          }
         />
         <Finance
           label="إضافات معتمدة"
-          value={finance.approvedExtras}
+          value={
+            finance.approvedExtras
+          }
         />
         <Finance
           label="الخصم"
@@ -260,33 +320,31 @@ export default function UnifiedOrderCenter({
           }}
         >
           الفاتورة الحالية:{" "}
-          <strong>{invoice.invoiceNo}</strong>
+          <strong>
+            {invoice.invoiceNo}
+          </strong>
         </p>
       )}
 
-      {finance.authoritative && invoiceNeedsSync && (
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() => void syncInvoice()}
-          style={{
-            ...secondaryButtonStyle,
-            marginTop: 12,
-          }}
-        >
-          مزامنة الفاتورة القديمة مع البيانات الحالية
-        </button>
-      )}
+      {finance.authoritative &&
+        invoiceNeedsSync && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() =>
+              void syncInvoice()
+            }
+            style={{
+              ...secondaryButtonStyle,
+              marginTop: 12,
+            }}
+          >
+            مزامنة الفاتورة القديمة مع البيانات الحالية
+          </button>
+        )}
 
       {finance.due > 0 && (
-        <div
-          style={{
-            borderTop:
-              "1px solid #dbeafe",
-            marginTop: 18,
-            paddingTop: 18,
-          }}
-        >
+        <div style={paymentSectionStyle}>
           <h3 style={{ marginTop: 0 }}>
             تسجيل دفعة من نفس الطلب
           </h3>
@@ -384,12 +442,7 @@ function Finance({
 }) {
   return (
     <div style={financeCardStyle}>
-      <span
-        style={{
-          color: "#64748b",
-          fontSize: 12,
-        }}
-      >
+      <span style={financeLabelStyle}>
         {label}
       </span>
       <b
@@ -402,16 +455,18 @@ function Finance({
             : "#0f2d4a",
         }}
       >
-        {Number(value || 0).toLocaleString(
-          "ar-EG",
-        )}{" "}
+        {Number(
+          value || 0,
+        ).toLocaleString("ar-EG")}{" "}
         ج
       </b>
     </div>
   );
 }
 
-function stepColor(state: Step["state"]) {
+function stepColor(
+  state: Step["state"],
+) {
   if (state === "DONE") {
     return {
       background: "#f0fdf4",
@@ -447,6 +502,9 @@ const cardStyle: CSSProperties = {
   borderRadius: 18,
   padding: 20,
   marginTop: 22,
+  border: "1px solid #bfdbfe",
+  background:
+    "linear-gradient(135deg,#ffffff,#f8fbff)",
   boxShadow:
     "0 10px 30px rgba(15,23,42,.05)",
 };
@@ -456,6 +514,13 @@ const headerStyle: CSSProperties = {
   justifyContent: "space-between",
   alignItems: "flex-start",
   gap: 12,
+  flexWrap: "wrap",
+};
+
+const headerActionsStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
   flexWrap: "wrap",
 };
 
@@ -474,6 +539,37 @@ const sourceBadgeStyle: CSSProperties = {
   fontWeight: 800,
 };
 
+const executeButtonStyle: CSSProperties = {
+  textDecoration: "none",
+  borderRadius: 10,
+  background: "#0f2d4a",
+  color: "white",
+  padding: "9px 13px",
+  fontWeight: 900,
+};
+
+const nextActionStyle: CSSProperties = {
+  display: "grid",
+  gap: 3,
+  marginTop: 16,
+  textDecoration: "none",
+  padding: 14,
+  borderRadius: 13,
+  background: "#fff7ed",
+  border: "1px solid #fdba74",
+  color: "#9a3412",
+};
+
+const completeBannerStyle: CSSProperties = {
+  marginTop: 16,
+  padding: 12,
+  borderRadius: 12,
+  background: "#f0fdf4",
+  border: "1px solid #bbf7d0",
+  color: "#166534",
+  fontWeight: 800,
+};
+
 const stepsGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns:
@@ -489,7 +585,8 @@ const stepStyle: CSSProperties = {
   borderRadius: 13,
   padding: 12,
   display: "grid",
-  gridTemplateColumns: "34px 1fr",
+  gridTemplateColumns:
+    "34px 1fr",
   gap: 9,
   alignItems: "start",
 };
@@ -517,6 +614,17 @@ const financeCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 11,
   background: "white",
+};
+
+const financeLabelStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+};
+
+const paymentSectionStyle: CSSProperties = {
+  borderTop: "1px solid #dbeafe",
+  marginTop: 18,
+  paddingTop: 18,
 };
 
 const paymentGridStyle: CSSProperties = {
