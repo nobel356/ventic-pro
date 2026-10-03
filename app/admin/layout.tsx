@@ -36,12 +36,25 @@ export default async function AdminLayout({
     user.permissions,
   );
 
+  const canViewCustomers =
+    can(
+      user.role,
+      PERMISSIONS.CUSTOMER_SENSITIVE,
+      user.permissions,
+    ) ||
+    can(
+      user.role,
+      PERMISSIONS.CUSTOMER_ACCOUNTS_EDIT,
+      user.permissions,
+    );
+
   return (
     <div className="vpAdminWorkspace">
       <AdminSidebar
         isSuperAdmin={user.role === "SUPER_ADMIN"}
         canViewInventory={canViewInventory}
         canViewAccounting={canViewAccounting}
+        canViewCustomers={canViewCustomers}
       />
 
       <div className="vpAdminContent">

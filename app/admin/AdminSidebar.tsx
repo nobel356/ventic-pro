@@ -10,13 +10,19 @@ type NavItem = {
   superAdminOnly?: boolean;
   inventoryPermission?: boolean;
   accountingPermission?: boolean;
+  customersPermission?: boolean;
 };
 
 const navItems: NavItem[] = [
   { href: "/admin", label: "الرئيسية", icon: "⌂" },
   { href: "/admin/orders", label: "الطلبات", icon: "📋" },
   { href: "/admin/schedule", label: "المواعيد", icon: "🗓️" },
-  { href: "/admin/customers", label: "العملاء", icon: "👥" },
+  {
+    href: "/admin/customers",
+    label: "العملاء",
+    icon: "👥",
+    customersPermission: true,
+  },
   { href: "/admin/technicians", label: "الفنيون", icon: "👷" },
   {
     href: "/admin/inventory",
@@ -51,10 +57,12 @@ export default function AdminSidebar({
   isSuperAdmin,
   canViewInventory,
   canViewAccounting,
+  canViewCustomers,
 }: {
   isSuperAdmin: boolean;
   canViewInventory: boolean;
   canViewAccounting: boolean;
+  canViewCustomers: boolean;
 }) {
   const pathname = usePathname();
 
@@ -81,6 +89,9 @@ export default function AdminSidebar({
               return false;
             }
             if (item.accountingPermission && !canViewAccounting) {
+              return false;
+            }
+            if (item.customersPermission && !canViewCustomers) {
               return false;
             }
             return true;

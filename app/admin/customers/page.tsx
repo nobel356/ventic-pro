@@ -1,2 +1,75 @@
-import {prisma} from "@/lib/prisma";
-export default async function Customers(){const xs=await prisma.customer.findMany({include:{_count:{select:{orders:true,properties:true}},properties:{include:{devices:true}}},orderBy:{createdAt:"desc"},take:100});return <main className="order"><section className="panel"><h1>العملاء وسجل العقار</h1>{xs.map(c=><article className="review" key={c.id}><h3>{c.name}</h3><p>{c.phone} — {c._count.orders} طلبات — {c._count.properties} عقارات</p>{c.properties.map(p=><div key={p.id}><b>{p.label||`${p.area}، ${p.governorate}`}</b><p>{p.address}</p><small>{p.devices.length} أجهزة/تركيبات مسجلة</small></div>)}</article>)}</section></main>}
+import { redirect } from "next/navigation";
+import {
+  can,
+  currentUser,
+  PERMISSIONS,
+} from "@/lib/auth-v7";
+import CustomerManagement from "./CustomerManagement";
+
+export default async function CustomersPage() {
+  const user = await currentUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const canView =
+    can(
+      user.role,
+      PERMISSIONS.CUSTOMER_SENSITIVE,
+      user.permissions,
+    ) ||
+    can(
+      user.role,
+      PERMISSIONS.CUSTOMER_ACCOUNTS_EDIT,
+      user.permissions,
+    );
+
+  if (!canView) {
+    redirect("/admin");
+  }
+
+  const canEdit = can(
+    user.role,
+    PERMISSIONS.CUSTOMER_ACCOUNTS_EDIT,
+    user.permissions,
+  );
+
+  return (
+    <main className="admin" dir="rtl">
+      <section
+        style={{
+          maxWidth: 1380,
+          margin: "0 auto",
+          padding: "26px 18px 70px",
+        }}
+      >
+        <div
+          style={{
+            marginBottom: 20,
+          }}
+        >
+          <h1
+            style={{
+              marginBottom: 6,
+            }}
+          >
+            العملاء وحساباتهم
+          </h1>
+          <p
+            style={{
+              color: "#64748b",
+              margin: 0,
+            }}
+          >
+            بيانات العميل وحالة حسابه وطلباته وفواتيره في مكان واحد. أي تعديل حساس يتم تسجيله في Audit Log.
+          </p>
+        </div>
+
+        <CustomerManagement
+          canEdit={canEdit}
+        />
+      </section>
+    </main>
+  );
+}

@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   QUOTE_SEND: "quote.send",
   EXTRA_APPROVE: "extra.approve",
   CUSTOMER_SENSITIVE: "customer.sensitive",
+  CUSTOMER_ACCOUNTS_EDIT: "customer.accounts.edit",
   USERS_MANAGE: "users.manage",
   ACCOUNTING_VIEW: "accounting.view",
 
@@ -67,6 +68,12 @@ export const PERMISSION_OPTIONS: Array<{
       "مشاهدة رقم الهاتف والعنوان والبيانات الكاملة للعميل.",
   },
   {
+    value: PERMISSIONS.CUSTOMER_ACCOUNTS_EDIT,
+    label: "تعديل حسابات العملاء",
+    description:
+      "تعديل اسم ورقم وحالة حساب العميل، وتعيين كلمة مرور جديدة عند الحاجة.",
+  },
+  {
     value: PERMISSIONS.ACCOUNTING_VIEW,
     label: "مشاهدة الحسابات والفواتير",
     description:
@@ -116,6 +123,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.QUOTE_SEND,
     PERMISSIONS.EXTRA_APPROVE,
     PERMISSIONS.CUSTOMER_SENSITIVE,
+    PERMISSIONS.CUSTOMER_ACCOUNTS_EDIT,
     PERMISSIONS.ACCOUNTING_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.INVENTORY_EDIT,

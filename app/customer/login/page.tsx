@@ -80,6 +80,18 @@ export default function CustomerLoginPage() {
 
           {error && <p className="errorText">{error}</p>}
 
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              margin: "8px 0 12px",
+            }}
+          >
+            <Link href="/customer/forgot-password">
+              نسيت كلمة المرور؟
+            </Link>
+          </div>
+
           <button className="button full" disabled={loading}>
             {loading ? "جاري الدخول..." : "دخول"}
           </button>

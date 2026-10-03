@@ -62,6 +62,7 @@ model Customer {
   properties Property[]
   notifications Notification[]
   sessions CustomerSession[]
+  passwordResets CustomerPasswordReset[]
   createdAt DateTime @default(now())
 }
 model Order {
@@ -262,6 +263,21 @@ model CustomerSession {
   createdAt DateTime @default(now())
 
   @@index([customerId, expiresAt])
+}
+
+
+model CustomerPasswordReset {
+  id String @id @default(cuid())
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  codeHash String
+  expiresAt DateTime
+  attempts Int @default(0)
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([expiresAt, usedAt])
 }
 
 
