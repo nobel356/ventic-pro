@@ -14,74 +14,119 @@ import {
   hashCustomerResetCode,
   newCustomerResetCode,
 } from "@/lib/customer-password-reset";
+import {
+  clientIp,
+  rateLimit,
+  rateLimitHeaders,
+} from "@/lib/request-security";
 
 const GENERIC_MESSAGE =
   "إذا كان الرقم مرتبطًا بحساب Ventic Pro فسيصلك كود استعادة كلمة المرور.";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const phone = normalizeCustomerPhone(body?.phone);
+    const limited = rateLimit(
+      `password-forgot:${clientIp(req)}`,
+      {
+        limit: 8,
+        windowMs: 15 * 60 * 1000,
+      },
+    );
 
-    if (!validEgyptMobile(phone)) {
+    if (!limited.allowed) {
       return NextResponse.json(
-        { ok: true, message: GENERIC_MESSAGE },
+        {
+          ok: true,
+          message: GENERIC_MESSAGE,
+        },
+        {
+          status: 429,
+          headers:
+            rateLimitHeaders(limited),
+        },
       );
     }
 
-    const customer = await prisma.customer.findUnique({
-      where: { phone },
-    });
+    const body = await req.json();
+    const phone =
+      normalizeCustomerPhone(
+        body?.phone,
+      );
+
+    if (!validEgyptMobile(phone)) {
+      return NextResponse.json({
+        ok: true,
+        message: GENERIC_MESSAGE,
+      });
+    }
+
+    const customer =
+      await prisma.customer.findUnique({
+        where: { phone },
+      });
 
     if (
       !customer ||
       !customer.active ||
       !customer.passwordHash
     ) {
-      return NextResponse.json(
-        { ok: true, message: GENERIC_MESSAGE },
-      );
+      return NextResponse.json({
+        ok: true,
+        message: GENERIC_MESSAGE,
+      });
     }
 
-    const recent = await prisma.customerPasswordReset.findFirst({
-      where: {
-        customerId: customer.id,
-        usedAt: null,
-        createdAt: {
-          gte: new Date(Date.now() - 60_000),
+    const recent =
+      await prisma.customerPasswordReset.findFirst({
+        where: {
+          customerId:
+            customer.id,
+          usedAt: null,
+          createdAt: {
+            gte: new Date(
+              Date.now() - 60_000,
+            ),
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
     if (recent) {
       return NextResponse.json({
         ok: true,
         message: GENERIC_MESSAGE,
-        retryAfterSeconds: Math.max(
-          1,
-          60 -
-            Math.floor(
-              (Date.now() - recent.createdAt.getTime()) /
-                1000,
-            ),
-        ),
+        retryAfterSeconds:
+          Math.max(
+            1,
+            60 -
+              Math.floor(
+                (Date.now() -
+                  recent.createdAt.getTime()) /
+                  1000,
+              ),
+          ),
       });
     }
 
-    const otp = newCustomerResetCode();
+    const otp =
+      newCustomerResetCode();
     const expiresAt = new Date(
-      Date.now() + 10 * 60_000,
+      Date.now() +
+        10 * 60_000,
     );
 
     const reset =
       await prisma.customerPasswordReset.create({
         data: {
-          customerId: customer.id,
-          codeHash: hashCustomerResetCode(
+          customerId:
             customer.id,
-            otp,
-          ),
+          codeHash:
+            hashCustomerResetCode(
+              customer.id,
+              otp,
+            ),
           expiresAt,
         },
       });
@@ -93,36 +138,45 @@ export async function POST(req: Request) {
       });
 
     const channel: NotificationChannel =
-      delivery.channel === "WHATSAPP"
+      delivery.channel ===
+      "WHATSAPP"
         ? "WHATSAPP"
-        : delivery.channel === "SMS"
+        : delivery.channel ===
+            "SMS"
           ? "SMS"
           : "IN_APP";
 
     await prisma.notification.create({
       data: {
-        customerId: customer.id,
+        customerId:
+          customer.id,
         channel,
-        templateKey: "CUSTOMER_PASSWORD_RESET",
+        templateKey:
+          "CUSTOMER_PASSWORD_RESET",
         destinationMasked:
           delivery.destinationMasked,
         payload: {
           resetId: reset.id,
-          expiresAt: expiresAt.toISOString(),
-          provider: delivery.provider,
+          expiresAt:
+            expiresAt.toISOString(),
+          provider:
+            delivery.provider,
           staging:
             passwordResetStagingVisible(),
         },
-        status: delivery.sent
-          ? "SENT"
-          : "FAILED",
-        error: delivery.sent
-          ? null
-          : delivery.error ||
-            "MESSAGING_DISABLED",
-        sentAt: delivery.sent
-          ? new Date()
-          : null,
+        status:
+          delivery.sent
+            ? "SENT"
+            : "FAILED",
+        error:
+          delivery.sent
+            ? null
+            : delivery.error ||
+              "MESSAGING_DISABLED",
+        sentAt:
+          delivery.sent
+            ? new Date()
+            : null,
       },
     });
 
@@ -132,19 +186,31 @@ export async function POST(req: Request) {
         action:
           "CUSTOMER_PASSWORD_RESET_REQUESTED",
         newValue: {
-          customerId: customer.id,
-          phoneMasked: maskPhone(
-            customer.phone,
-          ),
+          customerId:
+            customer.id,
+          phoneMasked:
+            maskPhone(
+              customer.phone,
+            ),
           resetId: reset.id,
           expiresAt:
             expiresAt.toISOString(),
-          deliverySent: delivery.sent,
+          deliverySent:
+            delivery.sent,
           deliveryChannel:
             delivery.channel,
         },
       },
     });
+
+    const safeStagingVisible =
+      process.env.VERCEL_ENV !==
+        "production" &&
+      String(
+        process.env
+          .PASSWORD_RESET_STAGING_VISIBLE ||
+          "false",
+      ).toLowerCase() === "true";
 
     return NextResponse.json({
       ok: true,
@@ -152,7 +218,7 @@ export async function POST(req: Request) {
       expiresInMinutes: 10,
       retryAfterSeconds: 60,
       stagingOtp:
-        passwordResetStagingVisible()
+        safeStagingVisible
           ? otp
           : undefined,
     });

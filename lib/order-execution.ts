@@ -14,7 +14,6 @@ import {
 } from "@/lib/order-financials";
 import {
   deliverCompletionOtp,
-  otpStagingVisible,
 } from "@/lib/customer-messaging";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import {
@@ -24,6 +23,15 @@ import {
 
 export const OTP_TTL_MINUTES = 15;
 export const OTP_RESEND_SECONDS = 60;
+
+function safeOtpStagingVisible() {
+  return (
+    process.env.VERCEL_ENV !== "production" &&
+    String(
+      process.env.OTP_STAGING_VISIBLE || "false",
+    ).toLowerCase() === "true"
+  );
+}
 
 export type ExecutionActor = {
   id: string;
@@ -199,7 +207,7 @@ export async function getExecutionSnapshot(
         order.completionOtpExpiresAt || null,
       resendAfterSeconds,
       stagingVisible:
-        otpStagingVisible(),
+        safeOtpStagingVisible(),
     },
   };
 }
@@ -539,7 +547,7 @@ export async function issueExecutionOtp(
           expiresAt.toISOString(),
         provider: delivery.provider,
         staging:
-          otpStagingVisible(),
+          safeOtpStagingVisible(),
       },
       status: delivery.sent
         ? "SENT"
@@ -581,7 +589,7 @@ export async function issueExecutionOtp(
 
   if (
     !delivery.sent &&
-    !otpStagingVisible()
+    !safeOtpStagingVisible()
   ) {
     await notifyAdmins({
       type: AdminNotificationType.OTP_ALERT,
@@ -604,8 +612,8 @@ export async function issueExecutionOtp(
             ? "WhatsApp"
             : "SMS"
         }.`
-      : otpStagingVisible()
-        ? "وضع التجربة: لم يتم إرسال رسالة فعلية، والكود ظاهر لاختبار دورة التشغيل."
+      : safeOtpStagingVisible()
+        ? "وضع التجربة الآمن: الكود ظاهر فقط خارج بيئة Production."
         : "تم إنشاء الكود ولكن تعذر إرسال الرسالة.",
     delivery: {
       sent: delivery.sent,
@@ -617,7 +625,7 @@ export async function issueExecutionOtp(
     expiresAt,
     resendAfterSeconds:
       OTP_RESEND_SECONDS,
-    stagingOtp: otpStagingVisible()
+    stagingOtp: safeOtpStagingVisible()
       ? otp
       : undefined,
   };

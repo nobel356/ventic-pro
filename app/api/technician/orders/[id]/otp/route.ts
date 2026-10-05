@@ -14,7 +14,8 @@ export async function POST(
     params: Promise<{ id: string }>;
   },
 ) {
-  const tech = await currentTechnician();
+  const tech =
+    await currentTechnician();
 
   if (!tech) {
     return NextResponse.json(
@@ -25,13 +26,17 @@ export async function POST(
 
   const { id } = await params;
 
-  const order = await prisma.order.findFirst({
-    where: {
-      id,
-      technicianId: tech.id,
-    },
-    select: { id: true },
-  });
+  const order =
+    await prisma.order.findFirst({
+      where: {
+        id,
+        technicianId:
+          tech.id,
+      },
+      select: {
+        id: true,
+      },
+    });
 
   if (!order) {
     return NextResponse.json(
@@ -59,17 +64,21 @@ export async function POST(
         },
       );
 
-    return NextResponse.json({
-      ...result,
-      demoOtp: result.stagingOtp,
-    });
+    return NextResponse.json(
+      result,
+    );
   } catch (error: any) {
     const mapped =
-      executionErrorResponse(error);
+      executionErrorResponse(
+        error,
+      );
 
     return NextResponse.json(
       mapped.body,
-      { status: mapped.status },
+      {
+        status:
+          mapped.status,
+      },
     );
   }
 }

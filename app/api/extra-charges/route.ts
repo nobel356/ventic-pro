@@ -1,13 +1,138 @@
-import {NextResponse} from "next/server";
 import crypto from "crypto";
-import {prisma} from "@/lib/prisma";
-import {currentUser} from "@/lib/auth-v7";
-export async function POST(req:Request){
- const user=await currentUser(); if(!user) return NextResponse.json({error:"UNAUTHENTICATED"},{status:401});
- const {orderId,title,reason,amount}=await req.json();
- if(!orderId||!title||!reason||Number(amount)<=0) return NextResponse.json({error:"بيانات التكلفة الإضافية غير مكتملة"},{status:400});
- const token=crypto.randomBytes(24).toString("hex");
- const item=await prisma.extraCharge.create({data:{orderId,title,reason,amount,customerToken:token,requestedById:user.id}});
- await prisma.auditLog.create({data:{action:"EXTRA_CHARGE_REQUESTED",entityType:"Order",entityId:orderId,userId:user.id,newValue:JSON.stringify({title,amount})}} as any);
- return NextResponse.json({id:item.id,approvalPath:`/customer/approval/${token}`});
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import {
+  PERMISSIONS,
+  requirePermission,
+} from "@/lib/auth-v7";
+
+export async function POST(req: Request) {
+  try {
+    const user = await requirePermission(
+      PERMISSIONS.EXTRA_APPROVE,
+    );
+
+    const {
+      orderId,
+      title,
+      reason,
+      amount,
+    } = await req.json();
+
+    const numericAmount =
+      Number(amount);
+
+    if (
+      !orderId ||
+      !String(title || "").trim() ||
+      !String(reason || "").trim() ||
+      !Number.isFinite(numericAmount) ||
+      numericAmount <= 0
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "بيانات التكلفة الإضافية غير مكتملة",
+        },
+        { status: 400 },
+      );
+    }
+
+    const order =
+      await prisma.order.findUnique({
+        where: {
+          id: String(orderId),
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
+
+    if (!order) {
+      return NextResponse.json(
+        {
+          error:
+            "الطلب غير موجود",
+        },
+        { status: 404 },
+      );
+    }
+
+    if (
+      order.status === "COMPLETED" ||
+      order.status === "CANCELLED"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "لا يمكن إضافة تكلفة لطلب مكتمل أو ملغي",
+        },
+        { status: 409 },
+      );
+    }
+
+    const token = crypto
+      .randomBytes(32)
+      .toString("hex");
+
+    const item =
+      await prisma.extraCharge.create({
+        data: {
+          orderId: order.id,
+          title:
+            String(title).trim(),
+          reason:
+            String(reason).trim(),
+          amount:
+            numericAmount,
+          customerToken: token,
+          requestedById:
+            user.id,
+        },
+      });
+
+    await prisma.auditLog.create({
+      data: {
+        orderId: order.id,
+        actorId: user.id,
+        actorLabel:
+          user.name,
+        action:
+          "EXTRA_CHARGE_REQUESTED",
+        newValue: {
+          extraChargeId:
+            item.id,
+          title:
+            item.title,
+          amount:
+            numericAmount,
+        },
+      },
+    });
+
+    return NextResponse.json({
+      id: item.id,
+      approvalPath:
+        `/customer/approval/${token}`,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        error:
+          error?.message ||
+          "تعذر إنشاء التكلفة الإضافية",
+      },
+      {
+        status:
+          error?.message ===
+          "UNAUTHENTICATED"
+            ? 401
+            : error?.message ===
+                "FORBIDDEN"
+              ? 403
+              : 500,
+      },
+    );
+  }
 }

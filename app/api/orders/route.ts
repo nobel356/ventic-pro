@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import { calculateOrderOffer } from "@/lib/promotions";
+import {
+  clientIp,
+  rateLimit,
+  rateLimitHeaders,
+} from "@/lib/request-security";
 
 const bp: Record<string, number> = {
   new: 350,
@@ -16,6 +21,27 @@ function clean(value: unknown) {
 
 export async function POST(req: Request) {
   try {
+    const limited = rateLimit(
+      `public-order:${clientIp(req)}`,
+      {
+        limit: 20,
+        windowMs: 60 * 60 * 1000,
+      },
+    );
+
+    if (!limited.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "تم تجاوز عدد الطلبات المسموح به مؤقتًا. حاول مرة أخرى لاحقًا.",
+        },
+        {
+          status: 429,
+          headers: rateLimitHeaders(limited),
+        },
+      );
+    }
+
     const b = await req.json();
     const c = b.customer;
 

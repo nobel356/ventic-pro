@@ -9,12 +9,44 @@ import {
   customerResetCodeMatches,
 } from "@/lib/customer-password-reset";
 import { maskPhone } from "@/lib/customer-messaging";
+import {
+  clientIp,
+  rateLimit,
+  rateLimitHeaders,
+} from "@/lib/request-security";
 
 export async function POST(req: Request) {
   try {
+    const limited = rateLimit(
+      `password-reset:${clientIp(req)}`,
+      {
+        limit: 12,
+        windowMs: 15 * 60 * 1000,
+      },
+    );
+
+    if (!limited.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "تم تجاوز عدد محاولات التحقق. اطلب كودًا جديدًا بعد قليل.",
+        },
+        {
+          status: 429,
+          headers:
+            rateLimitHeaders(limited),
+        },
+      );
+    }
+
     const body = await req.json();
-    const phone = normalizeCustomerPhone(body?.phone);
-    const code = String(body?.code || "")
+    const phone =
+      normalizeCustomerPhone(
+        body?.phone,
+      );
+    const code = String(
+      body?.code || "",
+    )
       .replace(/\D/g, "")
       .slice(0, 6);
     const password = String(
@@ -26,7 +58,10 @@ export async function POST(req: Request) {
       code.length !== 6
     ) {
       return NextResponse.json(
-        { error: "رقم الموبايل أو الكود غير صحيح" },
+        {
+          error:
+            "رقم الموبايل أو الكود غير صحيح",
+        },
         { status: 400 },
       );
     }
@@ -63,7 +98,8 @@ export async function POST(req: Request) {
     const reset =
       await prisma.customerPasswordReset.findFirst({
         where: {
-          customerId: customer.id,
+          customerId:
+            customer.id,
           usedAt: null,
         },
         orderBy: {
@@ -94,7 +130,9 @@ export async function POST(req: Request) {
 
     if (!matches) {
       await prisma.customerPasswordReset.update({
-        where: { id: reset.id },
+        where: {
+          id: reset.id,
+        },
         data: {
           attempts: {
             increment: 1,
@@ -128,13 +166,15 @@ export async function POST(req: Request) {
 
         await tx.customerSession.deleteMany({
           where: {
-            customerId: customer.id,
+            customerId:
+              customer.id,
           },
         });
 
         await tx.customerPasswordReset.updateMany({
           where: {
-            customerId: customer.id,
+            customerId:
+              customer.id,
             usedAt: null,
           },
           data: {
@@ -154,13 +194,15 @@ export async function POST(req: Request) {
                 maskPhone(
                   customer.phone,
                 ),
-              sessionsRevoked: true,
+              sessionsRevoked:
+                true,
             },
           },
         });
       },
       {
-        isolationLevel: "Serializable",
+        isolationLevel:
+          "Serializable",
       },
     );
 

@@ -15,6 +15,7 @@ export const PERMISSIONS = {
   TECHNICIAN_PERFORMANCE_VIEW: "technician.performance.view",
   USERS_MANAGE: "users.manage",
   ACCOUNTING_VIEW: "accounting.view",
+  PAYMENTS_MANAGE: "payments.manage",
 
   INVENTORY_VIEW: "inventory.view",
   INVENTORY_EDIT: "inventory.edit",
@@ -109,6 +110,12 @@ export const PERMISSION_OPTIONS: Array<{
     label: "ملف أداء الفني",
     description:
       "مشاهدة مؤشرات الفني والتقييمات والشكاوى وإعادة الزيارات والعهدة.",
+  },
+  {
+    value: PERMISSIONS.PAYMENTS_MANAGE,
+    label: "إدارة الدفعات والفواتير",
+    description:
+      "تسجيل الدفعات ومزامنة الفاتورة النهائية والإجراءات المالية الحساسة.",
   },
   {
     value: PERMISSIONS.ACCOUNTING_VIEW,
@@ -220,6 +227,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.AFTERCARE_MANAGE,
     PERMISSIONS.TECHNICIAN_PERFORMANCE_VIEW,
     PERMISSIONS.ACCOUNTING_VIEW,
+    PERMISSIONS.PAYMENTS_MANAGE,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.INVENTORY_EDIT,
     PERMISSIONS.INVENTORY_MOVE,

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  clientIp,
+  rateLimit,
+  rateLimitHeaders,
+} from "@/lib/request-security";
 
 function clean(value: unknown) {
   return String(value || "").trim();
@@ -7,6 +12,27 @@ function clean(value: unknown) {
 
 export async function POST(req: Request) {
   try {
+    const limited = rateLimit(
+      `public-lead:${clientIp(req)}`,
+      {
+        limit: 60,
+        windowMs: 60 * 60 * 1000,
+      },
+    );
+
+    if (!limited.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "تم تجاوز عدد المحاولات مؤقتًا.",
+        },
+        {
+          status: 429,
+          headers: rateLimitHeaders(limited),
+        },
+      );
+    }
+
     const body = await req.json();
     const id = clean(body?.id);
     const phone = clean(body?.phone) || null;
