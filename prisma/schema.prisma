@@ -54,6 +54,7 @@ model User {
   createdStocktakes Stocktake[] @relation("StocktakeCreatedBy")
   approvedStocktakes Stocktake[] @relation("StocktakeApprovedBy")
   countedStocktakes Stocktake[] @relation("StocktakeTechnician")
+  serviceAreas ServiceArea[] @relation("ServiceAreaTechnicians")
   adminNotifications AdminNotification[]
 }
 model Customer {
@@ -79,6 +80,10 @@ model Order {
   status OrderStatus @default(NEW)
   estimatedTotal Decimal? @db.Decimal(10,2)
   finalTotal Decimal? @db.Decimal(10,2)
+  travelFeeSnapshot Decimal @default(0) @db.Decimal(10,2)
+  couponCodeSnapshot String?
+  couponDiscountSnapshot Decimal @default(0) @db.Decimal(10,2)
+  acquisitionSource String?
   governorate String?
   area String?
   address String?
@@ -599,12 +604,18 @@ model ServiceArea {
   travelFee Decimal @default(0) @db.Decimal(10,2)
   active Boolean @default(true)
   serviceDays String?
+  technicians User[] @relation("ServiceAreaTechnicians")
+  createdAt DateTime @default(now())
+
   @@unique([governorate,area])
+  @@index([active,governorate,area])
 }
 
 model Coupon {
   id String @id @default(cuid())
   code String @unique
+  name String?
+  description String?
   type DiscountType
   value Decimal @db.Decimal(10,2)
   minOrder Decimal? @db.Decimal(10,2)
@@ -612,8 +623,11 @@ model Coupon {
   endsAt DateTime?
   maxUses Int?
   usedCount Int @default(0)
+  eligibleServiceCodes String[] @default([])
   active Boolean @default(true)
   createdAt DateTime @default(now())
+
+  @@index([active,startsAt,endsAt])
 }
 
 
@@ -691,6 +705,9 @@ model Lead {
   currentStep Int @default(1)
   payload Json?
   consentToFollowUp Boolean @default(false)
+  followUpNote String?
+  nextFollowUpAt DateTime?
+  contactedAt DateTime?
   convertedOrderId String? @unique
   convertedOrder Order? @relation(fields:[convertedOrderId],references:[id])
   lastActivityAt DateTime @default(now())

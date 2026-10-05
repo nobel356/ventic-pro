@@ -16,10 +16,21 @@ type NavItem = {
   exportsPermission?: boolean;
   aftercarePermission?: boolean;
   technicianPerformancePermission?: boolean;
+  reportsPermission?: boolean;
+  areasPermission?: boolean;
+  promotionsPermission?: boolean;
+  leadsPermission?: boolean;
+  searchPermission?: boolean;
 };
 
 const navItems: NavItem[] = [
   { href: "/admin", label: "الرئيسية", icon: "⌂" },
+  {
+    href: "/admin/search",
+    label: "بحث شامل",
+    icon: "🔎",
+    searchPermission: true,
+  },
   { href: "/admin/orders", label: "الطلبات", icon: "📋" },
   { href: "/admin/schedule", label: "المواعيد", icon: "🗓️" },
   {
@@ -65,14 +76,36 @@ const navItems: NavItem[] = [
     icon: "🛠️",
     aftercarePermission: true,
   },
-  { href: "/admin/reports", label: "التقارير", icon: "📊" },
+  {
+    href: "/admin/reports",
+    label: "التقارير",
+    icon: "📊",
+    reportsPermission: true,
+  },
+  {
+    href: "/admin/areas",
+    label: "المناطق",
+    icon: "📍",
+    areasPermission: true,
+  },
+  {
+    href: "/admin/promotions",
+    label: "العروض والكوبونات",
+    icon: "🏷️",
+    promotionsPermission: true,
+  },
   {
     href: "/admin/exports",
     label: "مركز Excel",
     icon: "📗",
     exportsPermission: true,
   },
-  { href: "/admin/leads", label: "غير المكتملة", icon: "🕓" },
+  {
+    href: "/admin/leads",
+    label: "غير المكتملة",
+    icon: "🕓",
+    leadsPermission: true,
+  },
   {
     href: "/admin/users",
     label: "المستخدمون",
@@ -96,6 +129,11 @@ export default function AdminSidebar({
   canExports,
   canViewAftercare,
   canViewTechnicianPerformance,
+  canViewReports,
+  canManageAreas,
+  canManagePromotions,
+  canManageLeads,
+  canGlobalSearch,
 }: {
   isSuperAdmin: boolean;
   canViewInventory: boolean;
@@ -106,6 +144,11 @@ export default function AdminSidebar({
   canExports: boolean;
   canViewAftercare: boolean;
   canViewTechnicianPerformance: boolean;
+  canViewReports: boolean;
+  canManageAreas: boolean;
+  canManagePromotions: boolean;
+  canManageLeads: boolean;
+  canGlobalSearch: boolean;
 }) {
   const pathname = usePathname();
 
@@ -153,6 +196,21 @@ export default function AdminSidebar({
               item.technicianPerformancePermission &&
               !canViewTechnicianPerformance
             ) {
+              return false;
+            }
+            if (item.reportsPermission && !canViewReports) {
+              return false;
+            }
+            if (item.areasPermission && !canManageAreas) {
+              return false;
+            }
+            if (item.promotionsPermission && !canManagePromotions) {
+              return false;
+            }
+            if (item.leadsPermission && !canManageLeads) {
+              return false;
+            }
+            if (item.searchPermission && !canGlobalSearch) {
               return false;
             }
             return true;

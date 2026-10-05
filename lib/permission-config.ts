@@ -25,6 +25,11 @@ export const PERMISSIONS = {
   SUPPLIERS_MANAGE: "suppliers.manage",
   PURCHASES_MANAGE: "purchases.manage",
   EXPORTS_VIEW: "exports.view",
+  REPORTS_VIEW: "reports.view",
+  AREAS_MANAGE: "areas.manage",
+  PROMOTIONS_MANAGE: "promotions.manage",
+  LEADS_MANAGE: "leads.manage",
+  GLOBAL_SEARCH: "search.global",
 } as const;
 
 export type PermissionValue =
@@ -165,6 +170,36 @@ export const PERMISSION_OPTIONS: Array<{
     description:
       "تنزيل ملفات Excel للمخزون والجرد والمشتريات والحسابات.",
   },
+  {
+    value: PERMISSIONS.REPORTS_VIEW,
+    label: "مشاهدة التقارير",
+    description:
+      "مشاهدة تقارير التشغيل والتحصيل والمناطق والخدمات وما بعد التركيب.",
+  },
+  {
+    value: PERMISSIONS.AREAS_MANAGE,
+    label: "إدارة مناطق الخدمة",
+    description:
+      "تحديد المناطق ورسوم الانتقال وأيام الخدمة والفنيين المرتبطين بكل منطقة.",
+  },
+  {
+    value: PERMISSIONS.PROMOTIONS_MANAGE,
+    label: "إدارة العروض والكوبونات",
+    description:
+      "إنشاء وتعديل العروض والكوبونات وشروط الحد الأدنى والخدمات المؤهلة.",
+  },
+  {
+    value: PERMISSIONS.LEADS_MANAGE,
+    label: "متابعة الطلبات غير المكتملة",
+    description:
+      "تحديث حالة العملاء غير المكتملين وملاحظات وموعد المتابعة.",
+  },
+  {
+    value: PERMISSIONS.GLOBAL_SEARCH,
+    label: "البحث الشامل",
+    description:
+      "البحث في الطلبات والعملاء والفواتير والفنيين والعقارات والأجهزة والموردين.",
+  },
 ];
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<
@@ -194,6 +229,11 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.SUPPLIERS_MANAGE,
     PERMISSIONS.PURCHASES_MANAGE,
     PERMISSIONS.EXPORTS_VIEW,
+    PERMISSIONS.REPORTS_VIEW,
+    PERMISSIONS.AREAS_MANAGE,
+    PERMISSIONS.PROMOTIONS_MANAGE,
+    PERMISSIONS.LEADS_MANAGE,
+    PERMISSIONS.GLOBAL_SEARCH,
   ],
   CUSTOMER_SERVICE: [
     PERMISSIONS.ORDERS_VIEW,
@@ -204,6 +244,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.AFTERCARE_MANAGE,
     PERMISSIONS.ACCOUNTING_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
+    PERMISSIONS.REPORTS_VIEW,
+    PERMISSIONS.LEADS_MANAGE,
+    PERMISSIONS.GLOBAL_SEARCH,
   ],
   TECHNICIAN: [],
 };

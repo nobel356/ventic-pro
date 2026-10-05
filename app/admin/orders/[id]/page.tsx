@@ -48,6 +48,13 @@ const actionLabels: Record<string, string> = {
   COMPLETION_OTP_ISSUED: "إصدار كود إتمام",
   TECHNICIAN_SLOT_CREATED: "إضافة موعد للفني",
   TECHNICIAN_SLOT_DELETED: "إلغاء موعد فني",
+  SERVICE_AREA_CREATED: "إنشاء منطقة خدمة",
+  SERVICE_AREA_UPDATED: "تعديل منطقة خدمة",
+  COUPON_CREATED: "إنشاء كوبون",
+  COUPON_UPDATED: "تعديل كوبون",
+  LEAD_FOLLOWUP_UPDATED: "تحديث متابعة عميل",
+  ORDER_PROPERTY_LINKED: "ربط الطلب بالعقار",
+  INSTALLED_DEVICES_AUTO_CREATED: "إنشاء أجهزة التركيب تلقائيًا",
 };
 
 function money(value: unknown) {
@@ -414,6 +421,22 @@ export default async function OrderDetailsPage({
             <strong>الموعد</strong>
             <h3>{order.preferredDate || "-"}</h3>
             <p>{order.preferredTime || "-"}</p>
+          </article>
+
+          <article className="miniCard">
+            <strong>رسوم الانتقال</strong>
+            <h3>{money(order.travelFeeSnapshot)} ج</h3>
+            <p>{order.area || "بدون منطقة"}</p>
+          </article>
+
+          <article className="miniCard">
+            <strong>العرض / المصدر</strong>
+            <h3>{order.couponCodeSnapshot || "بدون كوبون"}</h3>
+            <p>
+              {order.couponDiscountSnapshot
+                ? `خصم ${money(order.couponDiscountSnapshot)} ج`
+                : order.acquisitionSource || "المصدر غير مسجل"}
+            </p>
           </article>
 
           <article className="miniCard">

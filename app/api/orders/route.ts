@@ -2,6 +2,7 @@ import { AdminNotificationType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/admin-notifications";
+import { calculateOrderOffer } from "@/lib/promotions";
 
 const bp: Record<string, number> = {
   new: 350,
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
     const configured = await prisma.service.findMany({
       where: { active: true },
     });
+
     const prices = Object.fromEntries(
       configured.map((service) => [
         service.code,
@@ -85,8 +87,19 @@ export async function POST(req: Request) {
     }
 
     const spaces: any[] = [];
+    const serviceCodes: string[] = [];
+    let subtotal = 0;
 
-    (b.baths || []).forEach((x: any, i: number) =>
+    (b.baths || []).forEach((x: any, i: number) => {
+      const code = `BATH_${String(x.service).toUpperCase()}`;
+      const unitPrice =
+        prices[code] ??
+        bp[x.service] ??
+        0;
+
+      serviceCodes.push(code);
+      subtotal += unitPrice;
+
       spaces.push({
         type: "BATHROOM",
         label: `حمام ${i + 1}`,
@@ -94,7 +107,7 @@ export async function POST(req: Request) {
         services: {
           create: [
             {
-              serviceCodeSnapshot: `BATH_${x.service}`,
+              serviceCodeSnapshot: code,
               serviceNameSnapshot:
                 x.service === "replace"
                   ? "استبدال بلاور حمام"
@@ -102,53 +115,67 @@ export async function POST(req: Request) {
                     ? "تركيب بلاور العميل"
                     : "تركيب بلاور حمام جديد",
               qty: 1,
-              unitPriceSnapshot:
-                prices[`BATH_${String(x.service).toUpperCase()}`] ??
-                bp[x.service] ??
-                0,
+              unitPriceSnapshot: unitPrice,
             },
           ],
         },
-      }),
-    );
+      });
+    });
 
     (b.kitchens || []).forEach((x: any, i: number) => {
       const services: any[] = [];
 
-      if (x.fan) {
+      function addService(
+        code: string,
+        name: string,
+        qty: number,
+        fallbackPrice: number,
+      ) {
+        const unitPrice = prices[code] ?? fallbackPrice;
         services.push({
-          serviceCodeSnapshot: "KITCHEN_FAN",
-          serviceNameSnapshot: "تركيب بلاور مطبخ",
-          qty: 1,
-          unitPriceSnapshot: prices.KITCHEN_FAN ?? 400,
+          serviceCodeSnapshot: code,
+          serviceNameSnapshot: name,
+          qty,
+          unitPriceSnapshot: unitPrice,
         });
+        serviceCodes.push(code);
+        subtotal += qty * unitPrice;
+      }
+
+      if (x.fan) {
+        addService(
+          "KITCHEN_FAN",
+          "تركيب بلاور مطبخ",
+          1,
+          400,
+        );
       }
 
       if (x.hood) {
-        services.push({
-          serviceCodeSnapshot: "HOOD",
-          serviceNameSnapshot: "تركيب هود",
-          qty: 1,
-          unitPriceSnapshot: prices.HOOD ?? 500,
-        });
+        addService(
+          "HOOD",
+          "تركيب هود",
+          1,
+          500,
+        );
       }
 
       if (x.external) {
-        services.push({
-          serviceCodeSnapshot: "EXTERNAL_FAN",
-          serviceNameSnapshot: "مروحة طرد خارجية",
-          qty: 1,
-          unitPriceSnapshot: prices.EXTERNAL_FAN ?? 500,
-        });
+        addService(
+          "EXTERNAL_FAN",
+          "مروحة طرد خارجية",
+          1,
+          500,
+        );
       }
 
       if (+x.duct > 0) {
-        services.push({
-          serviceCodeSnapshot: "DUCT_METER",
-          serviceNameSnapshot: "خط طرد بالمتر",
-          qty: +x.duct,
-          unitPriceSnapshot: prices.DUCT_METER ?? 250,
-        });
+        addService(
+          "DUCT_METER",
+          "خط طرد بالمتر",
+          +x.duct,
+          250,
+        );
       }
 
       spaces.push({
@@ -159,51 +186,131 @@ export async function POST(req: Request) {
       });
     });
 
+    const offer = await calculateOrderOffer(prisma, {
+      governorate,
+      area,
+      couponCode: b?.couponCode,
+      subtotal,
+      serviceCodes,
+    });
+
+    if (offer.serviceArea && !offer.serviceArea.active) {
+      return NextResponse.json(
+        { error: "المنطقة غير متاحة للخدمة حاليًا" },
+        { status: 400 },
+      );
+    }
+
+    if (clean(b?.couponCode) && !offer.couponValid) {
+      return NextResponse.json(
+        {
+          error:
+            offer.couponReason ||
+            "كود الخصم غير صالح",
+        },
+        { status: 400 },
+      );
+    }
+
     const orderNo = `VP-${new Date().getFullYear()}-${Date.now()
       .toString()
       .slice(-7)}`;
 
-    const order = await prisma.order.create({
-      data: {
-        orderNo,
-        customerId: customer.id,
-        propertyId: property.id,
-        estimatedTotal: b.estimatedTotal,
-        governorate,
-        area,
-        address,
-        preferredDate: c.date,
-        preferredTime: c.time,
-        estimateAccepted: true,
-        spaces: { create: spaces },
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        orderId: order.id,
-        actorLabel: "النظام",
-        action: "ORDER_PROPERTY_LINKED",
-        newValue: {
+    const result = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          orderNo,
+          customerId: customer.id,
           propertyId: property.id,
-          propertyLabel: property.label,
+          estimatedTotal: offer.total,
+          travelFeeSnapshot: offer.travelFee,
+          couponCodeSnapshot:
+            offer.couponValid && offer.coupon
+              ? offer.coupon.code
+              : null,
+          couponDiscountSnapshot: offer.discount,
+          acquisitionSource:
+            clean(b?.source) || null,
+          governorate,
+          area,
+          address,
+          preferredDate: c.date,
+          preferredTime: c.time,
+          estimateAccepted: true,
+          spaces: { create: spaces },
         },
-      },
+      });
+
+      if (offer.couponValid && offer.coupon) {
+        await tx.coupon.update({
+          where: { id: offer.coupon.id },
+          data: {
+            usedCount: {
+              increment: 1,
+            },
+          },
+        });
+      }
+
+      const leadId = clean(b?.leadId);
+      if (leadId) {
+        const lead = await tx.lead.findUnique({
+          where: { id: leadId },
+        });
+
+        if (lead && lead.status !== "CONVERTED") {
+          await tx.lead.update({
+            where: { id: lead.id },
+            data: {
+              status: "CONVERTED",
+              convertedOrderId: order.id,
+              lastActivityAt: new Date(),
+            },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          orderId: order.id,
+          actorLabel: "النظام",
+          action: "ORDER_CREATED",
+          newValue: {
+            propertyId: property.id,
+            subtotal,
+            travelFee: offer.travelFee,
+            couponCode:
+              offer.couponValid && offer.coupon
+                ? offer.coupon.code
+                : null,
+            couponDiscount: offer.discount,
+            estimatedTotal: offer.total,
+            acquisitionSource:
+              clean(b?.source) || null,
+          },
+        },
+      });
+
+      return order;
     });
 
     await notifyAdmins({
       type: AdminNotificationType.NEW_ORDER,
       title: "طلب جديد وصل",
-      message: `${order.orderNo} — ${customer.name}${
-        c.area ? ` — ${c.area}` : ""
+      message: `${result.orderNo} — ${customer.name}${
+        area ? ` — ${area}` : ""
       }`,
-      orderId: order.id,
-      href: `/admin/orders/${order.id}`,
+      orderId: result.id,
+      href: `/admin/orders/${result.id}`,
     });
 
-    return NextResponse.json({ orderNo: order.orderNo });
+    return NextResponse.json({
+      orderNo: result.orderNo,
+      estimatedTotal: Number(result.estimatedTotal || 0),
+    });
   } catch (error) {
     console.error(error);
+
     return NextResponse.json(
       { error: "تعذر إنشاء الطلب" },
       { status: 500 },

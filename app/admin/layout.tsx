@@ -84,6 +84,36 @@ export default async function AdminLayout({
     user.permissions,
   );
 
+  const canViewReports = can(
+    user.role,
+    PERMISSIONS.REPORTS_VIEW,
+    user.permissions,
+  );
+
+  const canManageAreas = can(
+    user.role,
+    PERMISSIONS.AREAS_MANAGE,
+    user.permissions,
+  );
+
+  const canManagePromotions = can(
+    user.role,
+    PERMISSIONS.PROMOTIONS_MANAGE,
+    user.permissions,
+  );
+
+  const canManageLeads = can(
+    user.role,
+    PERMISSIONS.LEADS_MANAGE,
+    user.permissions,
+  );
+
+  const canGlobalSearch = can(
+    user.role,
+    PERMISSIONS.GLOBAL_SEARCH,
+    user.permissions,
+  );
+
   return (
     <div className="vpAdminWorkspace">
       <AdminSidebar
@@ -96,6 +126,11 @@ export default async function AdminLayout({
         canExports={canExports}
         canViewAftercare={canViewAftercare}
         canViewTechnicianPerformance={canViewTechnicianPerformance}
+        canViewReports={canViewReports}
+        canManageAreas={canManageAreas}
+        canManagePromotions={canManagePromotions}
+        canManageLeads={canManageLeads}
+        canGlobalSearch={canGlobalSearch}
       />
 
       <div className="vpAdminContent">

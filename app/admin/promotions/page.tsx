@@ -4,16 +4,16 @@ import {
   currentUser,
   PERMISSIONS,
 } from "@/lib/auth-v7";
-import LeadManagement from "./LeadManagement";
+import PromotionsManagement from "./PromotionsManagement";
 
-export default async function LeadsPage() {
+export default async function PromotionsPage() {
   const user = await currentUser();
   if (!user) redirect("/login");
 
   if (
     !can(
       user.role,
-      PERMISSIONS.LEADS_MANAGE,
+      PERMISSIONS.PROMOTIONS_MANAGE,
       user.permissions,
     )
   ) {
@@ -29,12 +29,12 @@ export default async function LeadsPage() {
           padding: "26px 18px 70px",
         }}
       >
-        <h1 style={{ marginBottom: 6 }}>الطلبات غير المكتملة</h1>
+        <h1 style={{ marginBottom: 6 }}>العروض والكوبونات</h1>
         <p style={{ color: "#64748b", marginTop: 0 }}>
-          متابعة العملاء الذين بدأوا الطلب ولم يكملوه، مع احترام موافقة التواصل.
+          العرض يُعرّف مرة واحدة ثم يطبق تلقائيًا عند تحقق شروطه.
         </p>
 
-        <LeadManagement />
+        <PromotionsManagement />
       </section>
     </main>
   );

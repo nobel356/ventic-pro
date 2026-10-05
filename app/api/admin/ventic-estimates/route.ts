@@ -161,6 +161,15 @@ export async function POST(req: Request) {
         }),
       );
 
+      if (Number(order.travelFeeSnapshot || 0) > 0) {
+        sourceItems.push({
+          description: `رسوم انتقال - ${order.governorate || ""} ${order.area || ""}`.trim(),
+          unit: "زيارة",
+          qty: 1,
+          unitPrice: Number(order.travelFeeSnapshot),
+        });
+      }
+
       if (sourceItems.length === 0) {
         throw new Error("VALIDATION:لا توجد بنود في مقايسة العميل لنسخها");
       }
@@ -177,6 +186,14 @@ export async function POST(req: Request) {
           0,
         ),
       );
+      const discount = Math.min(
+        subtotal,
+        Math.max(
+          0,
+          roundMoney(Number(order.couponDiscountSnapshot || 0)),
+        ),
+      );
+      const total = roundMoney(subtotal - discount);
       const customerToken = crypto.randomBytes(24).toString("hex");
 
       const created = await prisma.$transaction(async (tx) => {
@@ -186,8 +203,8 @@ export async function POST(req: Request) {
             version,
             status: "DRAFT",
             subtotal,
-            discount: 0,
-            total: subtotal,
+            discount,
+            total,
             customerToken,
             items: {
               create: sourceItems.map((item, index) => ({
@@ -210,7 +227,10 @@ export async function POST(req: Request) {
             newValue: {
               estimateId: estimate.id,
               version,
-              total: subtotal,
+              total,
+              copiedTravelFee: Number(order.travelFeeSnapshot || 0),
+              copiedCouponCode: order.couponCodeSnapshot,
+              copiedCouponDiscount: discount,
             },
           },
         });
