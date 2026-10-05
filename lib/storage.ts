@@ -41,7 +41,7 @@ function safeName(name: string) {
 export async function uploadOrderImage(
   input: {
     orderId: string;
-    kind: "BEFORE" | "AFTER";
+    kind: "CUSTOMER" | "BEFORE" | "AFTER";
     file: File;
   },
 ) {

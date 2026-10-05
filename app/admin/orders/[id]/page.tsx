@@ -179,6 +179,10 @@ export default async function OrderDetailsPage({
   const latestEstimate =
     order.venticEstimates[0] || null;
 
+  const customerPhotos = order.attachments.filter(
+    (item) => item.kind === "CUSTOMER",
+  );
+
   const beforeCount = order.attachments.filter(
     (item) => item.kind === "BEFORE",
   ).length;
@@ -531,6 +535,10 @@ export default async function OrderDetailsPage({
           <h2>توثيق التنفيذ</h2>
           <div className="cards">
             <article className="miniCard">
+              <strong>صور العميل</strong>
+              <h3>{customerPhotos.length}</h3>
+            </article>
+            <article className="miniCard">
               <strong>صور قبل</strong>
               <h3>{beforeCount}</h3>
             </article>
@@ -544,6 +552,40 @@ export default async function OrderDetailsPage({
             </article>
           </div>
         </div>
+
+        {customerPhotos.length > 0 && (
+          <div
+            className="adminQuick"
+            style={{ marginTop: 24 }}
+          >
+            <h2>صور العميل للمكان</h2>
+            <p>
+              الصور مرفوعة من العميل وقت إنشاء الطلب ومحفوظة في التخزين الخاص.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              {customerPhotos.map((item) => (
+                <a
+                  key={item.id}
+                  href={`/api/attachments/${item.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="outline"
+                  style={{
+                    textDecoration: "none",
+                  }}
+                >
+                  {item.fileName}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div
           id="customer-estimate"

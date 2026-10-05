@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import { calculateOrderOffer } from "@/lib/promotions";
 import { notifyCustomer } from "@/lib/customer-notifications";
+import { createOrderUploadToken } from "@/lib/customer-order-upload";
 import {
   clientIp,
   rateLimit,
@@ -356,8 +357,10 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
+      orderId: result.id,
       orderNo: result.orderNo,
       estimatedTotal: Number(result.estimatedTotal || 0),
+      uploadToken: createOrderUploadToken(result.id),
     });
   } catch (error) {
     console.error(error);

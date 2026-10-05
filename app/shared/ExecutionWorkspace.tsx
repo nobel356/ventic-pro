@@ -18,8 +18,15 @@ type Snapshot = {
     technicianName: string | null;
   };
   photos: {
+    customer: number;
     before: number;
     after: number;
+    customerItems: Array<{
+      id: string;
+      fileName: string;
+      href: string;
+      createdAt: string;
+    }>;
     beforeItems: Array<{
       id: string;
       fileName: string;
@@ -628,6 +635,30 @@ export default function ExecutionWorkspace({
           />
         </div>
       </div>
+
+      {snapshot.photos.customer > 0 && (
+        <div style={panelStyle}>
+          <h2 style={{ marginTop: 0 }}>
+            صور العميل قبل الزيارة
+          </h2>
+          <p style={mutedStyle}>
+            الصور دي رفعها العميل أثناء إنشاء الطلب، ومتصلة بنفس الأوردر.
+          </p>
+          <div style={photoLinksStyle}>
+            {snapshot.photos.customerItems.map((item) => (
+              <a
+                key={item.id}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                style={photoLinkStyle}
+              >
+                عرض {item.fileName}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={panelStyle}>
         <h2 style={{ marginTop: 0 }}>

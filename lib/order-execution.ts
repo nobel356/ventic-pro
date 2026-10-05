@@ -86,6 +86,7 @@ export async function getExecutionSnapshot(
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
   const [
+    customerFiles,
     beforeFiles,
     afterFiles,
     materialState,
@@ -93,6 +94,15 @@ export async function getExecutionSnapshot(
     financials,
     lastOtpAudit,
   ] = await Promise.all([
+    client.attachment.findMany({
+      where: { orderId, kind: "CUSTOMER" },
+      select: {
+        id: true,
+        fileName: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
     client.attachment.findMany({
       where: { orderId, kind: "BEFORE" },
       select: {
@@ -175,8 +185,15 @@ export async function getExecutionSnapshot(
         order.technician?.name || null,
     },
     photos: {
+      customer: customerFiles.length,
       before: beforeFiles.length,
       after: afterFiles.length,
+      customerItems: customerFiles.map((item: any) => ({
+        id: item.id,
+        fileName: item.fileName,
+        href: `/api/attachments/${item.id}`,
+        createdAt: item.createdAt,
+      })),
       beforeItems: beforeFiles.map((item: any) => ({
         id: item.id,
         fileName: item.fileName,

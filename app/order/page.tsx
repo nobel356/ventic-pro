@@ -83,8 +83,198 @@ export default function Order() {
   const [created, setCreated] = useState("");
   const [saving, setSaving] = useState(false);
   const [offer, setOffer] = useState<Offer | null>(null);
+  const [photoGroups, setPhotoGroups] = useState<Record<string, File[]>>({});
+  const [photoUploadMessage, setPhotoUploadMessage] = useState("");
+
+  function setRoomPhotos(
+    key: string,
+    files: FileList | null,
+  ) {
+    setPhotoGroups((current) => ({
+      ...current,
+      [key]: files
+        ? Array.from(files).slice(0, 4)
+        : [],
+    }));
+  }
+
+  async function prepareCustomerImage(
+    file: File,
+  ) {
+    const maxBytes =
+      3.5 * 1024 * 1024;
+    const maxDimension = 1800;
+
+    if (
+      file.size <= maxBytes &&
+      ["image/jpeg", "image/png", "image/webp"].includes(file.type)
+    ) {
+      return file;
+    }
+
+    const url = URL.createObjectURL(file);
+
+    try {
+      const image =
+        await new Promise<HTMLImageElement>(
+          (resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
+          },
+        );
+
+      const scale = Math.min(
+        1,
+        maxDimension /
+          Math.max(
+            image.width,
+            image.height,
+          ),
+      );
+
+      const canvas =
+        document.createElement("canvas");
+      canvas.width = Math.max(
+        1,
+        Math.round(
+          image.width * scale,
+        ),
+      );
+      canvas.height = Math.max(
+        1,
+        Math.round(
+          image.height * scale,
+        ),
+      );
+
+      const ctx =
+        canvas.getContext("2d");
+
+      if (!ctx) return file;
+
+      ctx.drawImage(
+        image,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+
+      for (const quality of [0.84, 0.74, 0.64]) {
+        const blob =
+          await new Promise<Blob | null>(
+            (resolve) =>
+              canvas.toBlob(
+                resolve,
+                "image/jpeg",
+                quality,
+              ),
+          );
+
+        if (
+          blob &&
+          blob.size <= maxBytes
+        ) {
+          const base =
+            file.name.replace(
+              /\.[^.]+$/,
+              "",
+            ) || "photo";
+
+          return new File(
+            [blob],
+            `${base}.jpg`,
+            {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            },
+          );
+        }
+      }
+
+      throw new Error(
+        "الصورة كبيرة جدًا. جرّب صورة أصغر.",
+      );
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function uploadCustomerPhotos(
+    orderId: string,
+    uploadToken: string,
+  ) {
+    const entries =
+      Object.entries(photoGroups).flatMap(
+        ([label, files]) =>
+          files.map((file) => ({
+            label,
+            file,
+          })),
+      );
+
+    if (entries.length === 0) {
+      return {
+        uploaded: 0,
+        failed: 0,
+      };
+    }
+
+    let uploaded = 0;
+    let failed = 0;
+
+    for (const entry of entries) {
+      try {
+        const prepared =
+          await prepareCustomerImage(
+            entry.file,
+          );
+        const form =
+          new FormData();
+        form.append(
+          "label",
+          entry.label,
+        );
+        form.append(
+          "file",
+          prepared,
+        );
+
+        const response =
+          await fetch(
+            `/api/orders/${orderId}/customer-attachments`,
+            {
+              method: "POST",
+              headers: {
+                "x-order-upload-token":
+                  uploadToken,
+              },
+              body: form,
+            },
+          );
+
+        if (!response.ok) {
+          failed += 1;
+          continue;
+        }
+
+        uploaded += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    return {
+      uploaded,
+      failed,
+    };
+  }
 
   const start = () => {
+    setPhotoGroups({});
+    setPhotoUploadMessage("");
     setBaths(
       Array.from({ length: bathCount }, () => ({
         service: "new",
@@ -359,6 +549,13 @@ export default function Order() {
                     ),
                   )
                 }
+                photoCount={(photoGroups[`حمام ${index + 1}`] || []).length}
+                onPhotos={(files) =>
+                  setRoomPhotos(
+                    `حمام ${index + 1}`,
+                    files,
+                  )
+                }
               />
             ))}
 
@@ -372,6 +569,13 @@ export default function Order() {
                     items.map((item, itemIndex) =>
                       itemIndex === index ? value : item,
                     ),
+                  )
+                }
+                photoCount={(photoGroups[`مطبخ ${index + 1}`] || []).length}
+                onPhotos={(files) =>
+                  setRoomPhotos(
+                    `مطبخ ${index + 1}`,
+                    files,
                   )
                 }
               />
@@ -632,6 +836,26 @@ export default function Order() {
               </div>
             )}
 
+            {photoUploadMessage && (
+              <div
+                className="successBox"
+                style={{
+                  background:
+                    photoUploadMessage.includes("تعذر") ||
+                    photoUploadMessage.includes("فشل")
+                      ? "#fff7ed"
+                      : undefined,
+                  color:
+                    photoUploadMessage.includes("تعذر") ||
+                    photoUploadMessage.includes("فشل")
+                      ? "#9a3412"
+                      : undefined,
+                }}
+              >
+                {photoUploadMessage}
+              </div>
+            )}
+
             <div className="orderActions">
               <button className="ghostBtn" onClick={() => setStep(3)}>
                 رجوع
@@ -644,7 +868,8 @@ export default function Order() {
                   !/^01\d{9}$/.test(customer.phone) ||
                   !customer.address ||
                   !customer.date ||
-                  !customer.time
+                  !customer.time ||
+                  Boolean(created)
                 }
                 onClick={async () => {
                   setSaving(true);
@@ -673,6 +898,27 @@ export default function Order() {
                     }
 
                     setCreated(data.orderNo);
+
+                    if (
+                      data?.orderId &&
+                      data?.uploadToken
+                    ) {
+                      const photoResult =
+                        await uploadCustomerPhotos(
+                          data.orderId,
+                          data.uploadToken,
+                        );
+
+                      if (photoResult.failed > 0) {
+                        setPhotoUploadMessage(
+                          `تم إنشاء الطلب، وتم رفع ${photoResult.uploaded} صورة، وتعذر رفع ${photoResult.failed} صورة.`,
+                        );
+                      } else if (photoResult.uploaded > 0) {
+                        setPhotoUploadMessage(
+                          `تم رفع ${photoResult.uploaded} صورة وربطها بالطلب بنجاح.`,
+                        );
+                      }
+                    }
                   } catch (error) {
                     alert(
                       error instanceof Error
@@ -774,10 +1020,14 @@ function BathCard({
   n,
   value,
   onChange,
+  onPhotos,
+  photoCount,
 }: {
   n: number;
   value: Bath;
   onChange: (value: Bath) => void;
+  onPhotos: (files: FileList | null) => void;
+  photoCount: number;
 }) {
   return (
     <article className="spaceCard">
@@ -877,7 +1127,19 @@ function BathCard({
 
       <label className="upload">
         📷 صور مكان التركيب
-        <input type="file" accept="image/*" multiple />
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(event) =>
+            onPhotos(event.target.files)
+          }
+        />
+        <small>
+          {photoCount
+            ? `${photoCount} صورة مختارة`
+            : "يمكن رفع حتى 4 صور لهذا الحمام"}
+        </small>
       </label>
     </article>
   );
@@ -887,10 +1149,14 @@ function KitchenCard({
   n,
   value,
   onChange,
+  onPhotos,
+  photoCount,
 }: {
   n: number;
   value: Kitchen;
   onChange: (value: Kitchen) => void;
+  onPhotos: (files: FileList | null) => void;
+  photoCount: number;
 }) {
   return (
     <article className="spaceCard">
@@ -1019,7 +1285,19 @@ function KitchenCard({
 
       <label className="upload">
         📷 صور الحائط والهود ومخرج الطرد
-        <input type="file" accept="image/*" multiple />
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(event) =>
+            onPhotos(event.target.files)
+          }
+        />
+        <small>
+          {photoCount
+            ? `${photoCount} صورة مختارة`
+            : "يمكن رفع حتى 4 صور لهذا المطبخ"}
+        </small>
       </label>
     </article>
   );
