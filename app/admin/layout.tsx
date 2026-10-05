@@ -48,6 +48,30 @@ export default async function AdminLayout({
       user.permissions,
     );
 
+  const canStocktake = can(
+    user.role,
+    PERMISSIONS.STOCKTAKE_MANAGE,
+    user.permissions,
+  );
+
+  const canPurchases =
+    can(
+      user.role,
+      PERMISSIONS.PURCHASES_MANAGE,
+      user.permissions,
+    ) ||
+    can(
+      user.role,
+      PERMISSIONS.SUPPLIERS_MANAGE,
+      user.permissions,
+    );
+
+  const canExports = can(
+    user.role,
+    PERMISSIONS.EXPORTS_VIEW,
+    user.permissions,
+  );
+
   return (
     <div className="vpAdminWorkspace">
       <AdminSidebar
@@ -55,6 +79,9 @@ export default async function AdminLayout({
         canViewInventory={canViewInventory}
         canViewAccounting={canViewAccounting}
         canViewCustomers={canViewCustomers}
+        canStocktake={canStocktake}
+        canPurchases={canPurchases}
+        canExports={canExports}
       />
 
       <div className="vpAdminContent">

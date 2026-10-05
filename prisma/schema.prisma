@@ -50,6 +50,10 @@ model User {
   technicianSlots TechnicianSlot[]
   technicianReviews Review[]
   inventoryMovements InventoryMovement[]
+  receivedPurchases PurchaseReceipt[] @relation("PurchaseReceivedBy")
+  createdStocktakes Stocktake[] @relation("StocktakeCreatedBy")
+  approvedStocktakes Stocktake[] @relation("StocktakeApprovedBy")
+  countedStocktakes Stocktake[] @relation("StocktakeTechnician")
   adminNotifications AdminNotification[]
 }
 model Customer {
@@ -396,6 +400,21 @@ enum DiscountType {
   PERCENT
 }
 
+enum PurchaseStatus {
+  RECEIVED
+  VOID
+}
+
+enum StocktakeStatus {
+  DRAFT
+  APPROVED
+}
+
+enum StocktakeLocationType {
+  COMPANY
+  TECHNICIAN
+}
+
 model Review {
   id String @id @default(cuid())
   orderId String @unique
@@ -421,8 +440,12 @@ model InventoryItem {
   unit String
   quantity Decimal @default(0) @db.Decimal(12,2)
   reorderLevel Decimal @default(0) @db.Decimal(12,2)
+  lastUnitCost Decimal @default(0) @db.Decimal(12,2)
+  averageUnitCost Decimal @default(0) @db.Decimal(12,2)
   active Boolean @default(true)
   movements InventoryMovement[]
+  purchaseItems PurchaseReceiptItem[]
+  stocktakeLines StocktakeLine[]
   createdAt DateTime @default(now())
 }
 
@@ -436,8 +459,97 @@ model InventoryMovement {
   order Order? @relation(fields:[orderId],references:[id],onDelete:SetNull)
   technicianId String?
   technician User? @relation(fields:[technicianId],references:[id])
+  purchaseReceiptId String?
+  purchaseReceipt PurchaseReceipt? @relation(fields:[purchaseReceiptId],references:[id],onDelete:SetNull)
+  stocktakeId String?
+  stocktake Stocktake? @relation(fields:[stocktakeId],references:[id],onDelete:SetNull)
   note String?
   createdAt DateTime @default(now())
+
+  @@index([purchaseReceiptId])
+  @@index([stocktakeId])
+}
+
+model Supplier {
+  id String @id @default(cuid())
+  name String
+  phone String?
+  address String?
+  taxNumber String?
+  notes String?
+  active Boolean @default(true)
+  purchases PurchaseReceipt[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PurchaseReceipt {
+  id String @id @default(cuid())
+  receiptNo String @unique
+  supplierId String
+  supplier Supplier @relation(fields:[supplierId],references:[id])
+  supplierInvoiceNo String?
+  status PurchaseStatus @default(RECEIVED)
+  total Decimal @default(0) @db.Decimal(12,2)
+  receivedById String?
+  receivedBy User? @relation("PurchaseReceivedBy",fields:[receivedById],references:[id],onDelete:SetNull)
+  receivedAt DateTime @default(now())
+  notes String?
+  items PurchaseReceiptItem[]
+  movements InventoryMovement[]
+  createdAt DateTime @default(now())
+
+  @@index([supplierId,receivedAt])
+}
+
+model PurchaseReceiptItem {
+  id String @id @default(cuid())
+  purchaseReceiptId String
+  purchaseReceipt PurchaseReceipt @relation(fields:[purchaseReceiptId],references:[id],onDelete:Cascade)
+  itemId String
+  item InventoryItem @relation(fields:[itemId],references:[id])
+  quantity Decimal @db.Decimal(12,2)
+  unitCost Decimal @db.Decimal(12,2)
+  lineTotal Decimal @db.Decimal(12,2)
+
+  @@index([purchaseReceiptId])
+  @@index([itemId])
+}
+
+model Stocktake {
+  id String @id @default(cuid())
+  stocktakeNo String @unique
+  status StocktakeStatus @default(DRAFT)
+  locationType StocktakeLocationType @default(COMPANY)
+  technicianId String?
+  technician User? @relation("StocktakeTechnician",fields:[technicianId],references:[id],onDelete:SetNull)
+  createdById String?
+  createdBy User? @relation("StocktakeCreatedBy",fields:[createdById],references:[id],onDelete:SetNull)
+  approvedById String?
+  approvedBy User? @relation("StocktakeApprovedBy",fields:[approvedById],references:[id],onDelete:SetNull)
+  notes String?
+  lines StocktakeLine[]
+  movements InventoryMovement[]
+  approvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status,createdAt])
+  @@index([technicianId])
+}
+
+model StocktakeLine {
+  id String @id @default(cuid())
+  stocktakeId String
+  stocktake Stocktake @relation(fields:[stocktakeId],references:[id],onDelete:Cascade)
+  itemId String
+  item InventoryItem @relation(fields:[itemId],references:[id])
+  expectedQty Decimal @db.Decimal(12,2)
+  actualQty Decimal? @db.Decimal(12,2)
+  difference Decimal? @db.Decimal(12,2)
+  note String?
+
+  @@unique([stocktakeId,itemId])
 }
 
 model ServiceArea {

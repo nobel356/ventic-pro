@@ -17,6 +17,10 @@ export const PERMISSIONS = {
   INVENTORY_MOVE: "inventory.move",
   INVENTORY_ADJUST: "inventory.adjust",
   INVENTORY_COST_VIEW: "inventory.cost.view",
+  STOCKTAKE_MANAGE: "inventory.stocktake.manage",
+  SUPPLIERS_MANAGE: "suppliers.manage",
+  PURCHASES_MANAGE: "purchases.manage",
+  EXPORTS_VIEW: "exports.view",
 } as const;
 
 export type PermissionValue =
@@ -109,6 +113,30 @@ export const PERMISSION_OPTIONS: Array<{
     description:
       "صلاحية مخصصة لتكاليف الخامات والتقارير المالية للمخزون عند تفعيلها لاحقًا.",
   },
+  {
+    value: PERMISSIONS.STOCKTAKE_MANAGE,
+    label: "إدارة الجرد",
+    description:
+      "إنشاء جلسات جرد مخزن الشركة أو عهد الفنيين وإدخال الفعلي واعتماد الفروقات.",
+  },
+  {
+    value: PERMISSIONS.SUPPLIERS_MANAGE,
+    label: "إدارة الموردين",
+    description:
+      "إضافة وتعديل الموردين مع الاحتفاظ بتاريخ التوريدات.",
+  },
+  {
+    value: PERMISSIONS.PURCHASES_MANAGE,
+    label: "المشتريات والتوريد",
+    description:
+      "تسجيل توريد المورد وإضافة الرصيد والتكلفة للمخزون في عملية واحدة.",
+  },
+  {
+    value: PERMISSIONS.EXPORTS_VIEW,
+    label: "تصدير Excel",
+    description:
+      "تنزيل ملفات Excel للمخزون والجرد والمشتريات والحسابات.",
+  },
 ];
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<
@@ -130,6 +158,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.INVENTORY_MOVE,
     PERMISSIONS.INVENTORY_ADJUST,
     PERMISSIONS.INVENTORY_COST_VIEW,
+    PERMISSIONS.STOCKTAKE_MANAGE,
+    PERMISSIONS.SUPPLIERS_MANAGE,
+    PERMISSIONS.PURCHASES_MANAGE,
+    PERMISSIONS.EXPORTS_VIEW,
   ],
   CUSTOMER_SERVICE: [
     PERMISSIONS.ORDERS_VIEW,

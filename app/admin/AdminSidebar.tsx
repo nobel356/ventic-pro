@@ -11,6 +11,9 @@ type NavItem = {
   inventoryPermission?: boolean;
   accountingPermission?: boolean;
   customersPermission?: boolean;
+  stocktakePermission?: boolean;
+  purchasesPermission?: boolean;
+  exportsPermission?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -30,6 +33,18 @@ const navItems: NavItem[] = [
     icon: "📦",
     inventoryPermission: true,
   },
+  {
+    href: "/admin/inventory/stocktakes",
+    label: "الجرد",
+    icon: "🧮",
+    stocktakePermission: true,
+  },
+  {
+    href: "/admin/purchases",
+    label: "المشتريات والموردون",
+    icon: "🚚",
+    purchasesPermission: true,
+  },
   { href: "/admin/pricing", label: "الأسعار", icon: "💰" },
   {
     href: "/admin/accounting",
@@ -39,6 +54,12 @@ const navItems: NavItem[] = [
   },
   { href: "/admin/aftercare", label: "ما بعد التركيب", icon: "🛠️" },
   { href: "/admin/reports", label: "التقارير", icon: "📊" },
+  {
+    href: "/admin/exports",
+    label: "مركز Excel",
+    icon: "📗",
+    exportsPermission: true,
+  },
   { href: "/admin/leads", label: "غير المكتملة", icon: "🕓" },
   {
     href: "/admin/users",
@@ -58,11 +79,17 @@ export default function AdminSidebar({
   canViewInventory,
   canViewAccounting,
   canViewCustomers,
+  canStocktake,
+  canPurchases,
+  canExports,
 }: {
   isSuperAdmin: boolean;
   canViewInventory: boolean;
   canViewAccounting: boolean;
   canViewCustomers: boolean;
+  canStocktake: boolean;
+  canPurchases: boolean;
+  canExports: boolean;
 }) {
   const pathname = usePathname();
 
@@ -92,6 +119,15 @@ export default function AdminSidebar({
               return false;
             }
             if (item.customersPermission && !canViewCustomers) {
+              return false;
+            }
+            if (item.stocktakePermission && !canStocktake) {
+              return false;
+            }
+            if (item.purchasesPermission && !canPurchases) {
+              return false;
+            }
+            if (item.exportsPermission && !canExports) {
               return false;
             }
             return true;

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -24,6 +25,9 @@ type InventoryItem = {
   totalQuantity: number;
   reorderLevel: number;
   active: boolean;
+  lastUnitCost: number | null;
+  averageUnitCost: number | null;
+  companyStockValue: number | null;
   technicianStocks: TechnicianStock[];
 };
 
@@ -59,6 +63,15 @@ type Movement = {
     id: string;
     orderNo: string;
   } | null;
+  purchaseReceipt?: {
+    id: string;
+    receiptNo: string;
+    supplier?: { name?: string };
+  } | null;
+  stocktake?: {
+    id: string;
+    stocktakeNo: string;
+  } | null;
   createdAt: string;
 };
 
@@ -72,12 +85,16 @@ type ApiData = {
     companyTotal: number;
     technicianTotal: number;
     lowStockCount: number;
+    companyStockValue: number | null;
   };
   permissions: {
     canEdit: boolean;
     canMove: boolean;
     canAdjust: boolean;
     canViewCost: boolean;
+    canStocktake: boolean;
+    canPurchase: boolean;
+    canExport: boolean;
   };
 };
 
@@ -396,13 +413,43 @@ export default function InventoryManagement() {
             <Stat
               label="أصناف تحتاج إعادة طلب"
               value={data?.summary.lowStockCount || 0}
-              danger={
-                Boolean(
-                  data?.summary.lowStockCount,
-                )
-              }
+              danger={Boolean(data?.summary.lowStockCount)}
             />
+            {data?.permissions.canViewCost && (
+              <Stat
+                label="قيمة مخزون الشركة"
+                value={`${number(data?.summary.companyStockValue || 0)} ج`}
+              />
+            )}
           </div>
+
+          <section style={cardStyle}>
+            <div style={sectionHeadStyle}>
+              <div>
+                <h2 style={{ margin: 0 }}>عمليات المخزون السريعة</h2>
+                <p style={mutedStyle}>
+                  كل عملية لها مصدر واحد: التوريد يحدث الرصيد والتكلفة، والجرد يحدث الفروقات، والتصدير يقرأ نفس البيانات.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {data?.permissions.canPurchase && (
+                  <Link href="/admin/purchases" style={quickLinkStyle}>
+                    المشتريات والموردون
+                  </Link>
+                )}
+                {data?.permissions.canStocktake && (
+                  <Link href="/admin/inventory/stocktakes" style={quickLinkStyle}>
+                    بدء / مراجعة جرد
+                  </Link>
+                )}
+                {data?.permissions.canExport && (
+                  <Link href="/admin/exports" style={quickLinkStyle}>
+                    تنزيل Excel
+                  </Link>
+                )}
+              </div>
+            </div>
+          </section>
 
           {data?.permissions.canEdit && (
             <section style={cardStyle}>
@@ -914,7 +961,7 @@ export default function InventoryManagement() {
               <table
                 style={{
                   width: "100%",
-                  minWidth: 900,
+                  minWidth: data?.permissions.canViewCost ? 1160 : 900,
                 }}
               >
                 <thead>
@@ -925,6 +972,9 @@ export default function InventoryManagement() {
                     <th>الشركة</th>
                     <th>عهدة الفنيين</th>
                     <th>الإجمالي</th>
+                    {data?.permissions.canViewCost && <th>آخر تكلفة</th>}
+                    {data?.permissions.canViewCost && <th>متوسط التكلفة</th>}
+                    {data?.permissions.canViewCost && <th>قيمة رصيد الشركة</th>}
                     <th>إعادة الطلب</th>
                     <th>الحالة</th>
                     <th>تفاصيل الفنيين</th>
@@ -960,11 +1010,18 @@ export default function InventoryManagement() {
                         </td>
                         <td>
                           <strong>
-                            {number(
-                              item.totalQuantity,
-                            )}
+                            {number(item.totalQuantity)}
                           </strong>
                         </td>
+                        {data?.permissions.canViewCost && (
+                          <td>{number(item.lastUnitCost || 0)} ج</td>
+                        )}
+                        {data?.permissions.canViewCost && (
+                          <td>{number(item.averageUnitCost || 0)} ج</td>
+                        )}
+                        {data?.permissions.canViewCost && (
+                          <td><strong>{number(item.companyStockValue || 0)} ج</strong></td>
+                        )}
                         <td>
                           <span
                             style={{
@@ -1051,6 +1108,7 @@ export default function InventoryManagement() {
                     <th>الكمية</th>
                     <th>الفني</th>
                     <th>الأوردر</th>
+                    <th>المصدر</th>
                     <th>ملاحظة</th>
                   </tr>
                 </thead>
@@ -1086,8 +1144,14 @@ export default function InventoryManagement() {
                             ?.name || "-"}
                         </td>
                         <td>
-                          {movement.order
-                            ?.orderNo || "-"}
+                          {movement.order?.orderNo || "-"}
+                        </td>
+                        <td>
+                          {movement.purchaseReceipt
+                            ? `توريد ${movement.purchaseReceipt.receiptNo}${movement.purchaseReceipt.supplier?.name ? ` — ${movement.purchaseReceipt.supplier.name}` : ""}`
+                            : movement.stocktake
+                              ? `جرد ${movement.stocktake.stocktakeNo}`
+                              : "-"}
                         </td>
                         <td>
                           {movement.note || "-"}
@@ -1239,6 +1303,19 @@ const secondaryButtonStyle: CSSProperties = {
   padding: "0 13px",
   cursor: "pointer",
   fontWeight: 800,
+};
+
+const quickLinkStyle: CSSProperties = {
+  minHeight: 40,
+  display: "inline-flex",
+  alignItems: "center",
+  textDecoration: "none",
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  background: "white",
+  color: "#0f2d4a",
+  padding: "0 12px",
+  fontWeight: 900,
 };
 
 const mutedStyle: CSSProperties = {

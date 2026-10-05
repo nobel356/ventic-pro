@@ -8,16 +8,19 @@ import {
 import {
   movementLabel,
   parseInventoryNote,
-  signedTechnicianDelta,
 } from "@/lib/inventory";
+import { technicianBalanceMap } from "@/lib/inventory-balances";
 
 export async function GET() {
   try {
-    const actor = await requirePermission(
-      PERMISSIONS.INVENTORY_VIEW,
+    const actor = await requirePermission(PERMISSIONS.INVENTORY_VIEW);
+    const canViewCost = can(
+      actor.role,
+      PERMISSIONS.INVENTORY_COST_VIEW,
+      actor.permissions,
     );
 
-    const [items, movements, technicians, orders] =
+    const [items, movements, technicians, orders, balances] =
       await Promise.all([
         prisma.inventoryItem.findMany({
           orderBy: [{ active: "desc" }, { nameAr: "asc" }],
@@ -33,67 +36,44 @@ export async function GET() {
               },
             },
             technician: {
-              select: {
-                id: true,
-                name: true,
-              },
+              select: { id: true, name: true },
             },
             order: {
+              select: { id: true, orderNo: true },
+            },
+            purchaseReceipt: {
               select: {
                 id: true,
-                orderNo: true,
+                receiptNo: true,
+                supplier: { select: { name: true } },
               },
+            },
+            stocktake: {
+              select: { id: true, stocktakeNo: true },
             },
           },
           orderBy: { createdAt: "desc" },
           take: 250,
         }),
         prisma.user.findMany({
-          where: {
-            role: "TECHNICIAN",
-            active: true,
-          },
-          select: {
-            id: true,
-            name: true,
-          },
+          where: { role: "TECHNICIAN", active: true },
+          select: { id: true, name: true },
           orderBy: { name: "asc" },
         }),
         prisma.order.findMany({
           where: {
-            status: {
-              notIn: ["COMPLETED", "CANCELLED"],
-            },
+            status: { notIn: ["COMPLETED", "CANCELLED"] },
           },
           select: {
             id: true,
             orderNo: true,
-            customer: {
-              select: { name: true },
-            },
+            customer: { select: { name: true } },
           },
           orderBy: { createdAt: "desc" },
           take: 200,
         }),
+        technicianBalanceMap(prisma),
       ]);
-
-    const technicianBalances = new Map<string, number>();
-
-    for (const movement of movements) {
-      if (!movement.technicianId) continue;
-
-      const key = `${movement.itemId}:${movement.technicianId}`;
-      const current = technicianBalances.get(key) || 0;
-      technicianBalances.set(
-        key,
-        current +
-          signedTechnicianDelta({
-            type: movement.type,
-            quantity: movement.quantity,
-            note: movement.note,
-          }),
-      );
-    }
 
     const itemRows = items.map((item) => {
       const techStocks = technicians
@@ -101,9 +81,7 @@ export async function GET() {
           technicianId: technician.id,
           technicianName: technician.name,
           quantity:
-            technicianBalances.get(
-              `${item.id}:${technician.id}`,
-            ) || 0,
+            balances.get(`${technician.id}:${item.id}`) || 0,
         }))
         .filter((row) => Math.abs(row.quantity) > 0.000001);
 
@@ -111,19 +89,25 @@ export async function GET() {
         (sum, row) => sum + row.quantity,
         0,
       );
+      const companyQuantity = Number(item.quantity);
+      const averageUnitCost = Number(item.averageUnitCost || 0);
 
       return {
         id: item.id,
         sku: item.sku,
         nameAr: item.nameAr,
         unit: item.unit,
-        companyQuantity: Number(item.quantity),
+        companyQuantity,
         technicianQuantity: techniciansTotal,
-        totalQuantity:
-          Number(item.quantity) + techniciansTotal,
+        totalQuantity: companyQuantity + techniciansTotal,
         reorderLevel: Number(item.reorderLevel),
         active: item.active,
         technicianStocks: techStocks,
+        lastUnitCost: canViewCost ? Number(item.lastUnitCost || 0) : null,
+        averageUnitCost: canViewCost ? averageUnitCost : null,
+        companyStockValue: canViewCost
+          ? companyQuantity * averageUnitCost
+          : null,
         createdAt: item.createdAt,
       };
     });
@@ -134,16 +118,15 @@ export async function GET() {
       return {
         id: movement.id,
         type: movement.type,
-        label: movementLabel(
-          movement.type,
-          movement.note,
-        ),
+        label: movementLabel(movement.type, movement.note),
         quantity: Number(movement.quantity),
         note: parsed.note,
         marker: parsed.marker,
         item: movement.item,
         technician: movement.technician,
         order: movement.order,
+        purchaseReceipt: movement.purchaseReceipt,
+        stocktake: movement.stocktake,
         createdAt: movement.createdAt,
       };
     });
@@ -152,17 +135,20 @@ export async function GET() {
       (sum, item) => sum + item.companyQuantity,
       0,
     );
-
     const technicianTotal = itemRows.reduce(
       (sum, item) => sum + item.technicianQuantity,
       0,
     );
-
     const lowStockCount = itemRows.filter(
       (item) =>
-        item.active &&
-        item.companyQuantity <= item.reorderLevel,
+        item.active && item.companyQuantity <= item.reorderLevel,
     ).length;
+    const companyStockValue = canViewCost
+      ? itemRows.reduce(
+          (sum, item) => sum + Number(item.companyStockValue || 0),
+          0,
+        )
+      : null;
 
     return NextResponse.json({
       items: itemRows,
@@ -174,6 +160,7 @@ export async function GET() {
         companyTotal,
         technicianTotal,
         lowStockCount,
+        companyStockValue,
       },
       permissions: {
         canEdit: can(
@@ -191,19 +178,25 @@ export async function GET() {
           PERMISSIONS.INVENTORY_ADJUST,
           actor.permissions,
         ),
-        canViewCost: can(
+        canViewCost,
+        canStocktake: can(
           actor.role,
-          PERMISSIONS.INVENTORY_COST_VIEW,
+          PERMISSIONS.STOCKTAKE_MANAGE,
+          actor.permissions,
+        ),
+        canPurchase:
+          can(actor.role, PERMISSIONS.PURCHASES_MANAGE, actor.permissions) ||
+          can(actor.role, PERMISSIONS.SUPPLIERS_MANAGE, actor.permissions),
+        canExport: can(
+          actor.role,
+          PERMISSIONS.EXPORTS_VIEW,
           actor.permissions,
         ),
       },
     });
   } catch (error: any) {
     return NextResponse.json(
-      {
-        error:
-          error.message || "تعذر تحميل بيانات المخزون",
-      },
+      { error: error.message || "تعذر تحميل بيانات المخزون" },
       {
         status:
           error.message === "UNAUTHENTICATED"
