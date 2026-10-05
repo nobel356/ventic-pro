@@ -9,6 +9,10 @@ const bp: Record<string, number> = {
   install_only: 300,
 };
 
+function clean(value: unknown) {
+  return String(value || "").trim();
+}
+
 export async function POST(req: Request) {
   try {
     const b = await req.json();
@@ -27,9 +31,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const configured = await prisma.service.findMany({ where: { active: true } });
+    const configured = await prisma.service.findMany({
+      where: { active: true },
+    });
     const prices = Object.fromEntries(
-      configured.map((service) => [service.code, Number(service.priceFrom)]),
+      configured.map((service) => [
+        service.code,
+        Number(service.priceFrom),
+      ]),
     );
 
     const customer = await prisma.customer.upsert({
@@ -37,6 +46,43 @@ export async function POST(req: Request) {
       update: { name: c.name },
       create: { name: c.name, phone: c.phone },
     });
+
+    const governorate = clean(c.governorate) || "غير محدد";
+    const area = clean(c.area) || "غير محدد";
+    const address = clean(c.address);
+
+    let property = await prisma.property.findFirst({
+      where: {
+        customerId: customer.id,
+        governorate,
+        area,
+        address,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!property) {
+      const propertyCount = await prisma.property.count({
+        where: { customerId: customer.id },
+      });
+
+      property = await prisma.property.create({
+        data: {
+          customerId: customer.id,
+          label:
+            clean(c.propertyLabel) ||
+            (propertyCount === 0
+              ? "العنوان الرئيسي"
+              : `عقار ${propertyCount + 1}`),
+          governorate,
+          area,
+          address,
+          building: clean(c.building) || null,
+          floor: clean(c.floor) || null,
+          apartment: clean(c.apartment) || null,
+        },
+      });
+    }
 
     const spaces: any[] = [];
 
@@ -68,34 +114,42 @@ export async function POST(req: Request) {
 
     (b.kitchens || []).forEach((x: any, i: number) => {
       const services: any[] = [];
-      if (x.fan)
+
+      if (x.fan) {
         services.push({
           serviceCodeSnapshot: "KITCHEN_FAN",
           serviceNameSnapshot: "تركيب بلاور مطبخ",
           qty: 1,
           unitPriceSnapshot: prices.KITCHEN_FAN ?? 400,
         });
-      if (x.hood)
+      }
+
+      if (x.hood) {
         services.push({
           serviceCodeSnapshot: "HOOD",
           serviceNameSnapshot: "تركيب هود",
           qty: 1,
           unitPriceSnapshot: prices.HOOD ?? 500,
         });
-      if (x.external)
+      }
+
+      if (x.external) {
         services.push({
           serviceCodeSnapshot: "EXTERNAL_FAN",
           serviceNameSnapshot: "مروحة طرد خارجية",
           qty: 1,
           unitPriceSnapshot: prices.EXTERNAL_FAN ?? 500,
         });
-      if (+x.duct > 0)
+      }
+
+      if (+x.duct > 0) {
         services.push({
           serviceCodeSnapshot: "DUCT_METER",
           serviceNameSnapshot: "خط طرد بالمتر",
           qty: +x.duct,
           unitPriceSnapshot: prices.DUCT_METER ?? 250,
         });
+      }
 
       spaces.push({
         type: "KITCHEN",
@@ -113,10 +167,11 @@ export async function POST(req: Request) {
       data: {
         orderNo,
         customerId: customer.id,
+        propertyId: property.id,
         estimatedTotal: b.estimatedTotal,
-        governorate: c.governorate,
-        area: c.area,
-        address: c.address,
+        governorate,
+        area,
+        address,
         preferredDate: c.date,
         preferredTime: c.time,
         estimateAccepted: true,
@@ -124,10 +179,24 @@ export async function POST(req: Request) {
       },
     });
 
+    await prisma.auditLog.create({
+      data: {
+        orderId: order.id,
+        actorLabel: "النظام",
+        action: "ORDER_PROPERTY_LINKED",
+        newValue: {
+          propertyId: property.id,
+          propertyLabel: property.label,
+        },
+      },
+    });
+
     await notifyAdmins({
       type: AdminNotificationType.NEW_ORDER,
       title: "طلب جديد وصل",
-      message: `${order.orderNo} — ${customer.name}${c.area ? ` — ${c.area}` : ""}`,
+      message: `${order.orderNo} — ${customer.name}${
+        c.area ? ` — ${c.area}` : ""
+      }`,
       orderId: order.id,
       href: `/admin/orders/${order.id}`,
     });
@@ -135,6 +204,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ orderNo: order.orderNo });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "تعذر إنشاء الطلب" }, { status: 500 });
+    return NextResponse.json(
+      { error: "تعذر إنشاء الطلب" },
+      { status: 500 },
+    );
   }
 }

@@ -17,6 +17,10 @@ import {
   otpStagingVisible,
 } from "@/lib/customer-messaging";
 import { notifyAdmins } from "@/lib/admin-notifications";
+import {
+  createInstalledDevicesFromOrder,
+  ensureOrderProperty,
+} from "@/lib/customer-assets";
 
 export const OTP_TTL_MINUTES = 15;
 export const OTP_RESEND_SECONDS = 60;
@@ -795,6 +799,38 @@ export async function completeExecution(
           input.orderId,
         );
 
+      const propertyId =
+        await ensureOrderProperty(
+          tx,
+          input.orderId,
+        );
+
+      const devices =
+        await createInstalledDevicesFromOrder(
+          tx,
+          {
+            orderId: input.orderId,
+            propertyId,
+            installedAt: completedAt,
+            warrantyEndsAt: warranty.endsAt,
+          },
+        );
+
+      if (devices.created > 0) {
+        await tx.auditLog.create({
+          data: {
+            orderId: input.orderId,
+            actorId: input.actor.id,
+            actorLabel: input.actor.name,
+            action: "INSTALLED_DEVICES_AUTO_CREATED",
+            newValue: {
+              propertyId,
+              deviceCount: devices.created,
+            },
+          },
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           orderId: input.orderId,
@@ -821,6 +857,9 @@ export async function completeExecution(
               finance.financials.total,
             warrantyId:
               warranty.id,
+            propertyId,
+            installedDeviceCount:
+              devices.created,
             executionMode:
               input.actor.mode,
           },

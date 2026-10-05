@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -409,7 +410,8 @@ export default function CustomerManagement({
                   <th>إجمالي الفواتير</th>
                   <th>المتبقي</th>
                   <th>الجلسات</th>
-                  {canEdit && <th />}
+                  <th>الملف</th>
+                  {canEdit && <th>التعديل</th>}
                 </tr>
               </thead>
 
@@ -505,6 +507,20 @@ export default function CustomerManagement({
                         {
                           customer.activeSessions
                         }
+                      </td>
+
+                      <td>
+                        <Link
+                          href={`/admin/customers/${customer.id}`}
+                          style={{
+                            ...secondaryButtonStyle,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            textDecoration: "none",
+                          }}
+                        >
+                          فتح الملف
+                        </Link>
                       </td>
 
                       {canEdit && (

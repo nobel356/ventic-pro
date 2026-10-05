@@ -9,6 +9,10 @@ export const PERMISSIONS = {
   EXTRA_APPROVE: "extra.approve",
   CUSTOMER_SENSITIVE: "customer.sensitive",
   CUSTOMER_ACCOUNTS_EDIT: "customer.accounts.edit",
+  CUSTOMER_ASSETS_EDIT: "customer.assets.edit",
+  AFTERCARE_VIEW: "aftercare.view",
+  AFTERCARE_MANAGE: "aftercare.manage",
+  TECHNICIAN_PERFORMANCE_VIEW: "technician.performance.view",
   USERS_MANAGE: "users.manage",
   ACCOUNTING_VIEW: "accounting.view",
 
@@ -76,6 +80,30 @@ export const PERMISSION_OPTIONS: Array<{
     label: "تعديل حسابات العملاء",
     description:
       "تعديل اسم ورقم وحالة حساب العميل، وتعيين كلمة مرور جديدة عند الحاجة.",
+  },
+  {
+    value: PERMISSIONS.CUSTOMER_ASSETS_EDIT,
+    label: "إدارة عقارات وأجهزة العملاء",
+    description:
+      "إضافة وتعديل العقارات والأجهزة وربطها بتاريخ الطلب والتركيب.",
+  },
+  {
+    value: PERMISSIONS.AFTERCARE_VIEW,
+    label: "مشاهدة ما بعد التركيب",
+    description:
+      "مشاهدة الضمان والصيانة والشكاوى وإعادة الزيارة.",
+  },
+  {
+    value: PERMISSIONS.AFTERCARE_MANAGE,
+    label: "إدارة ما بعد التركيب",
+    description:
+      "تعيين الفني وجدولة الزيارة وتحديث الحالة والتكلفة والحل.",
+  },
+  {
+    value: PERMISSIONS.TECHNICIAN_PERFORMANCE_VIEW,
+    label: "ملف أداء الفني",
+    description:
+      "مشاهدة مؤشرات الفني والتقييمات والشكاوى وإعادة الزيارات والعهدة.",
   },
   {
     value: PERMISSIONS.ACCOUNTING_VIEW,
@@ -152,6 +180,10 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.EXTRA_APPROVE,
     PERMISSIONS.CUSTOMER_SENSITIVE,
     PERMISSIONS.CUSTOMER_ACCOUNTS_EDIT,
+    PERMISSIONS.CUSTOMER_ASSETS_EDIT,
+    PERMISSIONS.AFTERCARE_VIEW,
+    PERMISSIONS.AFTERCARE_MANAGE,
+    PERMISSIONS.TECHNICIAN_PERFORMANCE_VIEW,
     PERMISSIONS.ACCOUNTING_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.INVENTORY_EDIT,
@@ -168,6 +200,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.ORDERS_EDIT,
     PERMISSIONS.QUOTE_SEND,
     PERMISSIONS.CUSTOMER_SENSITIVE,
+    PERMISSIONS.AFTERCARE_VIEW,
+    PERMISSIONS.AFTERCARE_MANAGE,
     PERMISSIONS.ACCOUNTING_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
   ],

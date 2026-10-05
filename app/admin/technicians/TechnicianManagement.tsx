@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useState,
@@ -116,13 +117,13 @@ export default function TechnicianManagement() {
       return;
     }
 
-    if (!editingId && form.password.length < 12) {
-      setError("كلمة المرور يجب ألا تقل عن 12 حرفًا.");
+    if (!editingId && form.password.length < 6) {
+      setError("كلمة المرور يجب ألا تقل عن 6 أحرف.");
       return;
     }
 
-    if (editingId && form.password && form.password.length < 12) {
-      setError("كلمة المرور الجديدة يجب ألا تقل عن 12 حرفًا.");
+    if (editingId && form.password && form.password.length < 6) {
+      setError("كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف.");
       return;
     }
 
@@ -239,7 +240,7 @@ export default function TechnicianManagement() {
                 onChange={(event) =>
                   setForm({ ...form, password: event.target.value })
                 }
-                placeholder="12 حرفًا على الأقل"
+                placeholder="6 أحرف على الأقل"
                 autoComplete="new-password"
               />
             </Field>
@@ -355,15 +356,29 @@ export default function TechnicianManagement() {
                   {technician.active ? "نشط" : "موقوف"}
                 </span>
 
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => startEdit(technician)}
-                    style={secondaryButtonStyle}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <Link
+                    href={`/admin/technicians/${technician.id}`}
+                    style={{
+                      ...secondaryButtonStyle,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      textDecoration: "none",
+                    }}
                   >
-                    تعديل
-                  </button>
-                )}
+                    ملف الأداء
+                  </Link>
+
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(technician)}
+                      style={secondaryButtonStyle}
+                    >
+                      تعديل
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

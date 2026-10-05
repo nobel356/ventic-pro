@@ -45,8 +45,8 @@ export async function PATCH(
     if (login.length < 3 || /\s/.test(login)) {
       return NextResponse.json({ error: "اسم الدخول يجب أن يكون 3 أحرف على الأقل وبدون مسافات" }, { status: 400 });
     }
-    if (password && password.length < 12) {
-      return NextResponse.json({ error: "كلمة المرور الجديدة يجب ألا تقل عن 12 حرفًا" }, { status: 400 });
+    if (password && password.length < 6) {
+      return NextResponse.json({ error: "كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف" }, { status: 400 });
     }
 
     const technician = await prisma.user.update({

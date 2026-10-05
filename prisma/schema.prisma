@@ -74,6 +74,8 @@ model Order {
   orderNo String @unique
   customerId String
   customer Customer @relation(fields:[customerId],references:[id])
+  propertyId String?
+  property Property? @relation(fields:[propertyId],references:[id],onDelete:SetNull)
   status OrderStatus @default(NEW)
   estimatedTotal Decimal? @db.Decimal(10,2)
   finalTotal Decimal? @db.Decimal(10,2)
@@ -101,6 +103,7 @@ model Order {
   technicianSlots TechnicianSlot[]
   review Review?
   inventoryMovements InventoryMovement[]
+  installedDevices Device[] @relation("InstalledDevices")
   convertedLead Lead?
   notifications Notification[]
   adminNotifications AdminNotification[]
@@ -305,6 +308,11 @@ enum TicketStatus {
   RESOLVED
   CLOSED
 }
+enum AftercareCostType {
+  WARRANTY
+  FREE
+  PAID
+}
 enum WarrantyStatus {
   ACTIVE
   EXPIRED
@@ -355,25 +363,53 @@ model MaintenanceRequest {
   warranty Warranty? @relation(fields:[warrantyId],references:[id])
   orderId String
   order Order @relation(fields:[orderId],references:[id],onDelete:Cascade)
+  propertyId String?
+  property Property? @relation(fields:[propertyId],references:[id],onDelete:SetNull)
+  deviceId String?
+  device Device? @relation(fields:[deviceId],references:[id],onDelete:SetNull)
   issue String
   status TicketStatus @default(OPEN)
+  costType AftercareCostType @default(WARRANTY)
+  chargeAmount Decimal @default(0) @db.Decimal(10,2)
   appointmentAt DateTime?
   technicianId String?
   technician User? @relation(fields:[technicianId],references:[id])
+  createdByCustomer Boolean @default(false)
+  resolution String?
+  closedAt DateTime?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId,status])
+  @@index([propertyId])
+  @@index([deviceId])
 }
 
 model Complaint {
   id String @id @default(cuid())
   orderId String
   order Order @relation(fields:[orderId],references:[id],onDelete:Cascade)
+  propertyId String?
+  property Property? @relation(fields:[propertyId],references:[id],onDelete:SetNull)
+  deviceId String?
+  device Device? @relation(fields:[deviceId],references:[id],onDelete:SetNull)
   issue String
   status TicketStatus @default(OPEN)
   freeRevisit Boolean @default(false)
+  costType AftercareCostType @default(FREE)
+  chargeAmount Decimal @default(0) @db.Decimal(10,2)
   revisitAt DateTime?
   technicianId String?
   technician User? @relation(fields:[technicianId],references:[id])
+  createdByCustomer Boolean @default(false)
+  resolution String?
+  closedAt DateTime?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId,status])
+  @@index([propertyId])
+  @@index([deviceId])
 }
 
 model TechnicianSlot {
@@ -382,10 +418,14 @@ model TechnicianSlot {
   technician User @relation(fields:[technicianId],references:[id],onDelete:Cascade)
   orderId String?
   order Order? @relation(fields:[orderId],references:[id],onDelete:SetNull)
+  sourceType String?
+  sourceId String?
   startsAt DateTime
   endsAt DateTime
   createdAt DateTime @default(now())
+
   @@index([technicianId,startsAt,endsAt])
+  @@index([sourceType,sourceId])
 }
 
 
@@ -606,15 +646,25 @@ model Property {
   building String?
   floor String?
   apartment String?
+  orders Order[]
   devices Device[]
+  maintenanceRequests MaintenanceRequest[]
+  complaints Complaint[]
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
 }
 
 model Device {
   id String @id @default(cuid())
   propertyId String
   property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  sourceOrderId String?
+  sourceOrder Order? @relation("InstalledDevices",fields:[sourceOrderId],references:[id],onDelete:SetNull)
   type String
+  serviceCode String?
+  serviceName String?
   brand String?
   model String?
   size String?
@@ -622,7 +672,14 @@ model Device {
   installedAt DateTime?
   warrantyEndsAt DateTime?
   notes String?
+  active Boolean @default(true)
+  maintenanceRequests MaintenanceRequest[]
+  complaints Complaint[]
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([propertyId])
+  @@index([sourceOrderId])
 }
 
 model Lead {

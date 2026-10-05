@@ -14,6 +14,8 @@ type NavItem = {
   stocktakePermission?: boolean;
   purchasesPermission?: boolean;
   exportsPermission?: boolean;
+  aftercarePermission?: boolean;
+  technicianPerformancePermission?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -26,7 +28,12 @@ const navItems: NavItem[] = [
     icon: "👥",
     customersPermission: true,
   },
-  { href: "/admin/technicians", label: "الفنيون", icon: "👷" },
+  {
+    href: "/admin/technicians",
+    label: "الفنيون",
+    icon: "👷",
+    technicianPerformancePermission: true,
+  },
   {
     href: "/admin/inventory",
     label: "المخزون",
@@ -52,7 +59,12 @@ const navItems: NavItem[] = [
     icon: "🧾",
     accountingPermission: true,
   },
-  { href: "/admin/aftercare", label: "ما بعد التركيب", icon: "🛠️" },
+  {
+    href: "/admin/aftercare",
+    label: "ما بعد التركيب",
+    icon: "🛠️",
+    aftercarePermission: true,
+  },
   { href: "/admin/reports", label: "التقارير", icon: "📊" },
   {
     href: "/admin/exports",
@@ -82,6 +94,8 @@ export default function AdminSidebar({
   canStocktake,
   canPurchases,
   canExports,
+  canViewAftercare,
+  canViewTechnicianPerformance,
 }: {
   isSuperAdmin: boolean;
   canViewInventory: boolean;
@@ -90,6 +104,8 @@ export default function AdminSidebar({
   canStocktake: boolean;
   canPurchases: boolean;
   canExports: boolean;
+  canViewAftercare: boolean;
+  canViewTechnicianPerformance: boolean;
 }) {
   const pathname = usePathname();
 
@@ -128,6 +144,15 @@ export default function AdminSidebar({
               return false;
             }
             if (item.exportsPermission && !canExports) {
+              return false;
+            }
+            if (item.aftercarePermission && !canViewAftercare) {
+              return false;
+            }
+            if (
+              item.technicianPerformancePermission &&
+              !canViewTechnicianPerformance
+            ) {
               return false;
             }
             return true;
