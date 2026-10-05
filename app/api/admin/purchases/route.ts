@@ -7,6 +7,13 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+type PurchaseLineInput = {
+  itemId: string;
+  quantity: number;
+  unitCost: number;
+  lineTotal: number;
+};
+
 export async function GET() {
   try {
     const actor = await requirePermission(PERMISSIONS.INVENTORY_VIEW);
@@ -187,7 +194,9 @@ export async function POST(req: Request) {
     const supplierId = String(body?.supplierId || "");
     const supplierInvoiceNo = String(body?.supplierInvoiceNo || "").trim() || null;
     const notes = String(body?.notes || "").trim() || null;
-    const rawItems = Array.isArray(body?.items) ? body.items : [];
+    const rawItems: unknown[] = Array.isArray(body?.items)
+      ? body.items
+      : [];
 
     if (!supplierId || rawItems.length === 0) {
       return NextResponse.json(
@@ -196,25 +205,33 @@ export async function POST(req: Request) {
       );
     }
 
-    const lines = rawItems.map((line: any, index: number) => {
-      const itemId = String(line?.itemId || "");
-      const quantity = Number(line?.quantity || 0);
-      const unitCost = Number(line?.unitCost || 0);
+    const lines: PurchaseLineInput[] = rawItems.map(
+      (rawLine: unknown, index: number): PurchaseLineInput => {
+        const line =
+          rawLine && typeof rawLine === "object"
+            ? (rawLine as Record<string, unknown>)
+            : {};
 
-      if (!itemId || !Number.isFinite(quantity) || quantity <= 0) {
-        throw new Error(`VALIDATION:كمية البند ${index + 1} غير صحيحة`);
-      }
-      if (!Number.isFinite(unitCost) || unitCost < 0) {
-        throw new Error(`VALIDATION:تكلفة البند ${index + 1} غير صحيحة`);
-      }
+        const itemId = String(line.itemId || "");
+        const quantity = Number(line.quantity || 0);
+        const unitCost = Number(line.unitCost || 0);
 
-      return {
-        itemId,
-        quantity,
-        unitCost,
-        lineTotal: roundMoney(quantity * unitCost),
-      };
-    });
+        if (!itemId || !Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error(`VALIDATION:كمية البند ${index + 1} غير صحيحة`);
+        }
+
+        if (!Number.isFinite(unitCost) || unitCost < 0) {
+          throw new Error(`VALIDATION:تكلفة البند ${index + 1} غير صحيحة`);
+        }
+
+        return {
+          itemId,
+          quantity,
+          unitCost,
+          lineTotal: roundMoney(quantity * unitCost),
+        };
+      },
+    );
 
     const supplier = await prisma.supplier.findFirst({
       where: { id: supplierId, active: true },
@@ -224,7 +241,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "المورد غير موجود أو موقوف" }, { status: 404 });
     }
 
-    const total = roundMoney(lines.reduce((sum, line) => sum + line.lineTotal, 0));
+    const total = roundMoney(
+      lines.reduce(
+        (sum: number, line: PurchaseLineInput) => sum + line.lineTotal,
+        0,
+      ),
+    );
     const receiptNo = `PUR-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}`;
 
     const result = await prisma.$transaction(
