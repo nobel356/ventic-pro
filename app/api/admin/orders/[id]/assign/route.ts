@@ -8,6 +8,7 @@ import {
   requirePermission,
 } from "@/lib/auth-v7";
 import { parsePreferredAppointment } from "@/lib/order-appointment";
+import { notifyCustomer } from "@/lib/customer-notifications";
 
 export async function PATCH(
   req: Request,
@@ -35,7 +36,10 @@ export async function PATCH(
 
     const old = await prisma.order.findUnique({
       where: { id },
-      include: { technician: true },
+      include: {
+        technician: true,
+        customer: true,
+      },
     });
 
     if (!old) {
@@ -169,6 +173,29 @@ export async function PATCH(
       message: `${tech.name} — تم ربط الموعد تلقائيًا بجدول الفنيين`,
       orderId: id,
       href: `/admin/orders/${id}`,
+    });
+
+    await notifyCustomer({
+      orderId: id,
+      customerId: old.customer.id,
+      phone: old.customer.phone,
+      templateKey: "TECHNICIAN_ASSIGNED",
+      templateVariables: [
+        old.orderNo,
+        tech.name,
+        old.preferredDate || "-",
+        old.preferredTime || "-",
+      ],
+      subject: `تم تعيين فني للطلب ${old.orderNo}`,
+      message:
+        `Ventic Pro\nتم تعيين الفني ${tech.name} للطلب ${old.orderNo}. ` +
+        `الموعد ${old.preferredDate || "-"} — ${old.preferredTime || "-"}.`,
+      payload: {
+        technicianId: tech.id,
+        technicianName: tech.name,
+        preferredDate: old.preferredDate,
+        preferredTime: old.preferredTime,
+      },
     });
 
     return NextResponse.json({

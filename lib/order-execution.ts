@@ -20,6 +20,11 @@ import {
   createInstalledDevicesFromOrder,
   ensureOrderProperty,
 } from "@/lib/customer-assets";
+import {
+  deleteStoredFile,
+  uploadOrderImage,
+} from "@/lib/storage";
+import { notifyCustomer } from "@/lib/customer-notifications";
 
 export const OTP_TTL_MINUTES = 15;
 export const OTP_RESEND_SECONDS = 60;
@@ -81,18 +86,30 @@ export async function getExecutionSnapshot(
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
   const [
-    beforeCount,
-    afterCount,
+    beforeFiles,
+    afterFiles,
     materialState,
     items,
     financials,
     lastOtpAudit,
   ] = await Promise.all([
-    client.attachment.count({
+    client.attachment.findMany({
       where: { orderId, kind: "BEFORE" },
+      select: {
+        id: true,
+        fileName: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
     }),
-    client.attachment.count({
+    client.attachment.findMany({
       where: { orderId, kind: "AFTER" },
+      select: {
+        id: true,
+        fileName: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
     }),
     getOrderMaterialState(
       client,
@@ -158,8 +175,20 @@ export async function getExecutionSnapshot(
         order.technician?.name || null,
     },
     photos: {
-      before: beforeCount,
-      after: afterCount,
+      before: beforeFiles.length,
+      after: afterFiles.length,
+      beforeItems: beforeFiles.map((item: any) => ({
+        id: item.id,
+        fileName: item.fileName,
+        href: `/api/attachments/${item.id}`,
+        createdAt: item.createdAt,
+      })),
+      afterItems: afterFiles.map((item: any) => ({
+        id: item.id,
+        fileName: item.fileName,
+        href: `/api/attachments/${item.id}`,
+        createdAt: item.createdAt,
+      })),
     },
     materials: {
       confirmed: materialState.confirmed,
@@ -221,43 +250,49 @@ export async function addExecutionAttachment(
     file: File;
   },
 ) {
-  if (!input.file.type.startsWith("image/")) {
-    throw new Error("INVALID_IMAGE");
-  }
-
-  if (input.file.size > 8 * 1024 * 1024) {
-    throw new Error("IMAGE_TOO_LARGE");
-  }
-
-  const item = await client.attachment.create({
-    data: {
-      orderId: input.orderId,
-      kind: input.kind,
-      fileName: input.file.name,
-      mimeType: input.file.type,
-      storagePath: `pending://${crypto.randomUUID()}/${input.file.name}`,
-      uploadedBy: input.actor.id,
-    },
+  const stored = await uploadOrderImage({
+    orderId: input.orderId,
+    kind: input.kind,
+    file: input.file,
   });
 
-  await client.auditLog.create({
-    data: {
-      orderId: input.orderId,
-      actorId: input.actor.id,
-      actorLabel: input.actor.name,
-      action:
-        input.kind === "BEFORE"
-          ? "BEFORE_PHOTO_ADDED"
-          : "AFTER_PHOTO_ADDED",
-      newValue: {
-        attachmentId: item.id,
+  try {
+    const item = await client.attachment.create({
+      data: {
+        orderId: input.orderId,
+        kind: input.kind,
         fileName: input.file.name,
-        executionMode: input.actor.mode,
+        mimeType: input.file.type,
+        storagePath: stored.pathname,
+        uploadedBy: input.actor.id,
       },
-    },
-  });
+    });
 
-  return item;
+    await client.auditLog.create({
+      data: {
+        orderId: input.orderId,
+        actorId: input.actor.id,
+        actorLabel: input.actor.name,
+        action:
+          input.kind === "BEFORE"
+            ? "BEFORE_PHOTO_ADDED"
+            : "AFTER_PHOTO_ADDED",
+        newValue: {
+          attachmentId: item.id,
+          fileName: input.file.name,
+          storageProvider: "vercel_blob",
+          storagePath: stored.pathname,
+          size: stored.size,
+          executionMode: input.actor.mode,
+        },
+      },
+    });
+
+    return item;
+  } catch (error) {
+    await deleteStoredFile(stored.pathname);
+    throw error;
+  }
 }
 
 export async function confirmNoExecutionMaterials(
@@ -894,6 +929,28 @@ export async function completeExecution(
     dedupeKey: `order-completed:${input.orderId}`,
   });
 
+  await notifyCustomer({
+    orderId: input.orderId,
+    customerId: order.customer.id,
+    phone: order.customer.phone,
+    templateKey: "ORDER_COMPLETED",
+    templateVariables: [
+      order.orderNo,
+      result.warranty.endsAt.toLocaleDateString("ar-EG"),
+      result.finance.financials.total.toLocaleString("ar-EG"),
+    ],
+    subject: `تم إكمال طلب ${order.orderNo}`,
+    message:
+      `Ventic Pro\nتم إكمال الطلب ${order.orderNo} بنجاح. ` +
+      `الضمان ساري حتى ${result.warranty.endsAt.toLocaleDateString("ar-EG")}. ` +
+      `إجمالي الفاتورة ${result.finance.financials.total.toLocaleString("ar-EG")} ج.`,
+    payload: {
+      warrantyEndsAt: result.warranty.endsAt.toISOString(),
+      invoiceTotal: result.finance.financials.total,
+      due: result.finance.financials.due,
+    },
+  });
+
   return {
     ok: true,
     invoiceTotal:
@@ -926,7 +983,12 @@ export function executionErrorResponse(
     },
     IMAGE_TOO_LARGE: {
       status: 400,
-      error: "الصورة يجب ألا تزيد عن 8MB",
+      error: "الصورة بعد الضغط يجب ألا تزيد عن 4MB",
+    },
+    STORAGE_NOT_CONFIGURED: {
+      status: 503,
+      error:
+        "تخزين الصور غير مفعّل. اربط Vercel Blob بالمشروع أولًا.",
     },
     MATERIALS_ALREADY_USED: {
       status: 409,

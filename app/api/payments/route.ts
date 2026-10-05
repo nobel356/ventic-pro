@@ -9,6 +9,7 @@ import {
   requirePermission,
 } from "@/lib/auth-v7";
 import { notifyAdmins } from "@/lib/admin-notifications";
+import { notifyCustomer } from "@/lib/customer-notifications";
 import {
   calculateOrderFinancials,
   syncOrderInvoice,
@@ -59,9 +60,8 @@ export async function POST(req: Request) {
     const order =
       await prisma.order.findUnique({
         where: { id: orderId },
-        select: {
-          id: true,
-          orderNo: true,
+        include: {
+          customer: true,
         },
       });
 
@@ -184,6 +184,39 @@ export async function POST(req: Request) {
       orderId,
       href: `/admin/orders/${orderId}`,
       dedupeKey: `payment:${result.payment.id}`,
+    });
+
+    await notifyCustomer({
+      orderId,
+      customerId:
+        order.customer.id,
+      phone:
+        order.customer.phone,
+      templateKey:
+        "PAYMENT_RECEIVED",
+      templateVariables: [
+        order.orderNo,
+        numericAmount.toLocaleString(
+          "ar-EG",
+        ),
+        result.finance.financials.due.toLocaleString(
+          "ar-EG",
+        ),
+      ],
+      subject:
+        `تم تسجيل دفعة للطلب ${order.orderNo}`,
+      message:
+        `Ventic Pro\nتم تسجيل دفعة بقيمة ${numericAmount.toLocaleString("ar-EG")} ج ` +
+        `للطلب ${order.orderNo}. المتبقي ${result.finance.financials.due.toLocaleString("ar-EG")} ج.`,
+      payload: {
+        paymentId:
+          result.payment.id,
+        amount:
+          numericAmount,
+        due:
+          result.finance
+            .financials.due,
+      },
     });
 
     return NextResponse.json({

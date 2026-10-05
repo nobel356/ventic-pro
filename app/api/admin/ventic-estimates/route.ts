@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, requirePermission } from "@/lib/auth-v7";
+import { absoluteAppUrl, notifyCustomer } from "@/lib/customer-notifications";
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -383,6 +384,11 @@ export async function POST(req: Request) {
         where: { id: estimateId },
         include: {
           items: { orderBy: { sortOrder: "asc" } },
+          order: {
+            include: {
+              customer: true,
+            },
+          },
         },
       });
 
@@ -450,9 +456,53 @@ export async function POST(req: Request) {
         return estimate;
       });
 
+      const approvalPath =
+        `/customer/approval/${updated.customerToken}`;
+      const approvalUrl =
+        absoluteAppUrl(
+          approvalPath,
+        );
+
+      await notifyCustomer({
+        orderId:
+          existing.orderId,
+        customerId:
+          existing.order
+            .customer.id,
+        phone:
+          existing.order
+            .customer.phone,
+        templateKey:
+          "VENTIC_ESTIMATE_SENT",
+        templateVariables: [
+          existing.order
+            .orderNo,
+          String(
+            existing.version,
+          ),
+          total.toLocaleString(
+            "ar-EG",
+          ),
+          approvalUrl,
+        ],
+        subject:
+          `مقايسة Ventic Pro — ${existing.order.orderNo}`,
+        message:
+          `Ventic Pro\nتم إرسال المقايسة رقم ${existing.version} للطلب ${existing.order.orderNo} ` +
+          `بإجمالي ${total.toLocaleString("ar-EG")} ج. للمراجعة والموافقة: ${approvalUrl}`,
+        payload: {
+          estimateId:
+            updated.id,
+          version:
+            updated.version,
+          total,
+          approvalPath,
+        },
+      });
+
       return NextResponse.json({
         estimate: serializeEstimate(updated),
-        approvalPath: `/customer/approval/${updated.customerToken}`,
+        approvalPath,
       });
     }
 

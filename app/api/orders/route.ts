@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import { calculateOrderOffer } from "@/lib/promotions";
+import { notifyCustomer } from "@/lib/customer-notifications";
 import {
   clientIp,
   rateLimit,
@@ -328,6 +329,30 @@ export async function POST(req: Request) {
       }`,
       orderId: result.id,
       href: `/admin/orders/${result.id}`,
+    });
+
+    await notifyCustomer({
+      orderId: result.id,
+      customerId: customer.id,
+      phone: customer.phone,
+      templateKey: "ORDER_RECEIVED",
+      templateVariables: [
+        customer.name,
+        result.orderNo,
+        c.date,
+        c.time,
+        Number(result.estimatedTotal || 0).toLocaleString("ar-EG"),
+      ],
+      subject: `تم استلام طلب ${result.orderNo}`,
+      message:
+        `Ventic Pro\nتم استلام طلبك ${result.orderNo} بنجاح. ` +
+        `موعدك المفضل ${c.date} — ${c.time}. ` +
+        `السعر التقديري الحالي ${Number(result.estimatedTotal || 0).toLocaleString("ar-EG")} ج.`,
+      payload: {
+        preferredDate: c.date,
+        preferredTime: c.time,
+        estimatedTotal: Number(result.estimatedTotal || 0),
+      },
     });
 
     return NextResponse.json({

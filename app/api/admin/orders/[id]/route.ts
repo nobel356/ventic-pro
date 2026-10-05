@@ -5,6 +5,7 @@ import { audit } from "@/lib/audit";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import { PERMISSIONS, requirePermission } from "@/lib/auth-v7";
 import { parsePreferredAppointment } from "@/lib/order-appointment";
+import { notifyCustomer } from "@/lib/customer-notifications";
 
 const allowed = [
   "NEW",
@@ -195,6 +196,27 @@ export async function PATCH(
         orderId: result.order.id,
         href: `/admin/orders/${result.order.id}`,
       });
+
+      if (result.order.status !== "CANCELLED") {
+        await notifyCustomer({
+          orderId: result.order.id,
+          customerId: result.order.customer.id,
+          phone: result.order.customer.phone,
+          templateKey: "ORDER_STATUS",
+          templateVariables: [
+            result.order.orderNo,
+            statusLabels[result.order.status] || result.order.status,
+          ],
+          subject: `تحديث الطلب ${result.order.orderNo}`,
+          message:
+            `Ventic Pro\nتم تحديث حالة الطلب ${result.order.orderNo}: ` +
+            `${statusLabels[result.order.status] || result.order.status}.`,
+          payload: {
+            oldStatus: old.status,
+            status: result.order.status,
+          },
+        });
+      }
     }
 
     if (appointmentChanged) {
@@ -224,6 +246,25 @@ export async function PATCH(
         message: `${result.order.preferredDate || "-"} — ${result.order.preferredTime || "-"}`,
         orderId: result.order.id,
         href: `/admin/orders/${result.order.id}`,
+      });
+
+      await notifyCustomer({
+        orderId: result.order.id,
+        customerId: result.order.customer.id,
+        phone: result.order.customer.phone,
+        templateKey: "ORDER_STATUS",
+        templateVariables: [
+          result.order.orderNo,
+          `الموعد ${result.order.preferredDate || "-"} — ${result.order.preferredTime || "-"}`,
+        ],
+        subject: `تحديث موعد الطلب ${result.order.orderNo}`,
+        message:
+          `Ventic Pro\nتم تحديث موعد الطلب ${result.order.orderNo} إلى ` +
+          `${result.order.preferredDate || "-"} — ${result.order.preferredTime || "-"}.`,
+        payload: {
+          preferredDate: result.order.preferredDate,
+          preferredTime: result.order.preferredTime,
+        },
       });
     }
 

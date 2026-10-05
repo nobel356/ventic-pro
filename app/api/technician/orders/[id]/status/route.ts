@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { currentTechnician } from "@/lib/technician";
 import { audit } from "@/lib/audit";
 import { notifyAdmins } from "@/lib/admin-notifications";
+import { notifyCustomer } from "@/lib/customer-notifications";
 
 const allowed = ["ON_THE_WAY", "ARRIVED", "IN_PROGRESS"];
 const labels: Record<string, string> = {
@@ -34,6 +35,7 @@ export async function PATCH(
 
   const old = await prisma.order.findFirst({
     where: { id, technicianId: tech.id },
+    include: { customer: true },
   });
   if (!old) {
     return NextResponse.json(
@@ -62,6 +64,35 @@ export async function PATCH(
     message: `${tech.name}: ${labels[status] || status}`,
     orderId: order.id,
     href: `/admin/orders/${order.id}`,
+  });
+
+  await notifyCustomer({
+    orderId: order.id,
+    customerId: old.customer.id,
+    phone: old.customer.phone,
+    templateKey:
+      status === "ON_THE_WAY"
+        ? "TECHNICIAN_ON_THE_WAY"
+        : "ORDER_STATUS",
+    templateVariables:
+      status === "ON_THE_WAY"
+        ? [
+            order.orderNo,
+            tech.name,
+          ]
+        : [
+            order.orderNo,
+            labels[status] || status,
+          ],
+    subject: `تحديث الطلب ${order.orderNo}`,
+    message:
+      status === "ON_THE_WAY"
+        ? `Ventic Pro\nالفني ${tech.name} في الطريق إليك لتنفيذ الطلب ${order.orderNo}.`
+        : `Ventic Pro\nتحديث الطلب ${order.orderNo}: ${labels[status] || status}.`,
+    payload: {
+      technicianName: tech.name,
+      status,
+    },
   });
 
   return NextResponse.json(order);

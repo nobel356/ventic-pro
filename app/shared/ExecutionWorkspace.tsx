@@ -20,6 +20,18 @@ type Snapshot = {
   photos: {
     before: number;
     after: number;
+    beforeItems: Array<{
+      id: string;
+      fileName: string;
+      href: string;
+      createdAt: string;
+    }>;
+    afterItems: Array<{
+      id: string;
+      fileName: string;
+      href: string;
+      createdAt: string;
+    }>;
   };
   materials: {
     confirmed: boolean;
@@ -55,6 +67,121 @@ type Snapshot = {
     stagingVisible: boolean;
   };
 };
+
+
+async function prepareUploadImage(
+  file: File,
+) {
+  const maxBytes =
+    3.5 * 1024 * 1024;
+  const maxDimension = 1800;
+
+  if (
+    file.size <= maxBytes &&
+    ["image/jpeg", "image/png", "image/webp"].includes(
+      file.type,
+    )
+  ) {
+    return file;
+  }
+
+  const url =
+    URL.createObjectURL(file);
+
+  try {
+    const image =
+      await new Promise<HTMLImageElement>(
+        (resolve, reject) => {
+          const img =
+            new Image();
+          img.onload = () =>
+            resolve(img);
+          img.onerror = reject;
+          img.src = url;
+        },
+      );
+
+    const scale = Math.min(
+      1,
+      maxDimension /
+        Math.max(
+          image.width,
+          image.height,
+        ),
+    );
+
+    const canvas =
+      document.createElement(
+        "canvas",
+      );
+    canvas.width = Math.max(
+      1,
+      Math.round(
+        image.width * scale,
+      ),
+    );
+    canvas.height = Math.max(
+      1,
+      Math.round(
+        image.height * scale,
+      ),
+    );
+
+    const ctx =
+      canvas.getContext("2d");
+
+    if (!ctx) return file;
+
+    ctx.drawImage(
+      image,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+
+    for (const quality of [
+      0.84, 0.74, 0.64,
+    ]) {
+      const blob =
+        await new Promise<Blob | null>(
+          (resolve) =>
+            canvas.toBlob(
+              resolve,
+              "image/jpeg",
+              quality,
+            ),
+        );
+
+      if (
+        blob &&
+        blob.size <= maxBytes
+      ) {
+        const base =
+          file.name.replace(
+            /\.[^.]+$/,
+            "",
+          ) || "photo";
+
+        return new File(
+          [blob],
+          `${base}.jpg`,
+          {
+            type: "image/jpeg",
+            lastModified:
+              Date.now(),
+          },
+        );
+      }
+    }
+
+    throw new Error(
+      "الصورة كبيرة جدًا. حاول التصوير بدقة أقل.",
+    );
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export default function ExecutionWorkspace({
   orderId,
@@ -164,9 +291,13 @@ export default function ExecutionWorkspace({
     setLoading(true);
 
     try {
+      const prepared =
+        await prepareUploadImage(
+          file,
+        );
       const form = new FormData();
       form.append("kind", kind);
-      form.append("file", file);
+      form.append("file", prepared);
 
       const response = await fetch(
         `${apiBase}?action=attachment`,
@@ -506,6 +637,21 @@ export default function ExecutionWorkspace({
           المسجل حاليًا:{" "}
           {snapshot.photos.before}
         </p>
+        {snapshot.photos.beforeItems.length > 0 && (
+          <div style={photoLinksStyle}>
+            {snapshot.photos.beforeItems.map((item) => (
+              <a
+                key={item.id}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                style={photoLinkStyle}
+              >
+                عرض {item.fileName}
+              </a>
+            ))}
+          </div>
+        )}
         <input
           type="file"
           accept="image/*"
@@ -664,6 +810,21 @@ export default function ExecutionWorkspace({
           المسجل حاليًا:{" "}
           {snapshot.photos.after}
         </p>
+        {snapshot.photos.afterItems.length > 0 && (
+          <div style={photoLinksStyle}>
+            {snapshot.photos.afterItems.map((item) => (
+              <a
+                key={item.id}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                style={photoLinkStyle}
+              >
+                عرض {item.fileName}
+              </a>
+            ))}
+          </div>
+        )}
         <input
           type="file"
           accept="image/*"
@@ -745,7 +906,7 @@ export default function ExecutionWorkspace({
                 {stagingOtp}
               </div>
               <small>
-                لن يظهر هذا الكود عند تفعيل WhatsApp/SMS وإيقاف OTP_STAGING_VISIBLE.
+                هذا الكود يظهر فقط في بيئة غير Production عند تفعيل OTP_STAGING_VISIBLE.
               </small>
             </div>
 
@@ -1005,6 +1166,27 @@ const otpCodeStyle: CSSProperties = {
   letterSpacing: 5,
   margin: "6px 0",
   direction: "ltr",
+};
+
+const photoLinksStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginBottom: 10,
+};
+
+const photoLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 34,
+  border: "1px solid #bfdbfe",
+  borderRadius: 9,
+  padding: "0 10px",
+  textDecoration: "none",
+  color: "#1d4ed8",
+  background: "#eff6ff",
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const successStyle: CSSProperties = {
