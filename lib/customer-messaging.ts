@@ -428,7 +428,7 @@ async function sendSms(
   }
 }
 
-async function sendEmail(
+export async function sendEmail(
   input: {
     email?: string | null;
     subject: string;
@@ -611,47 +611,26 @@ export async function deliverCustomerMessage(
     return sms;
   }
 
-  const email =
-    await sendEmail({
-      email: input.email,
-      subject:
-        input.subject ||
-        "Ventic Pro",
-      message: input.message,
-    });
-
-  if (email.sent) {
-    return email;
-  }
-
   return {
     sent: false,
     channel:
       whatsapp.channel !==
       "NONE"
         ? whatsapp.channel
-        : sms.channel !==
-            "NONE"
-          ? sms.channel
-          : email.channel,
+        : sms.channel,
     provider:
       whatsapp.channel !==
       "NONE"
         ? whatsapp.provider
-        : sms.channel !==
-            "NONE"
-          ? sms.provider
-          : email.provider,
+        : sms.provider,
     destinationMasked:
       whatsapp
         .destinationMasked ||
       sms.destinationMasked ||
-      email.destinationMasked ||
       maskPhone(input.phone),
     error: [
       whatsapp.error,
       sms.error,
-      email.error,
     ]
       .filter(Boolean)
       .join(" | "),
@@ -661,6 +640,7 @@ export async function deliverCustomerMessage(
 export async function deliverCompletionOtp(
   input: {
     phone: string;
+    email?: string | null;
     otp: string;
     orderNo: string;
   },
@@ -669,24 +649,46 @@ export async function deliverCompletionOtp(
     `Ventic Pro\nكود تأكيد إتمام الطلب ${input.orderNo}: ${input.otp}\n` +
     "الكود صالح لمدة 15 دقيقة. لا تشاركه إلا مع الفني بعد التأكد من اكتمال الخدمة.";
 
-  return deliverCustomerMessage({
-    phone: input.phone,
-    templateName:
-      process.env
-        .WHATSAPP_ORDER_COMPLETION_OTP_TEMPLATE ||
-      process.env
-        .WHATSAPP_OTP_TEMPLATE,
-    templateVariables: [
-      input.otp,
-      input.orderNo,
-    ],
-    message,
-  });
+  const primary =
+    await deliverCustomerMessage({
+      phone: input.phone,
+      templateName:
+        process.env
+          .WHATSAPP_ORDER_COMPLETION_OTP_TEMPLATE ||
+        process.env
+          .WHATSAPP_OTP_TEMPLATE,
+      templateVariables: [
+        input.otp,
+        input.orderNo,
+      ],
+      message,
+    });
+
+  if (primary.sent) {
+    return primary;
+  }
+
+  if (input.email) {
+    const email =
+      await sendEmail({
+        email: input.email,
+        subject:
+          `كود إتمام طلب ${input.orderNo}`,
+        message,
+      });
+
+    if (email.sent) {
+      return email;
+    }
+  }
+
+  return primary;
 }
 
 export async function deliverCustomerPasswordResetOtp(
   input: {
     phone: string;
+    email?: string | null;
     otp: string;
   },
 ) {
@@ -797,8 +799,29 @@ export async function deliverCustomerPasswordResetOtp(
     }
   }
 
-  return deliverCustomerMessage({
-    phone: input.phone,
-    message,
-  });
+  const primary =
+    await deliverCustomerMessage({
+      phone: input.phone,
+      message,
+    });
+
+  if (primary.sent) {
+    return primary;
+  }
+
+  if (input.email) {
+    const email =
+      await sendEmail({
+        email: input.email,
+        subject:
+          "كود استعادة كلمة مرور Ventic Pro",
+        message,
+      });
+
+    if (email.sent) {
+      return email;
+    }
+  }
+
+  return primary;
 }

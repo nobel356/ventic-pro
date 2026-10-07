@@ -50,9 +50,11 @@ export async function POST(req: Request) {
     if (
       !c?.name ||
       !/^01\d{9}$/.test(c.phone || "") ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.email || "")) ||
       !c.address ||
       !c.date ||
-      !c.time
+      !c.time ||
+      b?.legalAccepted !== true
     ) {
       return NextResponse.json(
         { error: "بيانات الطلب غير مكتملة" },
@@ -71,10 +73,19 @@ export async function POST(req: Request) {
       ]),
     );
 
+    const email = clean(c.email).toLowerCase();
+
     const customer = await prisma.customer.upsert({
       where: { phone: c.phone },
-      update: { name: c.name },
-      create: { name: c.name, phone: c.phone },
+      update: {
+        name: c.name,
+        email,
+      },
+      create: {
+        name: c.name,
+        phone: c.phone,
+        email,
+      },
     });
 
     const governorate = clean(c.governorate) || "غير محدد";
@@ -315,6 +326,12 @@ export async function POST(req: Request) {
             estimatedTotal: offer.total,
             acquisitionSource:
               clean(b?.source) || null,
+            legalAccepted: true,
+            policyVersion:
+              clean(b?.policyVersion) ||
+              "2026-10-07",
+            customerEmail:
+              email,
           },
         },
       });
@@ -336,6 +353,7 @@ export async function POST(req: Request) {
       orderId: result.id,
       customerId: customer.id,
       phone: customer.phone,
+      email: customer.email,
       templateKey: "ORDER_RECEIVED",
       templateVariables: [
         customer.name,

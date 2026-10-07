@@ -68,6 +68,7 @@ export default function Order() {
   const [customer, setCustomer] = useState({
     name: "",
     phone: "",
+    email: "",
     governorate: "القاهرة",
     area: "",
     address: "",
@@ -80,6 +81,7 @@ export default function Order() {
   const [couponMessage, setCouponMessage] = useState("");
   const [leadId, setLeadId] = useState("");
   const [accepted, setAccepted] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [created, setCreated] = useState("");
   const [saving, setSaving] = useState(false);
   const [offer, setOffer] = useState<Offer | null>(null);
@@ -624,6 +626,21 @@ export default function Order() {
                   }
                 />
               </Field>
+              <Field label="البريد الإلكتروني">
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={customer.email}
+                  onChange={(event) =>
+                    setCustomer({
+                      ...customer,
+                      email: event.target.value,
+                    })
+                  }
+                  autoComplete="email"
+                  required
+                />
+              </Field>
 
               <Field label="المحافظة">
                 <select
@@ -804,6 +821,7 @@ export default function Order() {
                 <b>{customer.name || "الاسم غير مكتمل"}</b> —{" "}
                 {customer.phone}
               </p>
+              <p>{customer.email}</p>
               <p>
                 {customer.governorate}، {customer.area}،{" "}
                 {customer.address}
@@ -827,6 +845,31 @@ export default function Order() {
               />
               <span>
                 أفهم أن السعر المعروض تقديري وسيتم تأكيد السعر النهائي قبل تنفيذ التركيب.
+              </span>
+            </label>
+            <label className="consent">
+              <input
+                type="checkbox"
+                checked={legalAccepted}
+                onChange={(event) => setLegalAccepted(event.target.checked)}
+              />
+              <span>
+                أوافق على{" "}
+                <a href="/legal/terms" target="_blank" rel="noreferrer">
+                  الشروط والأحكام
+                </a>{" "}
+                و{" "}
+                <a href="/legal/privacy" target="_blank" rel="noreferrer">
+                  سياسة الخصوصية
+                </a>{" "}
+                واطلعت على{" "}
+                <a href="/legal/refund" target="_blank" rel="noreferrer">
+                  سياسة الاستبدال والاسترجاع
+                </a>{" "}
+                و{" "}
+                <a href="/legal/warranty" target="_blank" rel="noreferrer">
+                  سياسة الضمان
+                </a>.
               </span>
             </label>
 
@@ -864,8 +907,10 @@ export default function Order() {
                 className="button"
                 disabled={
                   !accepted ||
+                  !legalAccepted ||
                   !customer.name ||
                   !/^01\d{9}$/.test(customer.phone) ||
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email) ||
                   !customer.address ||
                   !customer.date ||
                   !customer.time ||
@@ -887,6 +932,8 @@ export default function Order() {
                         couponCode: couponCode || null,
                         source: source || null,
                         leadId: leadId || null,
+                        legalAccepted,
+                        policyVersion: "2026-10-07",
                       }),
                     });
                     const data = await response.json();

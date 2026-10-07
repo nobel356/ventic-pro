@@ -114,6 +114,12 @@ export default async function AdminLayout({
     user.permissions,
   );
 
+  const canManageReviews = can(
+    user.role,
+    PERMISSIONS.REVIEWS_MANAGE,
+    user.permissions,
+  );
+
   return (
     <div className="vpAdminWorkspace">
       <AdminSidebar
@@ -131,6 +137,7 @@ export default async function AdminLayout({
         canManagePromotions={canManagePromotions}
         canManageLeads={canManageLeads}
         canGlobalSearch={canGlobalSearch}
+        canManageReviews={canManageReviews}
       />
 
       <div className="vpAdminContent">

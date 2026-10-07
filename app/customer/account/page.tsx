@@ -40,6 +40,7 @@ export default async function CustomerAccountPage() {
       orders: {
         include: {
           invoice: true,
+          review: true,
           technician: { select: { name: true } },
           warranties: {
             orderBy: { createdAt: "desc" },
@@ -74,6 +75,7 @@ export default async function CustomerAccountPage() {
           <Link href="/" className="brand" style={{ textDecoration: "none" }}>
             <i>V</i> Ventic Pro
           </Link>
+
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <Link className="outline" href="/customer/account/aftercare">
               الصيانة وما بعد التركيب
@@ -90,9 +92,12 @@ export default async function CustomerAccountPage() {
             <span style={{ color: "#64748b" }}>أهلاً بك</span>
             <h1 style={{ margin: "4px 0 6px" }}>{customerData.name}</h1>
             <p style={{ margin: 0, color: "#64748b" }}>
-              {customerData.phone} — ملف واحد لكل طلباتك وعقاراتك وأجهزتك.
+              {customerData.phone}
+              {customerData.email ? ` — ${customerData.email}` : ""}
+              {" — "}ملف واحد لكل طلباتك وعقاراتك وأجهزتك.
             </p>
           </div>
+
           <div style={statsStyle}>
             <Stat label="الطلبات" value={customerData.orders.length} />
             <Stat label="العقارات" value={customerData.properties.length} />
@@ -106,6 +111,7 @@ export default async function CustomerAccountPage() {
         {customerData.properties.length > 0 && (
           <section style={{ marginTop: 22 }}>
             <h2>عقاراتي وأجهزتي</h2>
+
             <div style={{ display: "grid", gap: 12 }}>
               {customerData.properties.map((property) => (
                 <article key={property.id} style={cardStyle}>
@@ -113,8 +119,11 @@ export default async function CustomerAccountPage() {
                   <p style={{ color: "#64748b" }}>
                     {property.governorate} — {property.area} — {property.address}
                   </p>
+
                   {property.devices.length === 0 ? (
-                    <small style={{ color: "#64748b" }}>لا توجد أجهزة مسجلة على هذا العقار حتى الآن.</small>
+                    <small style={{ color: "#64748b" }}>
+                      لا توجد أجهزة مسجلة على هذا العقار حتى الآن.
+                    </small>
                   ) : (
                     <div style={deviceGridStyle}>
                       {property.devices.map((device) => (
@@ -142,6 +151,7 @@ export default async function CustomerAccountPage() {
 
         <section style={{ marginTop: 22 }}>
           <h2>طلباتي</h2>
+
           {customerData.orders.length === 0 ? (
             <div style={cardStyle}>لا توجد طلبات على هذا الحساب حتى الآن.</div>
           ) : (
@@ -154,12 +164,17 @@ export default async function CustomerAccountPage() {
                   <article key={order.id} style={cardStyle}>
                     <div style={orderHeadStyle}>
                       <div>
-                        <strong style={{ color: "#0f2d4a", fontSize: 18 }}>{order.orderNo}</strong>
+                        <strong style={{ color: "#0f2d4a", fontSize: 18 }}>
+                          {order.orderNo}
+                        </strong>
                         <p style={{ margin: "5px 0", color: "#64748b" }}>
                           {order.governorate || "-"} — {order.area || "-"}
                         </p>
                       </div>
-                      <span style={statusStyle}>{statusLabels[order.status] || order.status}</span>
+
+                      <span style={statusStyle}>
+                        {statusLabels[order.status] || order.status}
+                      </span>
                     </div>
 
                     <div style={detailsGridStyle}>
@@ -180,7 +195,10 @@ export default async function CustomerAccountPage() {
                               : "يبدأ بعد إتمام التركيب"
                         }
                       />
-                      <Detail label="متابعة ما بعد التركيب" value={openTickets ? `${openTickets} طلب مفتوح` : "لا توجد"} />
+                      <Detail
+                        label="متابعة ما بعد التركيب"
+                        value={openTickets ? `${openTickets} طلب مفتوح` : "لا توجد"}
+                      />
                     </div>
 
                     <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
@@ -189,10 +207,23 @@ export default async function CustomerAccountPage() {
                           فتح الفاتورة
                         </Link>
                       )}
+
                       {order.status === "COMPLETED" && (
                         <Link href="/customer/account/aftercare" style={linkStyle}>
                           طلب صيانة / شكوى
                         </Link>
+                      )}
+
+                      {order.status === "COMPLETED" && !order.review && (
+                        <Link href={`/customer/review/${order.id}`} style={reviewLinkStyle}>
+                          ⭐ قيّم الخدمة
+                        </Link>
+                      )}
+
+                      {order.review && (
+                        <span style={{ color: "#166534", fontWeight: 900 }}>
+                          ✓ تم تقييم الخدمة
+                        </span>
                       )}
                     </div>
                   </article>
@@ -232,7 +263,6 @@ const headerStyle: React.CSSProperties = {
   flexWrap: "wrap",
   marginBottom: 22,
 };
-
 const heroStyle: React.CSSProperties = {
   background: "white",
   border: "1px solid #e2e8f0",
@@ -245,13 +275,11 @@ const heroStyle: React.CSSProperties = {
   flexWrap: "wrap",
   boxShadow: "0 8px 24px rgba(15,23,42,.05)",
 };
-
 const statsStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))",
   gap: 8,
 };
-
 const statStyle: React.CSSProperties = {
   minWidth: 110,
   border: "1px solid #e2e8f0",
@@ -261,7 +289,6 @@ const statStyle: React.CSSProperties = {
   display: "grid",
   gap: 3,
 };
-
 const cardStyle: React.CSSProperties = {
   background: "white",
   border: "1px solid #e2e8f0",
@@ -269,13 +296,11 @@ const cardStyle: React.CSSProperties = {
   padding: 18,
   boxShadow: "0 6px 20px rgba(15,23,42,.04)",
 };
-
 const deviceGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
   gap: 8,
 };
-
 const deviceStyle: React.CSSProperties = {
   display: "grid",
   gap: 3,
@@ -284,7 +309,6 @@ const deviceStyle: React.CSSProperties = {
   padding: 10,
   background: "#f8fafc",
 };
-
 const orderHeadStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -292,14 +316,12 @@ const orderHeadStyle: React.CSSProperties = {
   alignItems: "flex-start",
   flexWrap: "wrap",
 };
-
 const detailsGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))",
   gap: 12,
   marginTop: 14,
 };
-
 const statusStyle: React.CSSProperties = {
   borderRadius: 999,
   background: "#eff6ff",
@@ -308,9 +330,12 @@ const statusStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 900,
 };
-
 const linkStyle: React.CSSProperties = {
   textDecoration: "none",
   fontWeight: 900,
   color: "#075985",
+};
+const reviewLinkStyle: React.CSSProperties = {
+  ...linkStyle,
+  color: "#b45309",
 };

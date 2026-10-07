@@ -12,6 +12,7 @@ import {
   rateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
+import { notifyCustomer } from "@/lib/customer-notifications";
 
 export async function POST(req: Request) {
   try {
@@ -45,18 +46,27 @@ export async function POST(req: Request) {
       normalizeCustomerPhone(
         body?.phone,
       );
+    const email = String(
+      body?.email || "",
+    )
+      .trim()
+      .toLowerCase();
     const password = String(
       body?.password || "",
     );
+    const legalAccepted =
+      body?.legalAccepted === true;
 
     if (
       !name ||
-      !validEgyptMobile(phone)
+      !validEgyptMobile(phone) ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      !legalAccepted
     ) {
       return NextResponse.json(
         {
           error:
-            "اكتب الاسم ورقم موبايل مصري صحيح",
+            "اكتب الاسم ورقم موبايل مصري وبريدًا إلكترونيًا صحيحًا ووافق على الشروط",
         },
         { status: 400 },
       );
@@ -98,6 +108,7 @@ export async function POST(req: Request) {
           },
           data: {
             name,
+            email,
             passwordHash,
             active: true,
           },
@@ -108,6 +119,7 @@ export async function POST(req: Request) {
           data: {
             name,
             phone,
+            email,
             passwordHash,
             active: true,
           },
@@ -132,6 +144,20 @@ export async function POST(req: Request) {
             3,
           )}******${phone.slice(-2)}`,
         },
+      },
+    });
+
+    await notifyCustomer({
+      customerId: customer.id,
+      phone: customer.phone,
+      email: customer.email,
+      templateKey: "CUSTOMER_ACCOUNT_CREATED",
+      subject: "تم إنشاء حسابك في Ventic Pro",
+      message:
+        `مرحبًا ${customer.name}\nتم إنشاء حسابك في Ventic Pro بنجاح. ` +
+        "يمكنك من حسابك متابعة الطلبات والفواتير والضمان والصيانة والتقييمات.",
+      payload: {
+        accountCreated: true,
       },
     });
 

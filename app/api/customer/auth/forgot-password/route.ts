@@ -134,6 +134,7 @@ export async function POST(req: Request) {
     const delivery =
       await deliverCustomerPasswordResetOtp({
         phone: customer.phone,
+        email: customer.email,
         otp,
       });
 

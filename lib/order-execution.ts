@@ -24,7 +24,7 @@ import {
   deleteStoredFile,
   uploadOrderImage,
 } from "@/lib/storage";
-import { notifyCustomer } from "@/lib/customer-notifications";
+import { absoluteAppUrl, notifyCustomer } from "@/lib/customer-notifications";
 
 export const OTP_TTL_MINUTES = 15;
 export const OTP_RESEND_SECONDS = 60;
@@ -63,6 +63,7 @@ async function getOrder(client: any, orderId: string) {
           id: true,
           name: true,
           phone: true,
+          email: true,
         },
       },
       technician: {
@@ -86,7 +87,6 @@ export async function getExecutionSnapshot(
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
   const [
-    customerFiles,
     beforeFiles,
     afterFiles,
     materialState,
@@ -94,15 +94,6 @@ export async function getExecutionSnapshot(
     financials,
     lastOtpAudit,
   ] = await Promise.all([
-    client.attachment.findMany({
-      where: { orderId, kind: "CUSTOMER" },
-      select: {
-        id: true,
-        fileName: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
     client.attachment.findMany({
       where: { orderId, kind: "BEFORE" },
       select: {
@@ -185,15 +176,8 @@ export async function getExecutionSnapshot(
         order.technician?.name || null,
     },
     photos: {
-      customer: customerFiles.length,
       before: beforeFiles.length,
       after: afterFiles.length,
-      customerItems: customerFiles.map((item: any) => ({
-        id: item.id,
-        fileName: item.fileName,
-        href: `/api/attachments/${item.id}`,
-        createdAt: item.createdAt,
-      })),
       beforeItems: beforeFiles.map((item: any) => ({
         id: item.id,
         fileName: item.fileName,
@@ -950,6 +934,7 @@ export async function completeExecution(
     orderId: input.orderId,
     customerId: order.customer.id,
     phone: order.customer.phone,
+    email: order.customer.email,
     templateKey: "ORDER_COMPLETED",
     templateVariables: [
       order.orderNo,
@@ -960,7 +945,8 @@ export async function completeExecution(
     message:
       `Ventic Pro\nتم إكمال الطلب ${order.orderNo} بنجاح. ` +
       `الضمان ساري حتى ${result.warranty.endsAt.toLocaleDateString("ar-EG")}. ` +
-      `إجمالي الفاتورة ${result.finance.financials.total.toLocaleString("ar-EG")} ج.`,
+      `إجمالي الفاتورة ${result.finance.financials.total.toLocaleString("ar-EG")} ج. ` +
+      `يمكنك تقييم الخدمة من: ${absoluteAppUrl(`/customer/review/${order.id}`)}`,
     payload: {
       warrantyEndsAt: result.warranty.endsAt.toISOString(),
       invoiceTotal: result.finance.financials.total,

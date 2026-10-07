@@ -21,6 +21,7 @@ type NavItem = {
   promotionsPermission?: boolean;
   leadsPermission?: boolean;
   searchPermission?: boolean;
+  reviewsPermission?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -75,6 +76,12 @@ const navItems: NavItem[] = [
     label: "ما بعد التركيب",
     icon: "🛠️",
     aftercarePermission: true,
+  },
+  {
+    href: "/admin/reviews",
+    label: "تقييمات العملاء",
+    icon: "⭐",
+    reviewsPermission: true,
   },
   {
     href: "/admin/reports",
@@ -134,6 +141,7 @@ export default function AdminSidebar({
   canManagePromotions,
   canManageLeads,
   canGlobalSearch,
+  canManageReviews,
 }: {
   isSuperAdmin: boolean;
   canViewInventory: boolean;
@@ -149,6 +157,7 @@ export default function AdminSidebar({
   canManagePromotions: boolean;
   canManageLeads: boolean;
   canGlobalSearch: boolean;
+  canManageReviews: boolean;
 }) {
   const pathname = usePathname();
 
@@ -211,6 +220,9 @@ export default function AdminSidebar({
               return false;
             }
             if (item.searchPermission && !canGlobalSearch) {
+              return false;
+            }
+            if (item.reviewsPermission && !canManageReviews) {
               return false;
             }
             return true;

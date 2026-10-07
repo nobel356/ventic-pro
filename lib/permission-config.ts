@@ -14,8 +14,9 @@ export const PERMISSIONS = {
   AFTERCARE_MANAGE: "aftercare.manage",
   TECHNICIAN_PERFORMANCE_VIEW: "technician.performance.view",
   USERS_MANAGE: "users.manage",
+  USERS_IMPERSONATE: "users.impersonate",
+  REVIEWS_MANAGE: "reviews.manage",
   ACCOUNTING_VIEW: "accounting.view",
-  PAYMENTS_MANAGE: "payments.manage",
 
   INVENTORY_VIEW: "inventory.view",
   INVENTORY_EDIT: "inventory.edit",
@@ -112,10 +113,16 @@ export const PERMISSION_OPTIONS: Array<{
       "مشاهدة مؤشرات الفني والتقييمات والشكاوى وإعادة الزيارات والعهدة.",
   },
   {
-    value: PERMISSIONS.PAYMENTS_MANAGE,
-    label: "إدارة الدفعات والفواتير",
+    value: PERMISSIONS.USERS_IMPERSONATE,
+    label: "التبديل بين المستخدمين",
     description:
-      "تسجيل الدفعات ومزامنة الفاتورة النهائية والإجراءات المالية الحساسة.",
+      "فتح النظام بصلاحيات مستخدم آخر مؤقتًا بدون تسجيل خروج، مع تسجيل العملية في سجل النشاط.",
+  },
+  {
+    value: PERMISSIONS.REVIEWS_MANAGE,
+    label: "إدارة تقييمات العملاء",
+    description:
+      "مراجعة تقييمات العملاء ونشر أو إخفاء التعليقات المسموح بعرضها للعامة.",
   },
   {
     value: PERMISSIONS.ACCOUNTING_VIEW,
@@ -226,8 +233,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.AFTERCARE_VIEW,
     PERMISSIONS.AFTERCARE_MANAGE,
     PERMISSIONS.TECHNICIAN_PERFORMANCE_VIEW,
+    PERMISSIONS.USERS_IMPERSONATE,
+    PERMISSIONS.REVIEWS_MANAGE,
     PERMISSIONS.ACCOUNTING_VIEW,
-    PERMISSIONS.PAYMENTS_MANAGE,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.INVENTORY_EDIT,
     PERMISSIONS.INVENTORY_MOVE,
@@ -250,6 +258,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.CUSTOMER_SENSITIVE,
     PERMISSIONS.AFTERCARE_VIEW,
     PERMISSIONS.AFTERCARE_MANAGE,
+    PERMISSIONS.REVIEWS_MANAGE,
     PERMISSIONS.ACCOUNTING_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.REPORTS_VIEW,
