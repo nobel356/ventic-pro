@@ -14,6 +14,15 @@ function run(command, args, options = {}) {
     encoding: "utf8",
     stdio: options.capture ? "pipe" : "inherit",
     shell: process.platform === "win32",
+    env: {
+      ...process.env,
+      // Prisma Migrate uses a PostgreSQL advisory lock by default.
+      // A stale lock from the previous pooled Neon migration attempt can
+      // survive on the database backend and block both resolve and deploy.
+      // This bootstrap is already serialized by the Vercel production build,
+      // so disable Prisma's advisory lock for these migration commands only.
+      PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: "1",
+    },
   });
 
   if (options.capture) {
