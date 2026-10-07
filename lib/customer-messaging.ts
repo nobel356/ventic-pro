@@ -439,7 +439,29 @@ export async function sendEmail(
     input.email || "",
   ).trim();
 
+  console.info("[OTP_EMAIL] sendEmail:start", {
+    emailPresent: Boolean(email),
+    provider: String(
+      process.env.EMAIL_PROVIDER ||
+        "disabled",
+    ).toLowerCase(),
+    apiKeyPresent: Boolean(
+      process.env.RESEND_API_KEY,
+    ),
+    fromPresent: Boolean(
+      process.env.EMAIL_FROM,
+    ),
+    environment:
+      process.env.VERCEL_ENV ||
+      process.env.NODE_ENV ||
+      "unknown",
+  });
+
   if (!email) {
+    console.warn(
+      "[OTP_EMAIL] sendEmail:blocked",
+      { reason: "EMAIL_NOT_AVAILABLE" },
+    );
     return {
       sent: false,
       channel: "NONE",
@@ -457,6 +479,14 @@ export async function sendEmail(
   ).toLowerCase();
 
   if (provider !== "resend") {
+    console.warn(
+      "[OTP_EMAIL] sendEmail:blocked",
+      {
+        reason: "EMAIL_NOT_CONFIGURED",
+        provider,
+      },
+    );
+
     return {
       sent: false,
       channel: "NONE",
@@ -478,6 +508,17 @@ export async function sendEmail(
       .EMAIL_FROM;
 
   if (!apiKey || !from) {
+    console.warn(
+      "[OTP_EMAIL] sendEmail:blocked",
+      {
+        reason:
+          "RESEND_CREDENTIALS_MISSING",
+        apiKeyPresent:
+          Boolean(apiKey),
+        fromPresent: Boolean(from),
+      },
+    );
+
     return {
       sent: false,
       channel: "EMAIL",
@@ -493,6 +534,17 @@ export async function sendEmail(
   }
 
   try {
+    console.info(
+      "[OTP_EMAIL] resend:request",
+      {
+        destinationMasked:
+          email.replace(
+            /(^.).*(@.*$)/,
+            "$1***$2",
+          ),
+      },
+    );
+
     const response = await fetch(
       "https://api.resend.com/emails",
       {
@@ -516,7 +568,26 @@ export async function sendEmail(
     const responseText =
       await response.text();
 
+    console.info(
+      "[OTP_EMAIL] resend:response",
+      {
+        ok: response.ok,
+        status: response.status,
+      },
+    );
+
     if (!response.ok) {
+      console.warn(
+        "[OTP_EMAIL] resend:failed",
+        {
+          status: response.status,
+          responsePreview:
+            responseText.slice(
+              0,
+              220,
+            ),
+        },
+      );
       return {
         sent: false,
         channel: "EMAIL",
@@ -547,6 +618,15 @@ export async function sendEmail(
       // Optional provider id.
     }
 
+    console.info(
+      "[OTP_EMAIL] resend:sent",
+      {
+        providerMessageId:
+          providerMessageId ||
+          "available-without-id",
+      },
+    );
+
     return {
       sent: true,
       channel: "EMAIL",
@@ -559,6 +639,15 @@ export async function sendEmail(
       providerMessageId,
     };
   } catch (error: any) {
+    console.error(
+      "[OTP_EMAIL] resend:exception",
+      {
+        message:
+          error?.message ||
+          "EMAIL_SEND_FAILED",
+      },
+    );
+
     return {
       sent: false,
       channel: "EMAIL",
@@ -645,6 +734,17 @@ export async function deliverCompletionOtp(
     orderNo: string;
   },
 ) {
+  console.info(
+    "[OTP_EMAIL] completion:start",
+    {
+      orderNo: input.orderNo,
+      emailPresent: Boolean(
+        String(input.email || "")
+          .trim(),
+      ),
+    },
+  );
+
   const message =
     `Ventic Pro\nكود تأكيد إتمام الطلب ${input.orderNo}: ${input.otp}\n` +
     "الكود صالح لمدة 15 دقيقة. لا تشاركه إلا مع الفني بعد التأكد من اكتمال الخدمة.";
@@ -665,8 +765,28 @@ export async function deliverCompletionOtp(
     });
 
   if (primary.sent) {
+    console.info(
+      "[OTP_EMAIL] completion:primary-sent",
+      {
+        channel: primary.channel,
+        provider: primary.provider,
+      },
+    );
     return primary;
   }
+
+  console.info(
+    "[OTP_EMAIL] completion:primary-failed",
+    {
+      channel: primary.channel,
+      provider: primary.provider,
+      emailFallbackAvailable:
+        Boolean(
+          String(input.email || "")
+            .trim(),
+        ),
+    },
+  );
 
   if (input.email) {
     const email =
@@ -677,10 +797,18 @@ export async function deliverCompletionOtp(
         message,
       });
 
-    if (email.sent) {
-      return email;
-    }
+    // Return the email result even when it failed so the caller,
+    // database notification row, UI, and logs show the real reason
+    // instead of hiding it behind the WhatsApp/SMS failure.
+    return email;
   }
+
+  console.warn(
+    "[OTP_EMAIL] completion:no-email-fallback",
+    {
+      orderNo: input.orderNo,
+    },
+  );
 
   return primary;
 }
