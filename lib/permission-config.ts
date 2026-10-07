@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   USERS_IMPERSONATE: "users.impersonate",
   REVIEWS_MANAGE: "reviews.manage",
   ACCOUNTING_VIEW: "accounting.view",
+  PAYMENTS_MANAGE: "payments.manage",
 
   INVENTORY_VIEW: "inventory.view",
   INVENTORY_EDIT: "inventory.edit",
@@ -131,6 +132,12 @@ export const PERMISSION_OPTIONS: Array<{
       "فتح قسم الحسابات ومراجعة الفواتير والمدفوع والمتبقي.",
   },
   {
+    value: PERMISSIONS.PAYMENTS_MANAGE,
+    label: "إدارة الدفعات والفواتير",
+    description:
+      "تسجيل الدفعات ومزامنة الفاتورة النهائية والإجراءات المالية الحساسة.",
+  },
+  {
     value: PERMISSIONS.INVENTORY_VIEW,
     label: "مشاهدة المخزون",
     description:
@@ -236,6 +243,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.USERS_IMPERSONATE,
     PERMISSIONS.REVIEWS_MANAGE,
     PERMISSIONS.ACCOUNTING_VIEW,
+    PERMISSIONS.PAYMENTS_MANAGE,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.INVENTORY_EDIT,
     PERMISSIONS.INVENTORY_MOVE,
