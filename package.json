@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && node scripts/production-migrate.mjs && next build",
     "start": "next start",
     "create-user": "node scripts/create-user.mjs",
     "db:generate": "prisma generate",
@@ -17,13 +17,14 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run build",
     "security:check": "node scripts/security-check.mjs",
-    "integrations:check": "node scripts/integrations-check.mjs"
+    "integrations:check": "node scripts/integrations-check.mjs",
+    "db:migrate:production": "node scripts/production-migrate.mjs"
   },
   "dependencies": {
     "next": "15.5.26",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "@prisma/client": "^6.15.0",
+    "@prisma/client": "6.19.3",
     "@vercel/blob": "2.4.0"
   },
   "devDependencies": {
@@ -31,7 +32,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "prisma": "^6.15.0"
+    "prisma": "6.19.3"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"
