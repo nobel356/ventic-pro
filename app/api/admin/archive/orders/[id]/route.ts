@@ -473,7 +473,7 @@ export async function POST(
               "ARCHIVE_ORDER_RESTORED",
             oldValue: {
               archivedAt:
-                order.archivedAt.toISOString(),
+                order.archivedAt!.toISOString(),
               archivedByLabel:
                 order.archivedByLabel,
               archiveReason:

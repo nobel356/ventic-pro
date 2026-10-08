@@ -385,7 +385,7 @@ export async function POST(
               targetUserId:
                 target.id,
               archivedAt:
-                target.archivedAt.toISOString(),
+                target.archivedAt!.toISOString(),
               archivedByLabel:
                 target.archivedByLabel,
               archiveReason:
