@@ -57,6 +57,9 @@ export default async function CustomerAccountPage() {
         orderBy: { createdAt: "asc" },
       },
       orders: {
+        where: {
+          archivedAt: null,
+        },
         include: {
           invoice: true,
           review: true,
@@ -224,9 +227,7 @@ export default async function CustomerAccountPage() {
                               style={{
                                 minWidth: 86,
                                 borderRadius: 10,
-                                border: `1px solid ${
-                                  reached ? "#bbf7d0" : "#e2e8f0"
-                                }`,
+                                border: `1px solid ${reached ? "#bbf7d0" : "#e2e8f0"}`,
                                 background: reached ? "#f0fdf4" : "#f8fafc",
                                 padding: "8px 7px",
                                 textAlign: "center",
@@ -357,6 +358,7 @@ const headerStyle: React.CSSProperties = {
   flexWrap: "wrap",
   marginBottom: 22,
 };
+
 const heroStyle: React.CSSProperties = {
   background: "white",
   border: "1px solid #e2e8f0",
@@ -369,11 +371,13 @@ const heroStyle: React.CSSProperties = {
   flexWrap: "wrap",
   boxShadow: "0 8px 24px rgba(15,23,42,.05)",
 };
+
 const statsStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))",
   gap: 8,
 };
+
 const statStyle: React.CSSProperties = {
   minWidth: 110,
   border: "1px solid #e2e8f0",
@@ -383,6 +387,7 @@ const statStyle: React.CSSProperties = {
   display: "grid",
   gap: 3,
 };
+
 const cardStyle: React.CSSProperties = {
   background: "white",
   border: "1px solid #e2e8f0",
@@ -390,11 +395,13 @@ const cardStyle: React.CSSProperties = {
   padding: 18,
   boxShadow: "0 6px 20px rgba(15,23,42,.04)",
 };
+
 const deviceGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
   gap: 8,
 };
+
 const deviceStyle: React.CSSProperties = {
   display: "grid",
   gap: 3,
@@ -403,6 +410,7 @@ const deviceStyle: React.CSSProperties = {
   padding: 10,
   background: "#f8fafc",
 };
+
 const orderHeadStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -410,12 +418,14 @@ const orderHeadStyle: React.CSSProperties = {
   alignItems: "flex-start",
   flexWrap: "wrap",
 };
+
 const detailsGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))",
   gap: 12,
   marginTop: 14,
 };
+
 const statusStyle: React.CSSProperties = {
   borderRadius: 999,
   background: "#eff6ff",
@@ -424,6 +434,7 @@ const statusStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 900,
 };
+
 const actionLink: React.CSSProperties = {
   textDecoration: "none",
   fontWeight: 900,
@@ -433,12 +444,14 @@ const actionLink: React.CSSProperties = {
   borderRadius: 9,
   padding: "8px 10px",
 };
+
 const warrantyLinkStyle: React.CSSProperties = {
   ...actionLink,
   color: "#166534",
   background: "#f0fdf4",
   border: "1px solid #bbf7d0",
 };
+
 const reviewLinkStyle: React.CSSProperties = {
   ...actionLink,
   color: "#b45309",

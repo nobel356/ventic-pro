@@ -23,6 +23,7 @@ type NavItem = {
   leadsPermission?: boolean;
   searchPermission?: boolean;
   reviewsPermission?: boolean;
+  archivePermission?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -127,6 +128,12 @@ const navItems: NavItem[] = [
     leadsPermission: true,
   },
   {
+    href: "/admin/archive",
+    label: "الأرشيف",
+    icon: "🗄️",
+    archivePermission: true,
+  },
+  {
     href: "/admin/marketing",
     label: "روابط الحملات",
     icon: "📣",
@@ -186,6 +193,7 @@ export default function AdminSidebar({
   canManageLeads,
   canGlobalSearch,
   canManageReviews,
+  canViewArchive,
 }: {
   isSuperAdmin: boolean;
   canViewInventory: boolean;
@@ -203,6 +211,7 @@ export default function AdminSidebar({
   canManageLeads: boolean;
   canGlobalSearch: boolean;
   canManageReviews: boolean;
+  canViewArchive: boolean;
 }) {
   const pathname = usePathname();
 
@@ -245,6 +254,7 @@ export default function AdminSidebar({
             if (item.leadsPermission && !canManageLeads) return false;
             if (item.searchPermission && !canGlobalSearch) return false;
             if (item.reviewsPermission && !canManageReviews) return false;
+            if (item.archivePermission && !canViewArchive) return false;
             return true;
           })
           .map((item) => {

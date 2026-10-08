@@ -56,6 +56,9 @@ export default async function CustomerProfilePage({
         orderBy: { createdAt: "asc" },
       },
       orders: {
+        where: {
+          archivedAt: null,
+        },
         include: {
           invoice: true,
           technician: {

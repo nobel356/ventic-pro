@@ -40,6 +40,9 @@ export async function GET() {
       await prisma.customer.findMany({
         include: {
           orders: {
+            where: {
+              archivedAt: null,
+            },
             select: {
               id: true,
               createdAt: true,

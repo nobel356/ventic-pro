@@ -46,6 +46,9 @@ export default async function TechnicianPerformancePage({
     },
     include: {
       assignedOrders: {
+        where: {
+          archivedAt: null,
+        },
         select: {
           id: true,
           orderNo: true,
@@ -59,10 +62,20 @@ export default async function TechnicianPerformancePage({
         take: 100,
       },
       technicianReviews: {
+        where: {
+          order: {
+            archivedAt: null,
+          },
+        },
         orderBy: { createdAt: "desc" },
         take: 100,
       },
       maintenanceAssignments: {
+        where: {
+          order: {
+            archivedAt: null,
+          },
+        },
         select: {
           id: true,
           status: true,
@@ -77,6 +90,11 @@ export default async function TechnicianPerformancePage({
         take: 50,
       },
       complaintAssignments: {
+        where: {
+          order: {
+            archivedAt: null,
+          },
+        },
         select: {
           id: true,
           status: true,
@@ -92,6 +110,11 @@ export default async function TechnicianPerformancePage({
         take: 50,
       },
       receivedPayments: {
+        where: {
+          order: {
+            archivedAt: null,
+          },
+        },
         select: {
           amount: true,
           status: true,

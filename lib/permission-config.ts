@@ -33,6 +33,10 @@ export const PERMISSIONS = {
   PROMOTIONS_MANAGE: "promotions.manage",
   LEADS_MANAGE: "leads.manage",
   GLOBAL_SEARCH: "search.global",
+
+  ARCHIVE_VIEW: "archive.view",
+  ARCHIVE_MANAGE: "archive.manage",
+  ARCHIVE_RESTORE: "archive.restore",
 } as const;
 
 export type PermissionValue =
@@ -220,6 +224,24 @@ export const PERMISSION_OPTIONS: Array<{
     label: "البحث الشامل",
     description:
       "البحث في الطلبات والعملاء والفواتير والفنيين والعقارات والأجهزة والموردين.",
+  },
+  {
+    value: PERMISSIONS.ARCHIVE_VIEW,
+    label: "مشاهدة الأرشيف",
+    description:
+      "فتح Archive Vault بعد إدخال كلمة السر الإضافية وعرض العناصر المؤرشفة وسجل العمليات.",
+  },
+  {
+    value: PERMISSIONS.ARCHIVE_MANAGE,
+    label: "نقل إلى الأرشيف",
+    description:
+      "إزالة الطلب أو المستخدم من التشغيل العادي ونقله إلى الأرشيف بدون حذف البيانات نهائيًا.",
+  },
+  {
+    value: PERMISSIONS.ARCHIVE_RESTORE,
+    label: "استرجاع من الأرشيف",
+    description:
+      "إرجاع الطلبات أو المستخدمين المؤرشفين بعد فتح Archive Vault.",
   },
 ];
 
