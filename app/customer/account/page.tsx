@@ -15,6 +15,25 @@ const statusLabels: Record<string, string> = {
   CANCELLED: "ملغي",
 };
 
+const timeline = [
+  ["NEW", "استلام الطلب"],
+  ["CONFIRMED", "تأكيد الطلب"],
+  ["ASSIGNED", "تعيين الفني"],
+  ["ON_THE_WAY", "في الطريق"],
+  ["IN_PROGRESS", "التنفيذ"],
+  ["COMPLETED", "تم التركيب"],
+] as const;
+
+const statusRank: Record<string, number> = {
+  NEW: 0,
+  CONFIRMED: 1,
+  ASSIGNED: 2,
+  ON_THE_WAY: 3,
+  ARRIVED: 3,
+  IN_PROGRESS: 4,
+  COMPLETED: 5,
+};
+
 function money(value: unknown) {
   return Number(value || 0).toLocaleString("ar-EG", {
     maximumFractionDigits: 2,
@@ -159,6 +178,7 @@ export default async function CustomerAccountPage() {
               {customerData.orders.map((order) => {
                 const warranty = order.warranties[0] || null;
                 const openTickets = order.maintenanceRequests.length + order.complaints.length;
+                const currentRank = statusRank[order.status] ?? -1;
 
                 return (
                   <article key={order.id} style={cardStyle}>
@@ -172,10 +192,75 @@ export default async function CustomerAccountPage() {
                         </p>
                       </div>
 
-                      <span style={statusStyle}>
+                      <span
+                        style={{
+                          ...statusStyle,
+                          ...(order.status === "CANCELLED"
+                            ? { background: "#fef2f2", color: "#991b1b" }
+                            : {}),
+                        }}
+                      >
                         {statusLabels[order.status] || order.status}
                       </span>
                     </div>
+
+                    {order.status !== "CANCELLED" && (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(6,minmax(86px,1fr))",
+                          gap: 7,
+                          overflowX: "auto",
+                          paddingBottom: 6,
+                          marginTop: 15,
+                        }}
+                      >
+                        {timeline.map(([key, label], index) => {
+                          const reached = currentRank >= index;
+
+                          return (
+                            <div
+                              key={key}
+                              style={{
+                                minWidth: 86,
+                                borderRadius: 10,
+                                border: `1px solid ${
+                                  reached ? "#bbf7d0" : "#e2e8f0"
+                                }`,
+                                background: reached ? "#f0fdf4" : "#f8fafc",
+                                padding: "8px 7px",
+                                textAlign: "center",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  margin: "0 auto 5px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  borderRadius: "50%",
+                                  background: reached ? "#16a34a" : "#cbd5e1",
+                                  color: "white",
+                                  fontSize: 12,
+                                  fontWeight: 900,
+                                }}
+                              >
+                                {reached ? "✓" : index + 1}
+                              </span>
+                              <small
+                                style={{
+                                  color: reached ? "#166534" : "#64748b",
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {label}
+                              </small>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     <div style={detailsGridStyle}>
                       <Detail label="الموعد" value={`${order.preferredDate || "-"} — ${order.preferredTime || "-"}`} />
@@ -201,16 +286,25 @@ export default async function CustomerAccountPage() {
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
                       {order.invoice && (
-                        <Link href={`/customer/account/invoices/${order.invoice.id}`} style={linkStyle}>
-                          فتح الفاتورة
+                        <Link href={`/customer/account/invoices/${order.invoice.id}`} style={actionLink}>
+                          🧾 الفاتورة / PDF
+                        </Link>
+                      )}
+
+                      {warranty && (
+                        <Link
+                          href={`/customer/account/warranty/${order.id}`}
+                          style={warrantyLinkStyle}
+                        >
+                          🛡️ شهادة الضمان / PDF
                         </Link>
                       )}
 
                       {order.status === "COMPLETED" && (
-                        <Link href="/customer/account/aftercare" style={linkStyle}>
-                          طلب صيانة / شكوى
+                        <Link href="/customer/account/aftercare" style={actionLink}>
+                          🛠️ طلب صيانة / شكوى
                         </Link>
                       )}
 
@@ -221,7 +315,7 @@ export default async function CustomerAccountPage() {
                       )}
 
                       {order.review && (
-                        <span style={{ color: "#166534", fontWeight: 900 }}>
+                        <span style={{ color: "#166534", fontWeight: 900, padding: "8px 0" }}>
                           ✓ تم تقييم الخدمة
                         </span>
                       )}
@@ -330,12 +424,24 @@ const statusStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 900,
 };
-const linkStyle: React.CSSProperties = {
+const actionLink: React.CSSProperties = {
   textDecoration: "none",
   fontWeight: 900,
   color: "#075985",
+  background: "#f0f9ff",
+  border: "1px solid #bae6fd",
+  borderRadius: 9,
+  padding: "8px 10px",
+};
+const warrantyLinkStyle: React.CSSProperties = {
+  ...actionLink,
+  color: "#166534",
+  background: "#f0fdf4",
+  border: "1px solid #bbf7d0",
 };
 const reviewLinkStyle: React.CSSProperties = {
-  ...linkStyle,
+  ...actionLink,
   color: "#b45309",
+  background: "#fffbeb",
+  border: "1px solid #fde68a",
 };

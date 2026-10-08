@@ -2,8 +2,8 @@ import { NotificationChannel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   deliverCustomerMessage,
-  sendEmail,
 } from "@/lib/customer-messaging";
+import { sendBrandedEmail } from "@/lib/branded-email";
 
 export function absoluteAppUrl(path: string) {
   const configured = String(
@@ -105,10 +105,10 @@ export async function notifyCustomer(input: {
       error: primary.error,
     });
 
-    let emailDelivery: Awaited<ReturnType<typeof sendEmail>> | null = null;
+    let emailDelivery: Awaited<ReturnType<typeof sendBrandedEmail>> | null = null;
 
     if (email) {
-      emailDelivery = await sendEmail({
+      emailDelivery = await sendBrandedEmail({
         email,
         subject: input.subject || "Ventic Pro",
         message: input.message,

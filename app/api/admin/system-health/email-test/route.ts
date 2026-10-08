@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth-v7";
-import { sendEmail } from "@/lib/customer-messaging";
+import { sendBrandedEmail } from "@/lib/branded-email";
 
 export async function POST(
   req: Request,
@@ -46,12 +46,12 @@ export async function POST(
   }
 
   const result =
-    await sendEmail({
+    await sendBrandedEmail({
       email,
       subject:
         "اختبار Ventic Pro",
       message:
-        "Ventic Pro\nرسالة اختبار من مركز صحة النظام.\nإذا وصلت الرسالة فإعدادات Resend تعمل بشكل صحيح.",
+        "تم إرسال رسالة الاختبار بنجاح.\n\nالرسائل التوثيقية أصبحت تستخدم قالب Ventic Pro HTML مع نسخة نصية احتياطية.",
     });
 
   console.info(
