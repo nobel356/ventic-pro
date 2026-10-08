@@ -90,6 +90,12 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/marketing-analytics",
+    label: "تحليلات التسويق",
+    icon: "📈",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/areas",
     label: "المناطق",
     icon: "📍",
