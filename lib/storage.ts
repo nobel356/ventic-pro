@@ -3,6 +3,10 @@ import {
   get,
   put,
 } from "@vercel/blob";
+import {
+  safeDiagnostic,
+  safeDiagnosticError,
+} from "@/lib/safe-diagnostics";
 
 const MAX_IMAGE_BYTES =
   4 * 1024 * 1024;
@@ -45,6 +49,21 @@ export async function uploadOrderImage(
     file: File;
   },
 ) {
+  safeDiagnostic(
+    "blob.upload.start",
+    {
+      orderId:
+        input.orderId,
+      kind: input.kind,
+      provider:
+        provider(),
+      mimeType:
+        input.file.type,
+      size:
+        input.file.size,
+    },
+  );
+
   if (!storageEnabled()) {
     throw new Error(
       "STORAGE_NOT_CONFIGURED",
@@ -77,21 +96,50 @@ export async function uploadOrderImage(
     `${crypto.randomUUID()}-${filename}`,
   ].join("/");
 
-  const blob = await put(
-    pathname,
-    input.file,
-    {
-      access: "private",
-      addRandomSuffix: false,
-    },
-  );
+  try {
+    const blob = await put(
+      pathname,
+      input.file,
+      {
+        access: "private",
+        addRandomSuffix: false,
+      },
+    );
 
-  return {
-    pathname: blob.pathname,
-    size: input.file.size,
-    contentType:
-      input.file.type,
-  };
+    safeDiagnostic(
+      "blob.upload.success",
+      {
+        orderId:
+          input.orderId,
+        kind: input.kind,
+        size:
+          input.file.size,
+        provider:
+          "vercel_blob",
+      },
+    );
+
+    return {
+      pathname: blob.pathname,
+      size: input.file.size,
+      contentType:
+        input.file.type,
+    };
+  } catch (error) {
+    safeDiagnosticError(
+      "blob.upload",
+      error,
+      {
+        orderId:
+          input.orderId,
+        kind: input.kind,
+        provider:
+          "vercel_blob",
+      },
+    );
+
+    throw error;
+  }
 }
 
 export async function deleteStoredFile(
@@ -109,10 +157,22 @@ export async function deleteStoredFile(
 
   try {
     await del(pathname);
+
+    safeDiagnostic(
+      "blob.delete.success",
+      {
+        provider:
+          "vercel_blob",
+      },
+    );
   } catch (error) {
-    console.error(
-      "BLOB_DELETE_FAILED",
+    safeDiagnosticError(
+      "blob.delete",
       error,
+      {
+        provider:
+          "vercel_blob",
+      },
     );
   }
 }
@@ -137,19 +197,40 @@ export async function getStoredFile(
     );
   }
 
-  const result = await get(
-    pathname,
-    {
-      access: "private",
-      useCache: true,
-    },
-  );
-
-  if (!result) {
-    throw new Error(
-      "ATTACHMENT_NOT_FOUND",
+  try {
+    const result = await get(
+      pathname,
+      {
+        access: "private",
+        useCache: true,
+      },
     );
-  }
 
-  return result;
+    if (!result) {
+      throw new Error(
+        "ATTACHMENT_NOT_FOUND",
+      );
+    }
+
+    safeDiagnostic(
+      "blob.read.success",
+      {
+        provider:
+          "vercel_blob",
+      },
+    );
+
+    return result;
+  } catch (error) {
+    safeDiagnosticError(
+      "blob.read",
+      error,
+      {
+        provider:
+          "vercel_blob",
+      },
+    );
+
+    throw error;
+  }
 }

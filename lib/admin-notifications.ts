@@ -1,5 +1,9 @@
 import { AdminNotificationType, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  safeDiagnostic,
+  safeDiagnosticError,
+} from "@/lib/safe-diagnostics";
 
 const DEFAULT_ROLES: UserRole[] = [
   UserRole.SUPER_ADMIN,
@@ -27,7 +31,21 @@ export async function notifyAdmins(input: NotifyAdminsInput) {
       select: { id: true },
     });
 
-    if (!recipients.length) return;
+    if (!recipients.length) {
+      safeDiagnostic(
+        "notification.admin.skipped",
+        {
+          type:
+            input.type,
+          orderId:
+            input.orderId ||
+            null,
+          reason:
+            "NO_RECIPIENTS",
+        },
+      );
+      return;
+    }
 
     let recipientIds = recipients.map((recipient) => recipient.id);
 
@@ -49,7 +67,19 @@ export async function notifyAdmins(input: NotifyAdminsInput) {
       );
     }
 
-    if (!recipientIds.length) return;
+    if (!recipientIds.length) {
+      safeDiagnostic(
+        "notification.admin.deduped",
+        {
+          type:
+            input.type,
+          orderId:
+            input.orderId ||
+            null,
+        },
+      );
+      return;
+    }
 
     await prisma.adminNotification.createMany({
       data: recipientIds.map((recipientId) => ({
@@ -62,8 +92,34 @@ export async function notifyAdmins(input: NotifyAdminsInput) {
         dedupeKey: input.dedupeKey,
       })),
     });
+
+    safeDiagnostic(
+      "notification.admin.created",
+      {
+        type:
+          input.type,
+        orderId:
+          input.orderId ||
+          null,
+        recipientCount:
+          recipientIds.length,
+        deduped:
+          Boolean(
+            input.dedupeKey,
+          ),
+      },
+    );
   } catch (error) {
-    // A notification failure must never block the business action itself.
-    console.error("ADMIN_NOTIFICATION_ERROR", error);
+    safeDiagnosticError(
+      "notification.admin",
+      error,
+      {
+        type:
+          input.type,
+        orderId:
+          input.orderId ||
+          null,
+      },
+    );
   }
 }

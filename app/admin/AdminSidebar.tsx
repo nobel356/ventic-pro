@@ -139,6 +139,18 @@ const navItems: NavItem[] = [
     superAdminOnly: true,
   },
   {
+    href: "/admin/daily-digest",
+    label: "الملخص اليومي",
+    icon: "🗞️",
+    superAdminOnly: true,
+  },
+  {
+    href: "/admin/notification-health",
+    label: "صحة الرسائل",
+    icon: "📨",
+    superAdminOnly: true,
+  },
+  {
     href: "/admin/system-health",
     label: "صحة النظام",
     icon: "🩺",

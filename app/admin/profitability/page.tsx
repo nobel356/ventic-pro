@@ -22,6 +22,7 @@ import {
   orderCostCategoryLabel,
 } from "@/lib/order-costs";
 import { parseInventoryNote } from "@/lib/inventory";
+import { safeDiagnostic } from "@/lib/safe-diagnostics";
 import OrderCostManager from "./OrderCostManager";
 import ProfitabilityExport from "./ProfitabilityExport";
 
@@ -726,6 +727,22 @@ export default async function ProfitabilityPage({
             cost.orderId,
         ),
     );
+
+  safeDiagnostic(
+    "profitability.view",
+    {
+      periodDays,
+      orderCount:
+        rows.length,
+      negativeCount:
+        totals.negative,
+      unallocatedAdSpend:
+        Math.round(
+          unallocatedAdSpend *
+            100,
+        ) / 100,
+    },
+  );
 
   const exportRows =
     rows.map((row) => ({

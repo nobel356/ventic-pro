@@ -4,6 +4,10 @@ import {
   deliverCustomerMessage,
 } from "@/lib/customer-messaging";
 import { sendBrandedEmail } from "@/lib/branded-email";
+import {
+  safeDiagnostic,
+  safeDiagnosticError,
+} from "@/lib/safe-diagnostics";
 
 export function absoluteAppUrl(path: string) {
   const configured = String(
@@ -54,6 +58,32 @@ async function logNotification(input: {
       sentAt: input.sent ? new Date() : null,
     },
   });
+
+  safeDiagnostic(
+    "notification.customer.logged",
+    {
+      orderId:
+        input.orderId || null,
+      customerId:
+        input.customerId,
+      channel:
+        input.channel,
+      templateKey:
+        input.templateKey,
+      provider:
+        input.provider,
+      sent:
+        input.sent,
+      providerMessageId:
+        input.providerMessageId ||
+        null,
+      error:
+        input.sent
+          ? null
+          : input.error ||
+            "DELIVERY_FAILED",
+    },
+  );
 }
 
 export async function notifyCustomer(input: {
@@ -67,6 +97,22 @@ export async function notifyCustomer(input: {
   templateVariables?: string[];
   payload?: Record<string, unknown>;
 }) {
+  safeDiagnostic(
+    "notification.customer.start",
+    {
+      orderId:
+        input.orderId || null,
+      customerId:
+        input.customerId,
+      templateKey:
+        input.templateKey,
+      emailPresent:
+        Boolean(input.email),
+      phonePresent:
+        Boolean(input.phone),
+    },
+  );
+
   try {
     const customer = input.email
       ? null
@@ -128,12 +174,45 @@ export async function notifyCustomer(input: {
       });
     }
 
+    safeDiagnostic(
+      "notification.customer.complete",
+      {
+        orderId:
+          input.orderId || null,
+        customerId:
+          input.customerId,
+        templateKey:
+          input.templateKey,
+        primarySent:
+          primary.sent,
+        primaryProvider:
+          primary.provider,
+        emailSent:
+          emailDelivery?.sent ??
+          null,
+        emailProvider:
+          emailDelivery?.provider ??
+          null,
+      },
+    );
+
     return {
       primary,
       email: emailDelivery,
     };
   } catch (error) {
-    console.error("CUSTOMER_NOTIFICATION_ERROR", error);
+    safeDiagnosticError(
+      "notification.customer",
+      error,
+      {
+        orderId:
+          input.orderId || null,
+        customerId:
+          input.customerId,
+        templateKey:
+          input.templateKey,
+      },
+    );
 
     return {
       primary: {

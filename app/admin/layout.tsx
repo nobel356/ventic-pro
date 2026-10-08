@@ -317,6 +317,32 @@ export default async function AdminLayout({
           display: none !important;
         }
 
+        .vpAdminContent {
+          overflow-x: hidden;
+        }
+
+        .vpAdminContent table {
+          border-collapse: collapse;
+        }
+
+        .vpAdminContent th,
+        .vpAdminContent td {
+          padding: 9px 8px;
+          vertical-align: top;
+        }
+
+        .vpAdminContent th {
+          background: #f8fafc;
+          color: #334155;
+        }
+
+        .vpAdminContent a,
+        .vpAdminContent button,
+        .vpAdminContent input,
+        .vpAdminContent select {
+          touch-action: manipulation;
+        }
+
         @media (max-width: 820px) {
           .vpAdminSidebar {
             width: 76px;
@@ -351,6 +377,31 @@ export default async function AdminLayout({
 
           .vpAdminContent > .adminShell > .adminMain {
             width: calc(100% - 18px);
+          }
+
+          .vpAdminContent > .admin > section {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+          }
+
+          .vpAdminContent table {
+            font-size: 12px;
+          }
+
+          .vpAdminContent th,
+          .vpAdminContent td {
+            padding: 8px 7px;
+          }
+
+          .vpAdminContent button,
+          .vpAdminContent a {
+            min-height: 40px;
+          }
+
+          .vpAdminContent input,
+          .vpAdminContent select,
+          .vpAdminContent textarea {
+            max-width: 100%;
           }
         }
       `}</style>

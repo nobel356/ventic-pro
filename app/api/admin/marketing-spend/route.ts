@@ -6,6 +6,7 @@ import {
   MARKETING_SPEND_VOIDED,
   materializeMarketingSpends,
 } from "@/lib/marketing-spend";
+import { safeDiagnostic } from "@/lib/safe-diagnostics";
 
 function clean(
   value: unknown,
@@ -209,8 +210,8 @@ export async function POST(
       },
     });
 
-  console.info(
-    "[MARKETING_SPEND] recorded",
+  safeDiagnostic(
+    "marketing_spend.recorded",
     {
       spendAuditId:
         created.id,
@@ -310,8 +311,8 @@ export async function DELETE(
     },
   });
 
-  console.info(
-    "[MARKETING_SPEND] voided",
+  safeDiagnostic(
+    "marketing_spend.voided",
     {
       spendAuditId:
         target.id,

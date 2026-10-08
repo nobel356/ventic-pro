@@ -11,6 +11,7 @@ import {
   materializeOrderCosts,
   type OrderCostCategory,
 } from "@/lib/order-costs";
+import { safeDiagnostic } from "@/lib/safe-diagnostics";
 
 function clean(
   value: unknown,
@@ -242,8 +243,8 @@ export async function POST(
       },
     });
 
-  console.info(
-    "[ORDER_COST] recorded",
+  safeDiagnostic(
+    "order_cost.recorded",
     {
       costAuditId:
         created.id,
@@ -342,8 +343,8 @@ export async function DELETE(
     },
   });
 
-  console.info(
-    "[ORDER_COST] voided",
+  safeDiagnostic(
+    "order_cost.voided",
     {
       costAuditId:
         target.id,
