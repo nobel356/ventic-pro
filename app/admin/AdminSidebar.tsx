@@ -17,6 +17,7 @@ type NavItem = {
   aftercarePermission?: boolean;
   technicianPerformancePermission?: boolean;
   reportsPermission?: boolean;
+  profitabilityPermission?: boolean;
   areasPermission?: boolean;
   promotionsPermission?: boolean;
   leadsPermission?: boolean;
@@ -70,6 +71,12 @@ const navItems: NavItem[] = [
     label: "الحسابات",
     icon: "🧾",
     accountingPermission: true,
+  },
+  {
+    href: "/admin/profitability",
+    label: "ربحية الطلبات",
+    icon: "💹",
+    profitabilityPermission: true,
   },
   {
     href: "/admin/aftercare",
@@ -161,6 +168,7 @@ export default function AdminSidebar({
   canViewAftercare,
   canViewTechnicianPerformance,
   canViewReports,
+  canViewProfitability,
   canManageAreas,
   canManagePromotions,
   canManageLeads,
@@ -177,6 +185,7 @@ export default function AdminSidebar({
   canViewAftercare: boolean;
   canViewTechnicianPerformance: boolean;
   canViewReports: boolean;
+  canViewProfitability: boolean;
   canManageAreas: boolean;
   canManagePromotions: boolean;
   canManageLeads: boolean;
@@ -218,6 +227,7 @@ export default function AdminSidebar({
               return false;
             }
             if (item.reportsPermission && !canViewReports) return false;
+            if (item.profitabilityPermission && !canViewProfitability) return false;
             if (item.areasPermission && !canManageAreas) return false;
             if (item.promotionsPermission && !canManagePromotions) return false;
             if (item.leadsPermission && !canManageLeads) return false;

@@ -90,6 +90,14 @@ export default async function AdminLayout({
     user.permissions,
   );
 
+  const canViewProfitability =
+    canViewReports &&
+    can(
+      user.role,
+      PERMISSIONS.INVENTORY_COST_VIEW,
+      user.permissions,
+    );
+
   const canManageAreas = can(
     user.role,
     PERMISSIONS.AREAS_MANAGE,
@@ -133,6 +141,7 @@ export default async function AdminLayout({
         canViewAftercare={canViewAftercare}
         canViewTechnicianPerformance={canViewTechnicianPerformance}
         canViewReports={canViewReports}
+        canViewProfitability={canViewProfitability}
         canManageAreas={canManageAreas}
         canManagePromotions={canManagePromotions}
         canManageLeads={canManageLeads}
