@@ -126,6 +126,12 @@ const navItems: NavItem[] = [
     superAdminOnly: true,
   },
   {
+    href: "/admin/marketing-spend",
+    label: "تكلفة الإعلانات",
+    icon: "💳",
+    superAdminOnly: true,
+  },
+  {
     href: "/admin/system-health",
     label: "صحة النظام",
     icon: "🩺",

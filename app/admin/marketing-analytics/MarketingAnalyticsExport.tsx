@@ -6,9 +6,18 @@ type ExportRow = {
   campaign: string;
   leads: number;
   convertedLeads: number;
+  newCustomers: number;
   orders: number;
   completedOrders: number;
   invoicedValue: number;
+  paidValue: number;
+  adSpend: number;
+  cpl: number;
+  cpa: number;
+  cac: number;
+  roas: number;
+  collectedRoas: number;
+  marketingContribution: number;
   averageOrderValue: number;
 };
 
@@ -34,9 +43,18 @@ export default function MarketingAnalyticsExport({
       "campaign",
       "leads",
       "converted_leads",
+      "new_customers",
       "orders",
       "completed_orders",
       "invoiced_value_egp",
+      "paid_value_egp",
+      "ad_spend_egp",
+      "cpl_egp",
+      "cpa_per_order_egp",
+      "cac_new_customer_egp",
+      "invoice_roas",
+      "collected_roas",
+      "marketing_contribution_egp",
       "average_order_value_egp",
     ];
 
@@ -49,9 +67,18 @@ export default function MarketingAnalyticsExport({
           row.campaign,
           row.leads,
           row.convertedLeads,
+          row.newCustomers,
           row.orders,
           row.completedOrders,
           row.invoicedValue,
+          row.paidValue,
+          row.adSpend,
+          row.cpl,
+          row.cpa,
+          row.cac,
+          row.roas,
+          row.collectedRoas,
+          row.marketingContribution,
           row.averageOrderValue,
         ]
           .map(quote)

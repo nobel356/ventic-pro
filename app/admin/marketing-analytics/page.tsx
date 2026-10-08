@@ -13,6 +13,11 @@ import {
   percent,
 } from "@/lib/marketing-analytics";
 import MarketingAnalyticsExport from "./MarketingAnalyticsExport";
+import {
+  MARKETING_SPEND_RECORDED,
+  MARKETING_SPEND_VOIDED,
+  materializeMarketingSpends,
+} from "@/lib/marketing-spend";
 
 export const dynamic =
   "force-dynamic";
@@ -32,6 +37,8 @@ type SourceRow = {
   invoicedValue: number;
   paidValue: number;
   recordedOrderValue: number;
+  newCustomers: number;
+  adSpend: number;
 };
 
 type CampaignRow = SourceRow & {
@@ -113,7 +120,7 @@ export default async function MarketingAnalyticsPage({
         1000,
   );
 
-  const [orders, leads] =
+  const [orders, leads, spendAuditLogs] =
     await Promise.all([
       prisma.order.findMany({
         where: {
@@ -124,6 +131,7 @@ export default async function MarketingAnalyticsPage({
         select: {
           id: true,
           orderNo: true,
+          customerId: true,
           status: true,
           acquisitionSource: true,
           estimatedTotal: true,
@@ -160,7 +168,78 @@ export default async function MarketingAnalyticsPage({
           createdAt: "asc",
         },
       }),
+      prisma.auditLog.findMany({
+        where: {
+          action: {
+            in: [
+              MARKETING_SPEND_RECORDED,
+              MARKETING_SPEND_VOIDED,
+            ],
+          },
+        },
+        select: {
+          id: true,
+          action: true,
+          actorLabel: true,
+          newValue: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      }),
     ]);
+
+  const spends =
+    materializeMarketingSpends(
+      spendAuditLogs,
+    ).filter(
+      (item) =>
+        item.spentAt >= since &&
+        item.spentAt <= new Date(),
+    );
+
+  const customerIds = [
+    ...new Set(
+      orders.map(
+        (order) =>
+          order.customerId,
+      ),
+    ),
+  ];
+
+  const firstOrderRows =
+    customerIds.length
+      ? await prisma.order.groupBy({
+          by: ["customerId"],
+          where: {
+            customerId: {
+              in: customerIds,
+            },
+          },
+          _min: {
+            createdAt: true,
+          },
+        })
+      : [];
+
+  const newCustomerIds =
+    new Set(
+      firstOrderRows
+        .filter(
+          (row) =>
+            row._min.createdAt &&
+            row._min.createdAt >=
+              since,
+        )
+        .map(
+          (row) =>
+            row.customerId,
+        ),
+    );
+
+  const countedNewCustomers =
+    new Set<string>();
 
   const sourceMap =
     new Map<string, SourceRow>();
@@ -190,6 +269,8 @@ export default async function MarketingAnalyticsPage({
       invoicedValue: 0,
       paidValue: 0,
       recordedOrderValue: 0,
+      newCustomers: 0,
+      adSpend: 0,
     };
 
     sourceMap.set(
@@ -238,6 +319,8 @@ export default async function MarketingAnalyticsPage({
       invoicedValue: 0,
       paidValue: 0,
       recordedOrderValue: 0,
+      newCustomers: 0,
+      adSpend: 0,
       contentOrders: {},
     };
 
@@ -309,6 +392,34 @@ export default async function MarketingAnalyticsPage({
     }
   }
 
+  let totalSpend = 0;
+
+  for (const spend of spends) {
+    const source =
+      sourceKey(
+        spend.source,
+      );
+    const sourceRow =
+      ensureSource(source);
+
+    sourceRow.adSpend +=
+      spend.amount;
+    totalSpend +=
+      spend.amount;
+
+    if (spend.campaign) {
+      const campaign =
+        ensureCampaign(
+          source,
+          spend.campaign,
+          "",
+        );
+
+      campaign.adSpend +=
+        spend.amount;
+    }
+  }
+
   let attributedOrders = 0;
   let completedOrders = 0;
   let cancelledOrders = 0;
@@ -327,6 +438,22 @@ export default async function MarketingAnalyticsPage({
       );
     const sourceRow =
       ensureSource(source);
+
+    const isNewCustomer =
+      newCustomerIds.has(
+        order.customerId,
+      ) &&
+      !countedNewCustomers.has(
+        order.customerId,
+      );
+
+    if (isNewCustomer) {
+      countedNewCustomers.add(
+        order.customerId,
+      );
+      sourceRow.newCustomers +=
+        1;
+    }
 
     const invoiceTotal =
       moneyNumber(
@@ -395,6 +522,12 @@ export default async function MarketingAnalyticsPage({
         );
 
       campaign.orders += 1;
+
+      if (isNewCustomer) {
+        campaign.newCustomers +=
+          1;
+      }
+
       campaign.invoicedValue +=
         invoiceTotal;
       campaign.paidValue +=
@@ -488,6 +621,51 @@ export default async function MarketingAnalyticsPage({
       ? recordedOrderValue /
         orders.length
       : 0;
+
+  const newCustomers =
+    countedNewCustomers.size;
+  const overallCpl =
+    leads.length
+      ? totalSpend /
+        leads.length
+      : 0;
+  const overallCpa =
+    orders.length
+      ? totalSpend /
+        orders.length
+      : 0;
+  const overallCac =
+    newCustomers
+      ? totalSpend /
+        newCustomers
+      : 0;
+  const overallRoas =
+    totalSpend
+      ? invoicedValue /
+        totalSpend
+      : 0;
+  const collectedRoas =
+    totalSpend
+      ? paidValue /
+        totalSpend
+      : 0;
+  const marketingContribution =
+    invoicedValue -
+    totalSpend;
+
+  const topRoasCampaign =
+    [...campaignMap.values()]
+      .filter(
+        (row) =>
+          row.adSpend > 0,
+      )
+      .sort(
+        (a, b) =>
+          b.invoicedValue /
+            b.adSpend -
+          a.invoicedValue /
+            a.adSpend,
+      )[0] || null;
 
   const dataCoverage =
     percent(
@@ -601,6 +779,64 @@ export default async function MarketingAnalyticsPage({
         orders: row.orders,
         completedOrders:
           row.completedOrders,
+        newCustomers:
+          row.newCustomers,
+        paidValue:
+          Math.round(
+            row.paidValue *
+              100,
+          ) / 100,
+        adSpend:
+          Math.round(
+            row.adSpend *
+              100,
+          ) / 100,
+        cpl:
+          row.leads
+            ? Math.round(
+                (row.adSpend /
+                  row.leads) *
+                  100,
+              ) / 100
+            : 0,
+        cpa:
+          row.orders
+            ? Math.round(
+                (row.adSpend /
+                  row.orders) *
+                  100,
+              ) / 100
+            : 0,
+        cac:
+          row.newCustomers
+            ? Math.round(
+                (row.adSpend /
+                  row.newCustomers) *
+                  100,
+              ) / 100
+            : 0,
+        roas:
+          row.adSpend
+            ? Math.round(
+                (row.invoicedValue /
+                  row.adSpend) *
+                  100,
+              ) / 100
+            : 0,
+        collectedRoas:
+          row.adSpend
+            ? Math.round(
+                (row.paidValue /
+                  row.adSpend) *
+                  100,
+              ) / 100
+            : 0,
+        marketingContribution:
+          Math.round(
+            (row.invoicedValue -
+              row.adSpend) *
+              100,
+          ) / 100,
         invoicedValue:
           Math.round(
             row.invoicedValue *
@@ -628,6 +864,64 @@ export default async function MarketingAnalyticsPage({
         orders: row.orders,
         completedOrders:
           row.completedOrders,
+        newCustomers:
+          row.newCustomers,
+        paidValue:
+          Math.round(
+            row.paidValue *
+              100,
+          ) / 100,
+        adSpend:
+          Math.round(
+            row.adSpend *
+              100,
+          ) / 100,
+        cpl:
+          row.leads
+            ? Math.round(
+                (row.adSpend /
+                  row.leads) *
+                  100,
+              ) / 100
+            : 0,
+        cpa:
+          row.orders
+            ? Math.round(
+                (row.adSpend /
+                  row.orders) *
+                  100,
+              ) / 100
+            : 0,
+        cac:
+          row.newCustomers
+            ? Math.round(
+                (row.adSpend /
+                  row.newCustomers) *
+                  100,
+              ) / 100
+            : 0,
+        roas:
+          row.adSpend
+            ? Math.round(
+                (row.invoicedValue /
+                  row.adSpend) *
+                  100,
+              ) / 100
+            : 0,
+        collectedRoas:
+          row.adSpend
+            ? Math.round(
+                (row.paidValue /
+                  row.adSpend) *
+                  100,
+              ) / 100
+            : 0,
+        marketingContribution:
+          Math.round(
+            (row.invoicedValue -
+              row.adSpend) *
+              100,
+          ) / 100,
         invoicedValue:
           Math.round(
             row.invoicedValue *
@@ -692,6 +986,14 @@ export default async function MarketingAnalyticsPage({
               }
               rows={exportRows}
             />
+            {user.role === "SUPER_ADMIN" && (
+              <Link
+                href="/admin/marketing-spend"
+                style={secondaryAction}
+              >
+                تسجيل تكلفة إعلان
+              </Link>
+            )}
             <Link
               href="/admin/marketing"
               style={secondaryAction}
@@ -786,6 +1088,52 @@ export default async function MarketingAnalyticsPage({
             )} ج`}
           />
           <Stat
+            label="تكلفة الإعلانات"
+            value={`${money(
+              totalSpend,
+            )} ج`}
+            meta="المسجلة يدويًا للفترة"
+          />
+          <Stat
+            label="CPL — تكلفة الـLead"
+            value={`${money(
+              overallCpl,
+            )} ج`}
+            meta={leads.length ? "Spend ÷ Leads" : "لا توجد Leads"}
+          />
+          <Stat
+            label="CPA — تكلفة الأوردر"
+            value={`${money(
+              overallCpa,
+            )} ج`}
+            meta={orders.length ? "Spend ÷ Orders" : "لا توجد Orders"}
+          />
+          <Stat
+            label="CAC — عميل جديد"
+            value={`${money(
+              overallCac,
+            )} ج`}
+            meta={`${newCustomers} عميل جديد`}
+          />
+          <Stat
+            label="ROAS الفواتير"
+            value={totalSpend ? `${overallRoas.toFixed(2)}x` : "-"}
+            meta="قيمة الفواتير ÷ الإعلان"
+          />
+          <Stat
+            label="ROAS المحصل"
+            value={totalSpend ? `${collectedRoas.toFixed(2)}x` : "-"}
+            meta="المحصل ÷ الإعلان"
+          />
+          <Stat
+            label="بعد تكلفة الإعلان فقط"
+            value={`${money(
+              marketingContribution,
+            )} ج`}
+            danger={marketingContribution < 0}
+            meta="قبل الخامات والأجور وباقي التشغيل"
+          />
+          <Stat
             label="متوسط قيمة الطلب"
             value={`${money(
               averageOrderValue,
@@ -820,6 +1168,14 @@ export default async function MarketingAnalyticsPage({
                 topCampaign
                   ? `${topCampaign.campaign} — ${topCampaign.orders} أوردر`
                   : "لا توجد حملات مسجلة"
+              }
+            />
+            <Highlight
+              label="أفضل ROAS"
+              value={
+                topRoasCampaign
+                  ? `${topRoasCampaign.campaign} — ${(topRoasCampaign.invoicedValue / topRoasCampaign.adSpend).toFixed(2)}x`
+                  : "سجل تكلفة حملات لاحتسابه"
               }
             />
             <Highlight
@@ -1060,6 +1416,24 @@ export default async function MarketingAnalyticsPage({
                     <th>
                       متوسط الطلب
                     </th>
+                    <th>
+                      تكلفة الإعلان
+                    </th>
+                    <th>
+                      CPL
+                    </th>
+                    <th>
+                      CPA
+                    </th>
+                    <th>
+                      CAC
+                    </th>
+                    <th>
+                      ROAS
+                    </th>
+                    <th>
+                      بعد الإعلان فقط
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1124,6 +1498,39 @@ export default async function MarketingAnalyticsPage({
                               ? row.recordedOrderValue /
                                   row.orders
                               : 0,
+                          )}{" "}
+                          ج
+                        </td>
+                        <td>
+                          {money(
+                            row.adSpend,
+                          )}{" "}
+                          ج
+                        </td>
+                        <td>
+                          {row.leads
+                            ? `${money(row.adSpend / row.leads)} ج`
+                            : "-"}
+                        </td>
+                        <td>
+                          {row.orders
+                            ? `${money(row.adSpend / row.orders)} ج`
+                            : "-"}
+                        </td>
+                        <td>
+                          {row.newCustomers
+                            ? `${money(row.adSpend / row.newCustomers)} ج`
+                            : "-"}
+                        </td>
+                        <td>
+                          {row.adSpend
+                            ? `${(row.invoicedValue / row.adSpend).toFixed(2)}x`
+                            : "-"}
+                        </td>
+                        <td>
+                          {money(
+                            row.invoicedValue -
+                              row.adSpend,
                           )}{" "}
                           ج
                         </td>
@@ -1205,6 +1612,21 @@ export default async function MarketingAnalyticsPage({
                       متوسط الطلب
                     </th>
                     <th>
+                      التكلفة
+                    </th>
+                    <th>
+                      CPA
+                    </th>
+                    <th>
+                      CAC
+                    </th>
+                    <th>
+                      ROAS
+                    </th>
+                    <th>
+                      بعد الإعلان فقط
+                    </th>
+                    <th>
                       أفضل Content
                     </th>
                   </tr>
@@ -1284,6 +1706,34 @@ export default async function MarketingAnalyticsPage({
                             ج
                           </td>
                           <td>
+                            {money(
+                              row.adSpend,
+                            )}{" "}
+                            ج
+                          </td>
+                          <td>
+                            {row.orders
+                              ? `${money(row.adSpend / row.orders)} ج`
+                              : "-"}
+                          </td>
+                          <td>
+                            {row.newCustomers
+                              ? `${money(row.adSpend / row.newCustomers)} ج`
+                              : "-"}
+                          </td>
+                          <td>
+                            {row.adSpend
+                              ? `${(row.invoicedValue / row.adSpend).toFixed(2)}x`
+                              : "-"}
+                          </td>
+                          <td>
+                            {money(
+                              row.invoicedValue -
+                                row.adSpend,
+                            )}{" "}
+                            ج
+                          </td>
+                          <td>
                             {bestContent
                               ? `${bestContent[0]} (${bestContent[1]})`
                               : "-"}
@@ -1314,7 +1764,7 @@ export default async function MarketingAnalyticsPage({
             مهم لفهم الأرقام
           </strong>
           <div>
-            قيمة الفواتير والمحصل جاية من بيانات Ventic Pro الفعلية. متوسط قيمة الطلب يستخدم الفاتورة إن وجدت، ثم القيمة النهائية، ثم التقديرية. حساب تكلفة الاكتساب أو ROAS يحتاج تسجيل تكلفة الإعلان نفسها، وهي غير مخزنة حاليًا؛ لذلك الصفحة لا تعرض ROI وهمي.
+            قيمة الفواتير والمحصل جاية من بيانات Ventic Pro الفعلية، وتكلفة الإعلان جاية من السجلات اليدوية في «تكلفة الإعلانات». CPA هنا = تكلفة الإعلان ÷ عدد الأوردرات، وCAC = تكلفة الإعلان ÷ العملاء الجدد، وROAS = قيمة الفواتير ÷ تكلفة الإعلان. رقم «بعد تكلفة الإعلان فقط» ليس صافي ربح؛ لأنه لا يخصم الخامات أو أجور الفنيين أو المصروفات التشغيلية.
           </div>
         </section>
       </section>
