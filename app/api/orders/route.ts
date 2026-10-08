@@ -5,6 +5,7 @@ import { notifyAdmins } from "@/lib/admin-notifications";
 import { calculateOrderOffer } from "@/lib/promotions";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { createOrderUploadToken } from "@/lib/customer-order-upload";
+import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
 import {
   clientIp,
   rateLimit,
@@ -74,6 +75,11 @@ export async function POST(req: Request) {
     );
 
     const email = clean(c.email).toLowerCase();
+    const acquisitionSource =
+      acquisitionSourceFromRequest(
+        req,
+        b?.source,
+      );
 
     const customer = await prisma.customer.upsert({
       where: { phone: c.phone },
@@ -268,8 +274,7 @@ export async function POST(req: Request) {
               ? offer.coupon.code
               : null,
           couponDiscountSnapshot: offer.discount,
-          acquisitionSource:
-            clean(b?.source) || null,
+          acquisitionSource,
           governorate,
           area,
           address,
@@ -324,8 +329,7 @@ export async function POST(req: Request) {
                 : null,
             couponDiscount: offer.discount,
             estimatedTotal: offer.total,
-            acquisitionSource:
-              clean(b?.source) || null,
+            acquisitionSource,
             legalAccepted: true,
             policyVersion:
               clean(b?.policyVersion) ||

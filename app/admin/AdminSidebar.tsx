@@ -114,6 +114,18 @@ const navItems: NavItem[] = [
     leadsPermission: true,
   },
   {
+    href: "/admin/marketing",
+    label: "روابط الحملات",
+    icon: "📣",
+    superAdminOnly: true,
+  },
+  {
+    href: "/admin/system-health",
+    label: "صحة النظام",
+    icon: "🩺",
+    superAdminOnly: true,
+  },
+  {
     href: "/admin/users",
     label: "المستخدمون",
     icon: "🔐",
@@ -180,51 +192,25 @@ export default function AdminSidebar({
         {navItems
           .filter((item) => {
             if (item.superAdminOnly && !isSuperAdmin) return false;
-            if (item.inventoryPermission && !canViewInventory) {
-              return false;
-            }
-            if (item.accountingPermission && !canViewAccounting) {
-              return false;
-            }
-            if (item.customersPermission && !canViewCustomers) {
-              return false;
-            }
-            if (item.stocktakePermission && !canStocktake) {
-              return false;
-            }
-            if (item.purchasesPermission && !canPurchases) {
-              return false;
-            }
-            if (item.exportsPermission && !canExports) {
-              return false;
-            }
-            if (item.aftercarePermission && !canViewAftercare) {
-              return false;
-            }
+            if (item.inventoryPermission && !canViewInventory) return false;
+            if (item.accountingPermission && !canViewAccounting) return false;
+            if (item.customersPermission && !canViewCustomers) return false;
+            if (item.stocktakePermission && !canStocktake) return false;
+            if (item.purchasesPermission && !canPurchases) return false;
+            if (item.exportsPermission && !canExports) return false;
+            if (item.aftercarePermission && !canViewAftercare) return false;
             if (
               item.technicianPerformancePermission &&
               !canViewTechnicianPerformance
             ) {
               return false;
             }
-            if (item.reportsPermission && !canViewReports) {
-              return false;
-            }
-            if (item.areasPermission && !canManageAreas) {
-              return false;
-            }
-            if (item.promotionsPermission && !canManagePromotions) {
-              return false;
-            }
-            if (item.leadsPermission && !canManageLeads) {
-              return false;
-            }
-            if (item.searchPermission && !canGlobalSearch) {
-              return false;
-            }
-            if (item.reviewsPermission && !canManageReviews) {
-              return false;
-            }
+            if (item.reportsPermission && !canViewReports) return false;
+            if (item.areasPermission && !canManageAreas) return false;
+            if (item.promotionsPermission && !canManagePromotions) return false;
+            if (item.leadsPermission && !canManageLeads) return false;
+            if (item.searchPermission && !canGlobalSearch) return false;
+            if (item.reviewsPermission && !canManageReviews) return false;
             return true;
           })
           .map((item) => {

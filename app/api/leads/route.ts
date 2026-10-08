@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
 import {
   clientIp,
   rateLimit,
@@ -37,7 +38,11 @@ export async function POST(req: Request) {
     const id = clean(body?.id);
     const phone = clean(body?.phone) || null;
     const name = clean(body?.name) || null;
-    const source = clean(body?.source) || null;
+    const source =
+      acquisitionSourceFromRequest(
+        req,
+        body?.source,
+      );
     const currentStep = Math.min(
       4,
       Math.max(1, Number(body?.currentStep || 1)),
