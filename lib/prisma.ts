@@ -30,11 +30,62 @@ const guardedWriteOperations = new Set([
   "upsert",
 ]);
 
-function addWhere(args: unknown, filter: Record<string, unknown>) {
-  const mutable = args as { where?: Record<string, unknown> };
-  mutable.where = mutable.where
-    ? { AND: [mutable.where, filter] }
-    : filter;
+const uniqueWhereOperations = new Set([
+  "findUnique",
+  "findUniqueOrThrow",
+  "update",
+  "delete",
+  "upsert",
+]);
+
+function addWhere(
+  args: unknown,
+  filter: Record<string, unknown>,
+  preserveUniqueTopLevel = false,
+) {
+  const mutable = args as {
+    where?: Record<string, any>;
+  };
+
+  const current =
+    mutable.where || {};
+
+  if (preserveUniqueTopLevel) {
+    const existingAnd =
+      current.AND;
+
+    const andParts = Array.isArray(
+      existingAnd,
+    )
+      ? [...existingAnd, filter]
+      : existingAnd
+        ? [existingAnd, filter]
+        : [filter];
+
+    /*
+     * Prisma findUnique/update/delete/upsert require the unique selector
+     * (id, orderNo, email, etc.) to remain at the top level of `where`.
+     *
+     * Keep the original unique fields untouched and add the archive guard
+     * through AND beside them.
+     */
+    mutable.where = {
+      ...current,
+      AND: andParts,
+    };
+
+    return;
+  }
+
+  mutable.where =
+    Object.keys(current).length
+      ? {
+          AND: [
+            current,
+            filter,
+          ],
+        }
+      : filter;
 }
 
 function guardArchived(
@@ -45,9 +96,16 @@ function guardArchived(
 ) {
   if (
     guardedReadOperations.has(operation) ||
-    (protectWrites && guardedWriteOperations.has(operation))
+    (protectWrites &&
+      guardedWriteOperations.has(operation))
   ) {
-    addWhere(args, filter);
+    addWhere(
+      args,
+      filter,
+      uniqueWhereOperations.has(
+        operation,
+      ),
+    );
   }
 }
 
@@ -63,168 +121,380 @@ export const prisma = rawPrisma.$extends({
   name: "ventic-archive-visibility",
   query: {
     order: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, { archivedAt: null }, true);
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          { archivedAt: null },
+          true,
+        );
         return query(args);
       },
     },
+
     user: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, { archivedAt: null }, true);
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          { archivedAt: null },
+          true,
+        );
         return query(args);
       },
     },
 
     payment: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     invoice: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     warranty: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     maintenanceRequest: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     complaint: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     review: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     quote: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     venticEstimate: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
         return query(args);
       },
     },
+
     venticEstimateItem: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          estimate: {
-            order: { archivedAt: null },
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            estimate: {
+              order: {
+                archivedAt: null,
+              },
+            },
           },
-        });
+        );
         return query(args);
       },
     },
+
     extraCharge: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
-        return query(args);
-      },
-    },
-    attachment: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
-        return query(args);
-      },
-    },
-    space: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          order: { archivedAt: null },
-        });
-        return query(args);
-      },
-    },
-    orderService: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          space: {
-            order: { archivedAt: null },
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
           },
-        });
+        );
+        return query(args);
+      },
+    },
+
+    attachment: {
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
+        return query(args);
+      },
+    },
+
+    space: {
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            order: {
+              archivedAt: null,
+            },
+          },
+        );
+        return query(args);
+      },
+    },
+
+    orderService: {
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            space: {
+              order: {
+                archivedAt: null,
+              },
+            },
+          },
+        );
         return query(args);
       },
     },
 
     technicianSlot: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          OR: [
-            { orderId: null },
-            { order: { archivedAt: null } },
-          ],
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            OR: [
+              { orderId: null },
+              {
+                order: {
+                  archivedAt: null,
+                },
+              },
+            ],
+          },
+        );
         return query(args);
       },
     },
+
     inventoryMovement: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          OR: [
-            { orderId: null },
-            { order: { archivedAt: null } },
-          ],
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            OR: [
+              { orderId: null },
+              {
+                order: {
+                  archivedAt: null,
+                },
+              },
+            ],
+          },
+        );
         return query(args);
       },
     },
+
     notification: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          OR: [
-            { orderId: null },
-            { order: { archivedAt: null } },
-          ],
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            OR: [
+              { orderId: null },
+              {
+                order: {
+                  archivedAt: null,
+                },
+              },
+            ],
+          },
+        );
         return query(args);
       },
     },
+
     adminNotification: {
-      async $allOperations({ operation, args, query }) {
-        guardArchived(operation, args, {
-          OR: [
-            { orderId: null },
-            { order: { archivedAt: null } },
-          ],
-        });
+      async $allOperations({
+        operation,
+        args,
+        query,
+      }) {
+        guardArchived(
+          operation,
+          args,
+          {
+            OR: [
+              { orderId: null },
+              {
+                order: {
+                  archivedAt: null,
+                },
+              },
+            ],
+          },
+        );
         return query(args);
       },
     },

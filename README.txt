@@ -1,13 +1,19 @@
-V13A TypeScript Fix 1
+V13A Runtime Fix 2
 
-Replace these two files in your ventic-pro repository:
+Replace:
+lib/prisma.ts
 
-1) app/api/admin/archive/orders/[id]/route.ts
-2) app/api/admin/archive/users/[id]/route.ts
+Root cause fixed:
+The archive visibility Prisma extension wrapped findUnique/update/delete/upsert `where`
+inside AND. Prisma requires the unique selector (id/email/orderNo/etc.) to remain at
+the top level for those operations. The server can therefore crash at runtime on
+normal authentication/currentUser/findUnique calls.
 
-Why:
-Next.js TypeScript build does not preserve the earlier archivedAt null check inside Prisma transaction closures.
-The fix uses a non-null assertion only at points already protected by an earlier runtime guard.
+This fix preserves the unique selector at top level and appends the archive guard
+as an AND condition.
+
+No database migration is needed.
+The V13A migration has already been applied successfully.
 
 Commit message:
-V13A - fix archive restore TypeScript null narrowing
+V13A - fix Prisma archive unique where runtime guard
