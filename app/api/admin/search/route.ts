@@ -55,6 +55,7 @@ export async function GET(req: Request) {
       }),
       prisma.customer.findMany({
         where: {
+          archivedAt: null,
           OR: [
             { name: { contains: q, mode: "insensitive" } },
             { phone: { contains: q } },
@@ -117,6 +118,9 @@ export async function GET(req: Request) {
       }),
       prisma.property.findMany({
         where: {
+          customer: {
+            archivedAt: null,
+          },
           OR: [
             { label: { contains: q, mode: "insensitive" } },
             { area: { contains: q, mode: "insensitive" } },
@@ -139,6 +143,11 @@ export async function GET(req: Request) {
       }),
       prisma.device.findMany({
         where: {
+          property: {
+            customer: {
+              archivedAt: null,
+            },
+          },
           OR: [
             { type: { contains: q, mode: "insensitive" } },
             { brand: { contains: q, mode: "insensitive" } },
@@ -167,6 +176,7 @@ export async function GET(req: Request) {
       }),
       prisma.supplier.findMany({
         where: {
+          archivedAt: null,
           OR: [
             { name: { contains: q, mode: "insensitive" } },
             { phone: { contains: q } },

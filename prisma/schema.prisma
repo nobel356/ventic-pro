@@ -79,6 +79,11 @@ model Customer {
   email          String?
   passwordHash   String?
   active         Boolean                 @default(true)
+  archivedAt     DateTime?
+  archivedById   String?
+  archivedByLabel String?
+  archiveReason  String?
+  archiveState   Json?
   orders         Order[]
   properties     Property[]
   notifications  Notification[]
@@ -87,6 +92,7 @@ model Customer {
   createdAt      DateTime                @default(now())
 
   @@index([email])
+  @@index([archivedAt])
 }
 
 model Order {
@@ -534,10 +540,17 @@ model InventoryItem {
   lastUnitCost    Decimal               @default(0) @db.Decimal(12,2)
   averageUnitCost Decimal               @default(0) @db.Decimal(12,2)
   active          Boolean               @default(true)
+  archivedAt      DateTime?
+  archivedById    String?
+  archivedByLabel String?
+  archiveReason   String?
+  archiveState    Json?
   movements       InventoryMovement[]
   purchaseItems   PurchaseReceiptItem[]
   stocktakeLines  StocktakeLine[]
   createdAt       DateTime              @default(now())
+
+  @@index([archivedAt])
 }
 
 model InventoryMovement {
@@ -562,16 +575,23 @@ model InventoryMovement {
 }
 
 model Supplier {
-  id        String            @id @default(cuid())
-  name      String
-  phone     String?
-  address   String?
-  taxNumber String?
-  notes     String?
-  active    Boolean           @default(true)
-  purchases PurchaseReceipt[]
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id              String            @id @default(cuid())
+  name            String
+  phone           String?
+  address         String?
+  taxNumber       String?
+  notes           String?
+  active          Boolean           @default(true)
+  archivedAt      DateTime?
+  archivedById    String?
+  archivedByLabel String?
+  archiveReason   String?
+  archiveState    Json?
+  purchases       PurchaseReceipt[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([archivedAt])
 }
 
 model PurchaseReceipt {
@@ -671,7 +691,7 @@ model Coupon {
   usedCount            Int          @default(0)
   eligibleServiceCodes String[]     @default([])
   active               Boolean      @default(true)
-  createdAt            DateTime     @default(now())
+  createdAt             DateTime     @default(now())
 
   @@index([active, startsAt, endsAt])
 }
@@ -757,8 +777,15 @@ model Lead {
   contactedAt      DateTime?
   convertedOrderId String?    @unique
   convertedOrder   Order?     @relation(fields: [convertedOrderId], references: [id])
+  archivedAt       DateTime?
+  archivedById     String?
+  archivedByLabel  String?
+  archiveReason    String?
+  archiveState     Json?
   lastActivityAt   DateTime   @default(now())
   createdAt        DateTime   @default(now())
+
+  @@index([archivedAt])
 }
 
 model Notification {

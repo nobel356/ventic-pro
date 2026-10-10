@@ -23,6 +23,9 @@ export async function GET() {
     const [items, movements, technicians, orders, balances] =
       await Promise.all([
         prisma.inventoryItem.findMany({
+          where: {
+            archivedAt: null,
+          },
           orderBy: [{ active: "desc" }, { nameAr: "asc" }],
         }),
         prisma.inventoryMovement.findMany({

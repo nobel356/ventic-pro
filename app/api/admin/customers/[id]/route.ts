@@ -28,8 +28,11 @@ export async function PATCH(
     const body = await req.json();
 
     const old =
-      await prisma.customer.findUnique({
-        where: { id },
+      await prisma.customer.findFirst({
+        where: {
+          id,
+          archivedAt: null,
+        },
       });
 
     if (!old) {

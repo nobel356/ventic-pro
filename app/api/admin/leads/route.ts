@@ -18,6 +18,7 @@ export async function GET() {
 
     const leads = await prisma.lead.findMany({
       where: {
+        archivedAt: null,
         status: {
           in: ["STARTED", "CONTACTED", "ABANDONED"],
         },
@@ -87,8 +88,11 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const current = await prisma.lead.findUnique({
-      where: { id },
+    const current = await prisma.lead.findFirst({
+      where: {
+        id,
+        archivedAt: null,
+      },
     });
 
     if (!current) {

@@ -38,6 +38,9 @@ export async function GET() {
 
     const customers =
       await prisma.customer.findMany({
+        where: {
+          archivedAt: null,
+        },
         include: {
           orders: {
             where: {

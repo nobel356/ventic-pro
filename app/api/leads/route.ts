@@ -71,8 +71,11 @@ export async function POST(req: Request) {
     };
 
     if (id) {
-      const existing = await prisma.lead.findUnique({
-        where: { id },
+      const existing = await prisma.lead.findFirst({
+        where: {
+          id,
+          archivedAt: null,
+        },
       });
 
       if (!existing || existing.status === "CONVERTED") {

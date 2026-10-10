@@ -9,6 +9,16 @@ function clean(value: unknown) {
   return String(value || "").trim();
 }
 
+async function customerAvailable(customerId: string) {
+  return prisma.customer.findFirst({
+    where: {
+      id: customerId,
+      archivedAt: null,
+    },
+    select: { id: true },
+  });
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -21,14 +31,11 @@ export async function POST(
     const body = await req.json();
     const entity = String(body?.entity || "");
 
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { id: true },
-    });
+    const customer = await customerAvailable(customerId);
 
     if (!customer) {
       return NextResponse.json(
-        { error: "العميل غير موجود" },
+        { error: "العميل غير موجود أو مؤرشف" },
         { status: 404 },
       );
     }
@@ -178,6 +185,15 @@ export async function PATCH(
     const body = await req.json();
     const entity = String(body?.entity || "");
     const entityId = clean(body?.id);
+
+    const customer = await customerAvailable(customerId);
+
+    if (!customer) {
+      return NextResponse.json(
+        { error: "العميل غير موجود أو مؤرشف" },
+        { status: 404 },
+      );
+    }
 
     if (!entityId) {
       return NextResponse.json(

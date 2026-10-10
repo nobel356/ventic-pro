@@ -19,10 +19,16 @@ export async function GET() {
     const actor = await requirePermission(PERMISSIONS.INVENTORY_VIEW);
     const [suppliers, items, receipts] = await Promise.all([
       prisma.supplier.findMany({
+        where: {
+          archivedAt: null,
+        },
         orderBy: [{ active: "desc" }, { name: "asc" }],
       }),
       prisma.inventoryItem.findMany({
-        where: { active: true },
+        where: {
+          active: true,
+          archivedAt: null,
+        },
         orderBy: { nameAr: "asc" },
       }),
       prisma.purchaseReceipt.findMany({
@@ -117,8 +123,11 @@ export async function POST(req: Request) {
 
       if (action === "supplier-update") {
         const supplierId = String(body?.supplierId || "");
-        const oldSupplier = await prisma.supplier.findUnique({
-          where: { id: supplierId },
+        const oldSupplier = await prisma.supplier.findFirst({
+          where: {
+            id: supplierId,
+            archivedAt: null,
+          },
         });
 
         if (!oldSupplier) {
@@ -234,7 +243,11 @@ export async function POST(req: Request) {
     );
 
     const supplier = await prisma.supplier.findFirst({
-      where: { id: supplierId, active: true },
+      where: {
+        id: supplierId,
+        active: true,
+        archivedAt: null,
+      },
     });
 
     if (!supplier) {
@@ -263,11 +276,15 @@ export async function POST(req: Request) {
         });
 
         for (const line of lines) {
-          const item = await tx.inventoryItem.findUnique({
-            where: { id: line.itemId },
+          const item = await tx.inventoryItem.findFirst({
+            where: {
+              id: line.itemId,
+              active: true,
+              archivedAt: null,
+            },
           });
 
-          if (!item || !item.active) {
+          if (!item) {
             throw new Error("ITEM_NOT_FOUND");
           }
 

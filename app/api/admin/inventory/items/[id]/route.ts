@@ -16,8 +16,11 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
 
-    const old = await prisma.inventoryItem.findUnique({
-      where: { id },
+    const old = await prisma.inventoryItem.findFirst({
+      where: {
+        id,
+        archivedAt: null,
+      },
     });
 
     if (!old) {
