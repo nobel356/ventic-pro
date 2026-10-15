@@ -69,7 +69,7 @@ export default function Order() {
     name: "",
     phone: "",
     email: "",
-    governorate: "القاهرة",
+    governorate: "",
     area: "",
     address: "",
     date: "",
@@ -80,13 +80,50 @@ export default function Order() {
   const [couponCode, setCouponCode] = useState("");
   const [couponMessage, setCouponMessage] = useState("");
   const [leadId, setLeadId] = useState("");
-  const [accepted, setAccepted] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [created, setCreated] = useState("");
   const [saving, setSaving] = useState(false);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [photoGroups, setPhotoGroups] = useState<Record<string, File[]>>({});
   const [photoUploadMessage, setPhotoUploadMessage] = useState("");
+
+  // V13C_CONTACT_HYDRATION
+  useEffect(() => {
+    try {
+      const raw =
+        window.sessionStorage.getItem(
+          "ventic_order_contact",
+        );
+
+      if (!raw) return;
+
+      const draft = JSON.parse(raw) as {
+        name?: string;
+        phone?: string;
+        leadId?: string;
+      };
+
+      setCustomer((current) => ({
+        ...current,
+        name:
+          String(draft.name || "").trim() ||
+          current.name,
+        phone:
+          String(draft.phone || "").replace(/\D/g, "") ||
+          current.phone,
+      }));
+
+      if (draft.leadId) {
+        setLeadId(
+          String(draft.leadId),
+        );
+      }
+
+      setConsentToFollowUp(true);
+    } catch {
+      // Contact pre-capture must never block the full order flow.
+    }
+  }, []);
 
   function setRoomPhotos(
     key: string,
@@ -601,7 +638,7 @@ export default function Order() {
             <h1>بيانات العميل والعنوان والموعد</h1>
 
             <div className="grid2">
-              <Field label="الاسم">
+              <Field label="الاسم *">
                 <input
                   value={customer.name}
                   onChange={(event) =>
@@ -613,7 +650,7 @@ export default function Order() {
                 />
               </Field>
 
-              <Field label="رقم الموبايل">
+              <Field label="رقم الموبايل *">
                 <input
                   placeholder="01xxxxxxxxx"
                   value={customer.phone}
@@ -626,7 +663,7 @@ export default function Order() {
                   }
                 />
               </Field>
-              <Field label="البريد الإلكتروني">
+              <Field label="البريد الإلكتروني (اختياري)">
                 <input
                   type="email"
                   placeholder="name@example.com"
@@ -638,11 +675,10 @@ export default function Order() {
                     })
                   }
                   autoComplete="email"
-                  required
                 />
               </Field>
 
-              <Field label="المحافظة">
+              <Field label="المحافظة (اختياري)">
                 <select
                   value={customer.governorate}
                   onChange={(event) =>
@@ -652,13 +688,14 @@ export default function Order() {
                     })
                   }
                 >
+                  <option value="">اختياري</option>
                   <option>القاهرة</option>
                   <option>الجيزة</option>
                   <option>القليوبية</option>
                 </select>
               </Field>
 
-              <Field label="المنطقة">
+              <Field label="المنطقة (اختياري)">
                 <input
                   value={customer.area}
                   onChange={(event) =>
@@ -671,7 +708,7 @@ export default function Order() {
               </Field>
             </div>
 
-            <Field label="العنوان بالتفصيل">
+            <Field label="العنوان بالتفصيل (اختياري)">
               <input
                 value={customer.address}
                 onChange={(event) =>
@@ -684,7 +721,7 @@ export default function Order() {
             </Field>
 
             <div className="grid2">
-              <Field label="التاريخ المفضل">
+              <Field label="التاريخ المفضل (اختياري)">
                 <input
                   type="date"
                   value={customer.date}
@@ -697,7 +734,7 @@ export default function Order() {
                 />
               </Field>
 
-              <Field label="الفترة">
+              <Field label="الفترة (اختياري)">
                 <select
                   value={customer.time}
                   onChange={(event) =>
@@ -715,7 +752,7 @@ export default function Order() {
                 </select>
               </Field>
 
-              <Field label="عرفتنا منين؟">
+              <Field label="عرفتنا منين؟ (اختياري)">
                 <select
                   value={source}
                   onChange={(event) => setSource(event.target.value)}
@@ -821,14 +858,28 @@ export default function Order() {
                 <b>{customer.name || "الاسم غير مكتمل"}</b> —{" "}
                 {customer.phone}
               </p>
-              <p>{customer.email}</p>
-              <p>
-                {customer.governorate}، {customer.area}،{" "}
-                {customer.address}
-              </p>
-              <p>
-                الموعد: {customer.date} — {customer.time}
-              </p>
+              {customer.email && <p>{customer.email}</p>}
+              {(customer.governorate ||
+                customer.area ||
+                customer.address) && (
+                <p>
+                  {[
+                    customer.governorate,
+                    customer.area,
+                    customer.address,
+                  ]
+                    .filter(Boolean)
+                    .join("، ")}
+                </p>
+              )}
+              {(customer.date || customer.time) && (
+                <p>
+                  الموعد:{" "}
+                  {[customer.date, customer.time]
+                    .filter(Boolean)
+                    .join(" — ")}
+                </p>
+              )}
               <p>
                 {baths.length} حمام + {kitchens.length} مطبخ
               </p>
@@ -837,16 +888,19 @@ export default function Order() {
 
             <Estimate subtotal={displaySubtotal} offer={offer} />
 
-            <label className="consent">
-              <input
-                type="checkbox"
-                checked={accepted}
-                onChange={(event) => setAccepted(event.target.checked)}
-              />
-              <span>
-                أفهم أن السعر المعروض تقديري وسيتم تأكيد السعر النهائي قبل تنفيذ التركيب.
-              </span>
-            </label>
+            <div
+              style={{
+                marginTop: 10,
+                padding: 11,
+                borderRadius: 10,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                color: "#475569",
+                lineHeight: 1.7,
+              }}
+            >
+              السعر المعروض تقديري وسيتم تأكيد السعر النهائي قبل تنفيذ التركيب.
+            </div>
             <label className="consent">
               <input
                 type="checkbox"
@@ -906,14 +960,9 @@ export default function Order() {
               <button
                 className="button"
                 disabled={
-                  !accepted ||
                   !legalAccepted ||
-                  !customer.name ||
-                  !/^01\d{9}$/.test(customer.phone) ||
-                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email) ||
-                  !customer.address ||
-                  !customer.date ||
-                  !customer.time ||
+                  !customer.name.trim() ||
+                  !/^01\d{9}$/.test(customer.phone.replace(/\D/g, "")) ||
                   Boolean(created)
                 }
                 onClick={async () => {

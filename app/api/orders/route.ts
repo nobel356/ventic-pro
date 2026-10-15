@@ -46,19 +46,33 @@ export async function POST(req: Request) {
     }
 
     const b = await req.json();
-    const c = b.customer;
+    const c = b.customer || {};
+    // V13C_OPTIONAL_ORDER_DETAILS
+    const customerName = clean(c.name);
+    const customerPhone = clean(c.phone).replace(/\D/g, "");
 
     if (
-      !c?.name ||
-      !/^01\d{9}$/.test(c.phone || "") ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.email || "")) ||
-      !c.address ||
-      !c.date ||
-      !c.time ||
+      customerName.length < 2 ||
+      !/^01\d{9}$/.test(customerPhone) ||
       b?.legalAccepted !== true
     ) {
       return NextResponse.json(
-        { error: "بيانات الطلب غير مكتملة" },
+        {
+          error:
+            "الاسم ورقم الموبايل والموافقة على الشروط بيانات مطلوبة",
+        },
+        { status: 400 },
+      );
+    }
+
+    const rawEmail = clean(c.email).toLowerCase();
+
+    if (
+      rawEmail &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+    ) {
+      return NextResponse.json(
+        { error: "البريد الإلكتروني غير صحيح" },
         { status: 400 },
       );
     }
@@ -74,7 +88,8 @@ export async function POST(req: Request) {
       ]),
     );
 
-    const email = clean(c.email).toLowerCase();
+    const email =
+      rawEmail || null;
     const acquisitionSource =
       acquisitionSourceFromRequest(
         req,
@@ -82,21 +97,23 @@ export async function POST(req: Request) {
       );
 
     const customer = await prisma.customer.upsert({
-      where: { phone: c.phone },
+      where: { phone: customerPhone },
       update: {
-        name: c.name,
+        name: customerName,
         email,
+        active: true,
       },
       create: {
-        name: c.name,
-        phone: c.phone,
+        name: customerName,
+        phone: customerPhone,
         email,
       },
     });
 
     const governorate = clean(c.governorate) || "غير محدد";
     const area = clean(c.area) || "غير محدد";
-    const address = clean(c.address);
+    const address =
+      clean(c.address) || "غير محدد";
 
     let property = await prisma.property.findFirst({
       where: {
@@ -278,8 +295,10 @@ export async function POST(req: Request) {
           governorate,
           area,
           address,
-          preferredDate: c.date,
-          preferredTime: c.time,
+          preferredDate:
+            clean(c.date) || null,
+          preferredTime:
+            clean(c.time) || null,
           estimateAccepted: true,
           spaces: { create: spaces },
         },
@@ -362,18 +381,20 @@ export async function POST(req: Request) {
       templateVariables: [
         customer.name,
         result.orderNo,
-        c.date,
-        c.time,
+        clean(c.date) || "سيتم تحديده بالتواصل",
+        clean(c.time) || "سيتم تحديدها بالتواصل",
         Number(result.estimatedTotal || 0).toLocaleString("ar-EG"),
       ],
       subject: `تم استلام طلب ${result.orderNo}`,
       message:
         `Ventic Pro\nتم استلام طلبك ${result.orderNo} بنجاح. ` +
-        `موعدك المفضل ${c.date} — ${c.time}. ` +
+        `الموعد ${clean(c.date) || "سيتم تحديده"} — ${clean(c.time) || "بالتواصل"}. ` +
         `السعر التقديري الحالي ${Number(result.estimatedTotal || 0).toLocaleString("ar-EG")} ج.`,
       payload: {
-        preferredDate: c.date,
-        preferredTime: c.time,
+        preferredDate:
+          clean(c.date) || null,
+        preferredTime:
+          clean(c.time) || null,
         estimatedTotal: Number(result.estimatedTotal || 0),
       },
     });

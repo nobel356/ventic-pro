@@ -1,5 +1,7 @@
+import { AdminNotificationType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyAdmins } from "@/lib/admin-notifications";
 import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
 import {
   clientIp,
@@ -9,6 +11,19 @@ import {
 
 function clean(value: unknown) {
   return String(value || "").trim();
+}
+
+function requestTypeFromPayload(
+  payload: Record<string, unknown>,
+) {
+  const value = clean(
+    payload?.requestType,
+  );
+
+  return value === "QUICK_REQUEST" ||
+    value === "DETAILED_ENTRY"
+    ? value
+    : "";
 }
 
 export async function POST(req: Request) {
@@ -36,7 +51,8 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const id = clean(body?.id);
-    const phone = clean(body?.phone) || null;
+    const phone =
+      clean(body?.phone).replace(/\D/g, "") || null;
     const name = clean(body?.name) || null;
     const source =
       acquisitionSourceFromRequest(
@@ -49,13 +65,30 @@ export async function POST(req: Request) {
     );
     const consentToFollowUp = Boolean(body?.consentToFollowUp);
     const payload =
-      body?.payload && typeof body.payload === "object"
-        ? body.payload
+      body?.payload &&
+      typeof body.payload === "object" &&
+      !Array.isArray(body.payload)
+        ? (body.payload as Record<string, unknown>)
         : {};
+    const requestType =
+      requestTypeFromPayload(payload);
 
     if (phone && !/^01\d{9}$/.test(phone)) {
       return NextResponse.json(
         { error: "رقم الموبايل غير صحيح" },
+        { status: 400 },
+      );
+    }
+
+    if (
+      requestType &&
+      (!name || name.length < 2 || !phone)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "الاسم ورقم الموبايل مطلوبان.",
+        },
         { status: 400 },
       );
     }
@@ -95,9 +128,60 @@ export async function POST(req: Request) {
       });
     }
 
+    /*
+     * Gate submissions are intentionally deduplicated for 24 hours by phone.
+     * A double tap, refresh or return from TikTok should update the same lead,
+     * not create several rows for the same person.
+     */
+    if (requestType && phone) {
+      const recent = await prisma.lead.findFirst({
+        where: {
+          archivedAt: null,
+          phone,
+          status: {
+            not: "CONVERTED",
+          },
+          lastActivityAt: {
+            gte: new Date(
+              Date.now() -
+                24 * 60 * 60 * 1000,
+            ),
+          },
+        },
+        orderBy: {
+          lastActivityAt: "desc",
+        },
+      });
+
+      if (recent) {
+        const updated = await prisma.lead.update({
+          where: { id: recent.id },
+          data: {
+            ...data,
+            status: "STARTED",
+          },
+        });
+
+        return NextResponse.json({
+          id: updated.id,
+          deduplicated: true,
+        });
+      }
+    }
+
     const created = await prisma.lead.create({
       data,
     });
+
+    if (requestType === "QUICK_REQUEST") {
+      await notifyAdmins({
+        type: AdminNotificationType.SYSTEM,
+        title: "طلب سريع جديد",
+        message: `${name} — ${phone}`,
+        href: "/admin/leads",
+        dedupeKey: `quick-lead:${created.id}`,
+      });
+    }
 
     return NextResponse.json(
       { id: created.id },

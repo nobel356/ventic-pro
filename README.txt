@@ -1,19 +1,9 @@
-V13A Runtime Fix 2
+Use this v2 instead of the previous PowerShell patch.
 
-Replace:
-lib/prisma.ts
+1. Copy these two APPLY files into the ROOT of ventic-pro.
+2. Double-click APPLY-V13C-NO-NODE-v2.cmd
+3. Wait for:
+   V13C patch applied successfully WITHOUT Node.js.
+4. Then open GitHub Desktop and commit/push.
 
-Root cause fixed:
-The archive visibility Prisma extension wrapped findUnique/update/delete/upsert `where`
-inside AND. Prisma requires the unique selector (id/email/orderNo/etc.) to remain at
-the top level for those operations. The server can therefore crash at runtime on
-normal authentication/currentUser/findUnique calls.
-
-This fix preserves the unique selector at top level and appends the archive guard
-as an AND condition.
-
-No database migration is needed.
-The V13A migration has already been applied successfully.
-
-Commit message:
-V13A - fix Prisma archive unique where runtime guard
+Do NOT use the old APPLY-V13C-NO-NODE.ps1 again.
