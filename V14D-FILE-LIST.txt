@@ -1,0 +1,8 @@
+README-V14D.md
+app/apple-icon.png
+app/brand-v14d.css
+app/favicon.ico
+app/icon.png
+app/layout.tsx
+public/brand/hero-vp-symbol.png
+public/brand/tab-v-blue.png
