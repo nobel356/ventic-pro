@@ -1,0 +1,12 @@
+README-V14B.md
+app/brand-theme.css
+app/shared/SiteChrome.tsx
+public/brand/app-icon-dark.png
+public/brand/app-icon-light.png
+public/brand/ventic-logo-dark.png
+public/brand/ventic-logo-light.png
+public/brand/vp-mark.png
+public/favicon.ico
+public/icons/apple-touch-icon.png
+public/icons/icon-192.png
+public/icons/icon-512.png

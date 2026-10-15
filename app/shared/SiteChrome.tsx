@@ -70,15 +70,21 @@ export default function SiteChrome() {
             }}
           >
             <div>
-              <strong
+              <img
+                src="/brand/ventic-logo-dark.png"
+                alt="Ventic Pro"
+                width={210}
+                height={118}
                 style={{
-                  fontSize: 22,
-                  letterSpacing:
-                    "-.02em",
+                  width: 210,
+                  maxWidth: "100%",
+                  height: "auto",
+                  display: "block",
+                  objectFit: "contain",
+                  objectPosition: "right center",
+                  marginBottom: 6,
                 }}
-              >
-                Ventic Pro
-              </strong>
+              />
               <p
                 style={{
                   color:
