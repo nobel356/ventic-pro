@@ -1,0 +1,22 @@
+
+/* Ventic Pro V14C — replaces the old hero fan glyph with the approved VP mark. */
+.heroCard .fan {
+  width: 150px !important;
+  height: 112px !important;
+  margin: 0 auto 4px !important;
+  display: block !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: transparent !important;
+  background:
+    url("/brand/vp-mark.png")
+    center / contain no-repeat !important;
+  filter: drop-shadow(0 10px 22px rgba(56,189,248,.18)) !important;
+}
+
+@media (max-width: 620px) {
+  .heroCard .fan {
+    width: 124px !important;
+    height: 92px !important;
+  }
+}
