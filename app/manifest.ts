@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "اطلب خدمات التهوية والتركيب وتابع طلبك وفاتورتك وضمانك.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f5f8fb",
-    theme_color: "#0f2d4a",
+    background_color: "#f4f8fb",
+    theme_color: "#0b2f49",
     lang: "ar",
     dir: "rtl",
     icons: [

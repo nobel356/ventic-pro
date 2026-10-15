@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./brand-theme.css";
 import type { Metadata, Viewport } from "next";
 import SiteChrome from "@/app/shared/SiteChrome";
 import PwaInstallPrompt from "@/app/shared/PwaInstallPrompt";
@@ -19,13 +20,8 @@ export const metadata: Metadata = {
     "خدمات تركيب وتهوية الحمامات والمطابخ والهود وخطوط الطرد. اطلب الخدمة أونلاين وارفع صور المكان وتابع طلبك خطوة بخطوة.",
   applicationName: "Ventic Pro",
   manifest: "/manifest.webmanifest",
-  alternates: {
-    canonical: "/",
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
   openGraph: {
     type: "website",
     locale: "ar_EG",
@@ -53,7 +49,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f2d4a",
+  themeColor: "#0b2f49",
   colorScheme: "light",
 };
 
