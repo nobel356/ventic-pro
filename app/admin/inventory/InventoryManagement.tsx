@@ -1,5 +1,7 @@
 "use client";
 
+import InlineArchiveButton from "@/app/admin/archive/InlineArchiveButton";
+
 import Link from "next/link";
 import {
   useEffect,
@@ -1060,17 +1062,32 @@ export default function InventoryManagement() {
                         {data?.permissions
                           .canEdit && (
                           <td>
-                            <button
-                              type="button"
-                              style={
-                                secondaryButtonStyle
-                              }
-                              onClick={() =>
-                                editItem(item)
-                              }
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 6,
+                                flexWrap: "wrap",
+                              }}
                             >
-                              تعديل
-                            </button>
+                              <button
+                                type="button"
+                                style={
+                                  secondaryButtonStyle
+                                }
+                                onClick={() =>
+                                  editItem(item)
+                                }
+                              >
+                                تعديل
+                              </button>
+
+                              <InlineArchiveButton
+                                type="inventory"
+                                id={item.id}
+                                label={`الصنف ${item.sku} — ${item.nameAr}`}
+                                onArchived={load}
+                              />
+                            </div>
                           </td>
                         )}
                       </tr>

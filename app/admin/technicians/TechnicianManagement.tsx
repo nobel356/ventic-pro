@@ -1,5 +1,7 @@
 "use client";
 
+import InlineArchiveButton from "@/app/admin/archive/InlineArchiveButton";
+
 import Link from "next/link";
 import {
   useEffect,
@@ -378,6 +380,13 @@ export default function TechnicianManagement() {
                       تعديل
                     </button>
                   )}
+
+                  <InlineArchiveButton
+                    type="users"
+                    id={technician.id}
+                    label={`الفني ${technician.name}`}
+                    onArchived={load}
+                  />
                 </div>
               </div>
             ))}

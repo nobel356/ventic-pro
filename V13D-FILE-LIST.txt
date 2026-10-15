@@ -1,0 +1,12 @@
+APPLY-V13D.cmd
+APPLY-V13D.ps1
+README-V13D.md
+app/admin/archive/ArchivePurgePanel.tsx
+app/admin/archive/InlineArchiveButton.tsx
+app/admin/archive/page.tsx
+app/admin/archive/reset/ArchiveRecoveryClient.tsx
+app/admin/archive/reset/page.tsx
+app/api/admin/archive/forgot-password/route.ts
+app/api/admin/archive/purge/[type]/[id]/route.ts
+app/api/admin/archive/reset-password/route.ts
+prisma/migrations/20261015010000_archive_vault_recovery/migration.sql

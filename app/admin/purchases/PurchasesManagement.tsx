@@ -1,5 +1,7 @@
 "use client";
 
+import InlineArchiveButton from "@/app/admin/archive/InlineArchiveButton";
+
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 type Supplier = {
@@ -232,7 +234,17 @@ export default function PurchasesManagement() {
                       <td>{supplier.phone || "-"}</td>
                       <td>{supplier.address || "-"}</td>
                       <td>{supplier.active ? "نشط" : "موقوف"}</td>
-                      <td><button type="button" style={secondaryButton} onClick={() => editSupplier(supplier)}>تعديل</button></td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <button type="button" style={secondaryButton} onClick={() => editSupplier(supplier)}>تعديل</button>
+                          <InlineArchiveButton
+                            type="suppliers"
+                            id={supplier.id}
+                            label={`المورد ${supplier.name}`}
+                            onArchived={load}
+                          />
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

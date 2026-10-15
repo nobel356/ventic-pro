@@ -1,5 +1,7 @@
 "use client";
 
+import InlineArchiveButton from "@/app/admin/archive/InlineArchiveButton";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -317,6 +319,7 @@ export default function AdminOrders() {
                   <th>التقديري</th>
                   <th>الفني</th>
                   <th>الحالة</th>
+                  <th>أرشفة</th>
                 </tr>
               </thead>
               <tbody>
@@ -375,6 +378,14 @@ export default function AdminOrders() {
                           </option>
                         ))}
                       </select>
+                    </td>
+                    <td>
+                      <InlineArchiveButton
+                        type="orders"
+                        id={order.id}
+                        label={`الطلب ${order.orderNo}`}
+                        onArchived={load}
+                      />
                     </td>
                   </tr>
                 ))}

@@ -1,5 +1,7 @@
 "use client";
 
+import InlineArchiveButton from "@/app/admin/archive/InlineArchiveButton";
+
 import {
   useEffect,
   useMemo,
@@ -290,13 +292,28 @@ export default function LeadManagement() {
                     </td>
                     <td>{item.followUpNote || "-"}</td>
                     <td>
-                      <button
-                        type="button"
-                        onClick={() => startEdit(item)}
-                        style={secondaryButtonStyle}
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          flexWrap: "wrap",
+                        }}
                       >
-                        متابعة
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(item)}
+                          style={secondaryButtonStyle}
+                        >
+                          متابعة
+                        </button>
+
+                        <InlineArchiveButton
+                          type="leads"
+                          id={item.id}
+                          label={`Lead ${item.name || item.phone || ""}`}
+                          onArchived={load}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -1,5 +1,7 @@
 "use client";
 
+import InlineArchiveButton from "@/app/admin/archive/InlineArchiveButton";
+
 import Link from "next/link";
 import {
   useEffect,
@@ -510,17 +512,32 @@ export default function CustomerManagement({
                       </td>
 
                       <td>
-                        <Link
-                          href={`/admin/customers/${customer.id}`}
+                        <div
                           style={{
-                            ...secondaryButtonStyle,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            textDecoration: "none",
+                            display: "flex",
+                            gap: 6,
+                            flexWrap: "wrap",
                           }}
                         >
-                          فتح الملف
-                        </Link>
+                          <Link
+                            href={`/admin/customers/${customer.id}`}
+                            style={{
+                              ...secondaryButtonStyle,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              textDecoration: "none",
+                            }}
+                          >
+                            فتح الملف
+                          </Link>
+
+                          <InlineArchiveButton
+                            type="customers"
+                            id={customer.id}
+                            label={`العميل ${customer.name}`}
+                            onArchived={load}
+                          />
+                        </div>
                       </td>
 
                       {canEdit && (

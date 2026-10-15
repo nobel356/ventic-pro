@@ -209,13 +209,16 @@ model AuditLog {
 }
 
 model ArchiveVaultSetting {
-  id             String   @id
-  passwordHash   String
-  version        Int      @default(1)
-  updatedById    String?
-  updatedByLabel String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String    @id
+  passwordHash        String
+  version             Int       @default(1)
+  updatedById         String?
+  updatedByLabel      String
+  resetTokenHash      String?
+  resetTokenExpiresAt DateTime?
+  resetRequestedAt    DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 enum QuoteStatus {
