@@ -58,7 +58,7 @@ export default function ArchivePurgePanel() {
   const [kind, setKind] =
     useState<Kind>("orders");
   const [selected, setSelected] =
-    useState("");
+    useState<string[]>([]);
   const [busy, setBusy] =
     useState(false);
   const [message, setMessage] =
@@ -111,56 +111,116 @@ export default function ArchivePurgePanel() {
     [items, kind],
   );
 
-  if (
-    !status?.isSuperAdmin
+  const allSelected =
+    rows.length > 0 &&
+    rows.every((row: any) =>
+      selected.includes(
+        row.id,
+      ),
+    );
+
+  function toggle(
+    id: string,
   ) {
-    return null;
-  }
-
-  if (!status?.unlocked) {
-    return (
-      <section style={cardStyle}>
-        <h2 style={{ marginTop: 0 }}>
-          الحذف النهائي
-        </h2>
-        <p style={mutedStyle}>
-          افتح Archive Vault أولًا
-          لإدارة الحذف النهائي.
-        </p>
-        <button
-          type="button"
-          onClick={() => void load()}
-          style={{
-            minHeight: 40,
-            border: "1px solid #cbd5e1",
-            borderRadius: 9,
-            background: "white",
-            color: "#0f2d4a",
-            padding: "0 12px",
-            fontWeight: 900,
-            cursor: "pointer",
-          }}
-        >
-          تحديث بعد فتح الخزنة
-        </button>
-      </section>
+    setSelected((current) =>
+      current.includes(id)
+        ? current.filter(
+            (value) =>
+              value !== id,
+          )
+        : [
+            ...current,
+            id,
+          ],
     );
   }
 
-  async function purge() {
-    const item = rows.find(
-      (row: any) =>
-        row.id === selected,
+  function toggleAll() {
+    if (allSelected) {
+      setSelected([]);
+      return;
+    }
+
+    setSelected(
+      rows.map(
+        (row: any) =>
+          row.id,
+      ),
     );
+  }
 
-    if (!item) return;
+  async function restoreSelected() {
+    if (!selected.length) {
+      return;
+    }
 
-    const label =
-      itemLabel(kind, item);
+    if (
+      !window.confirm(
+        `استرجاع ${selected.length.toLocaleString("ar-EG")} عنصر محدد؟`,
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    setError("");
+
+    const failed: string[] =
+      [];
+
+    try {
+      for (const id of selected) {
+        const response =
+          await fetch(
+            `/api/admin/archive/${kind}/${id}`,
+            {
+              method: "POST",
+            },
+          );
+
+        if (!response.ok) {
+          const data =
+            await response
+              .json()
+              .catch(
+                () => ({}),
+              );
+
+          failed.push(
+            data?.error ||
+              id,
+          );
+        }
+      }
+
+      if (failed.length) {
+        setError(
+          `فشل استرجاع ${failed.length.toLocaleString("ar-EG")} عنصر: ${failed
+            .slice(0, 5)
+            .join(" • ")}`,
+        );
+      } else {
+        setMessage(
+          "تم استرجاع العناصر المحددة.",
+        );
+      }
+
+      setSelected([]);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function purgeSelected() {
+    if (!selected.length) {
+      return;
+    }
 
     const confirm =
       window.prompt(
-        `الحذف النهائي لا يمكن التراجع عنه.\n\nالعنصر: ${label}\n\nاكتب: حذف نهائي`,
+        `سيتم حذف ${selected.length.toLocaleString("ar-EG")} عنصر نهائيًا مع البيانات التابعة له.\n\nلا يمكن التراجع.\n\nاكتب: حذف نهائي`,
       );
 
     if (
@@ -174,79 +234,127 @@ export default function ArchivePurgePanel() {
     setMessage("");
     setError("");
 
+    const failed: string[] =
+      [];
+
     try {
-      const response =
-        await fetch(
-          `/api/admin/archive/purge/${kind}/${item.id}`,
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type":
-                "application/json",
+      for (const id of selected) {
+        const response =
+          await fetch(
+            `/api/admin/archive/purge/${kind}/${id}`,
+            {
+              method:
+                "DELETE",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body:
+                JSON.stringify({
+                  confirm:
+                    "حذف نهائي",
+                }),
             },
-            body:
-              JSON.stringify({
-                confirm:
-                  "حذف نهائي",
-              }),
-          },
+          );
+
+        if (!response.ok) {
+          const data =
+            await response
+              .json()
+              .catch(
+                () => ({}),
+              );
+
+          failed.push(
+            data?.error ||
+              id,
+          );
+        }
+      }
+
+      if (failed.length) {
+        setError(
+          `تعذر حذف ${failed.length.toLocaleString("ar-EG")} عنصر: ${failed
+            .slice(0, 5)
+            .join(" • ")}`,
         );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            "تعذر الحذف النهائي.",
+      } else {
+        setMessage(
+          "تم حذف العناصر المحددة نهائيًا.",
         );
       }
 
-      setMessage(
-        `تم حذف ${label} نهائيًا.`,
-      );
-      setSelected("");
+      setSelected([]);
       await load();
-    } catch (err: any) {
-      setError(
-        err?.message ||
-          "تعذر الحذف النهائي.",
-      );
     } finally {
       setBusy(false);
     }
   }
 
+  if (
+    !status?.isSuperAdmin
+  ) {
+    return null;
+  }
+
+  if (!status?.unlocked) {
+    return (
+      <section style={cardStyle}>
+        <h2 style={{ marginTop: 0 }}>
+          إدارة جماعية للأرشيف
+        </h2>
+        <p style={mutedStyle}>
+          افتح Archive Vault أولًا
+          للاسترجاع أو الحذف النهائي
+          الجماعي.
+        </p>
+        <button
+          type="button"
+          onClick={() =>
+            void load()
+          }
+          style={secondaryStyle}
+        >
+          تحديث بعد فتح الخزنة
+        </button>
+      </section>
+    );
+  }
+
   return (
     <section style={dangerCard}>
-      <h2
-        style={{
-          marginTop: 0,
-          color: "#991b1b",
-        }}
-      >
-        ⚠️ الحذف النهائي
-      </h2>
+      <div style={headStyle}>
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              color: "#991b1b",
+            }}
+          >
+            إدارة جماعية داخل الأرشيف
+          </h2>
+          <p style={mutedStyle}>
+            اختار أكثر من عنصر ثم
+            استرجعهم مرة واحدة أو
+            احذفهم نهائيًا.
+          </p>
+        </div>
 
-      <p style={mutedStyle}>
-        متاح لـ Super Admin فقط.
-        العناصر المرتبطة بتاريخ مالي
-        أو تشغيلي مهم يتم منع حذفها
-        بدل إتلاف السجلات.
-      </p>
-
-      <div style={gridStyle}>
         <select
           value={kind}
           onChange={(event) => {
             setKind(
-              event.target.value as Kind,
+              event.target
+                .value as Kind,
             );
-            setSelected("");
+            setSelected([]);
             setMessage("");
             setError("");
           }}
-          style={inputStyle}
+          style={{
+            ...inputStyle,
+            maxWidth: 260,
+          }}
         >
           {(
             Object.keys(
@@ -261,46 +369,123 @@ export default function ArchivePurgePanel() {
             </option>
           ))}
         </select>
+      </div>
 
-        <select
-          value={selected}
-          onChange={(event) =>
-            setSelected(
-              event.target.value,
-            )
-          }
-          style={inputStyle}
+      <div style={toolbarStyle}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontWeight: 800,
+          }}
         >
-          <option value="">
-            اختر عنصرًا مؤرشفًا
-          </option>
-          {rows.map((item: any) => (
-            <option
-              key={item.id}
-              value={item.id}
-            >
-              {itemLabel(
-                kind,
-                item,
-              )}
-            </option>
-          ))}
-        </select>
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={toggleAll}
+          />
+          تحديد الكل
+        </label>
+
+        <span>
+          المحدد:{" "}
+          <strong>
+            {selected.length}
+          </strong>
+        </span>
 
         <button
           type="button"
           disabled={
-            busy || !selected
+            busy ||
+            !selected.length
           }
           onClick={() =>
-            void purge()
+            void restoreSelected()
+          }
+          style={restoreStyle}
+        >
+          استرجاع المحدد
+        </button>
+
+        <button
+          type="button"
+          disabled={
+            busy ||
+            !selected.length
+          }
+          onClick={() =>
+            void purgeSelected()
           }
           style={deleteStyle}
         >
-          {busy
-            ? "جاري الحذف..."
-            : "حذف نهائي"}
+          حذف المحدد نهائيًا
         </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gap: 8,
+          marginTop: 14,
+        }}
+      >
+        {rows.length === 0 ? (
+          <p style={mutedStyle}>
+            لا توجد عناصر مؤرشفة
+            في هذا القسم.
+          </p>
+        ) : (
+          rows.map(
+            (item: any) => (
+              <label
+                key={item.id}
+                style={rowStyle}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(
+                    item.id,
+                  )}
+                  onChange={() =>
+                    toggle(
+                      item.id,
+                    )
+                  }
+                />
+
+                <span>
+                  <strong>
+                    {itemLabel(
+                      kind,
+                      item,
+                    )}
+                  </strong>
+
+                  {item.archivedAt && (
+                    <small
+                      style={{
+                        display:
+                          "block",
+                        color:
+                          "#64748b",
+                        marginTop: 3,
+                      }}
+                    >
+                      مؤرشف:{" "}
+                      {new Date(
+                        item.archivedAt,
+                      ).toLocaleString(
+                        "ar-EG",
+                      )}
+                    </small>
+                  )}
+                </span>
+              </label>
+            ),
+          )
+        )}
       </div>
 
       {message && (
@@ -334,17 +519,43 @@ const dangerCard: React.CSSProperties = {
   background: "#fffafa",
 };
 
+const headStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent:
+    "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const toolbarStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+  marginTop: 14,
+  padding: 12,
+  borderRadius: 12,
+  background: "white",
+  border:
+    "1px solid #e2e8f0",
+};
+
+const rowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: 11,
+  border:
+    "1px solid #e2e8f0",
+  borderRadius: 10,
+  background: "white",
+  cursor: "pointer",
+};
+
 const mutedStyle: React.CSSProperties = {
   color: "#64748b",
   lineHeight: 1.8,
-};
-
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns:
-    "repeat(auto-fit,minmax(220px,1fr))",
-  gap: 10,
-  alignItems: "center",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -358,14 +569,38 @@ const inputStyle: React.CSSProperties = {
   font: "inherit",
 };
 
+const secondaryStyle: React.CSSProperties = {
+  minHeight: 40,
+  border:
+    "1px solid #cbd5e1",
+  borderRadius: 9,
+  background: "white",
+  color: "#0f2d4a",
+  padding: "0 12px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const restoreStyle: React.CSSProperties = {
+  minHeight: 40,
+  border:
+    "1px solid #86efac",
+  borderRadius: 9,
+  background: "#f0fdf4",
+  color: "#166534",
+  padding: "0 12px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
 const deleteStyle: React.CSSProperties = {
-  minHeight: 44,
+  minHeight: 40,
   border: 0,
-  borderRadius: 10,
+  borderRadius: 9,
   background: "#b91c1c",
   color: "white",
+  padding: "0 12px",
   fontWeight: 900,
-  padding: "0 14px",
   cursor: "pointer",
 };
 

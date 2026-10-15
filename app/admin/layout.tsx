@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth-v7";
 import AdminNotificationCenter from "./AdminNotificationCenter";
 import AdminSidebar from "./AdminSidebar";
+import BulkOperationsDock from "./BulkOperationsDock";
 import AccountMenu from "@/app/shared/AccountMenu";
 import BackButton from "@/app/shared/BackButton";
 
@@ -134,6 +135,12 @@ export default async function AdminLayout({
     user.permissions,
   );
 
+  const canArchive = can(
+    user.role,
+    PERMISSIONS.ARCHIVE_MANAGE,
+    user.permissions,
+  );
+
   return (
     <div className="vpAdminWorkspace">
       <AdminSidebar
@@ -162,6 +169,11 @@ export default async function AdminLayout({
         <BackButton fallbackHref="/admin" />
         {children}
       </div>
+
+      <BulkOperationsDock
+        canArchive={canArchive}
+        currentUserId={user.id}
+      />
 
       <style>{`
         .vpAdminWorkspace {

@@ -63,7 +63,7 @@ export default function InlineArchiveButton({
 
   if (!visible) return null;
 
-  async function doArchive(reason: string) {
+  async function doArchive() {
     return fetch(
       `/api/admin/archive/${type}/${id}`,
       {
@@ -72,27 +72,16 @@ export default function InlineArchiveButton({
           "Content-Type":
             "application/json",
         },
+        // السبب لم يعد جزءًا من تجربة المستخدم.
+        // القيمة الداخلية فقط للتوافق مع API الحالي.
         body: JSON.stringify({
-          reason,
+          reason: "بدون سبب",
         }),
       },
     );
   }
 
   async function run() {
-    const reason = window.prompt(
-      `سبب أرشفة ${label}:`,
-    );
-
-    if (reason === null) return;
-
-    if (reason.trim().length < 3) {
-      window.alert(
-        "سبب الأرشفة يجب ألا يقل عن 3 أحرف.",
-      );
-      return;
-    }
-
     if (
       !window.confirm(
         `نقل ${label} إلى Archive Vault؟`,
@@ -105,9 +94,7 @@ export default function InlineArchiveButton({
 
     try {
       let response =
-        await doArchive(
-          reason.trim(),
-        );
+        await doArchive();
       let data =
         await response.json();
 
@@ -152,10 +139,9 @@ export default function InlineArchiveButton({
           );
         }
 
+        statusPromise = null;
         response =
-          await doArchive(
-            reason.trim(),
-          );
+          await doArchive();
         data =
           await response.json();
       }
