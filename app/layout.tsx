@@ -7,6 +7,7 @@ import SiteChrome from "@/app/shared/SiteChrome";
 import PwaInstallPrompt from "@/app/shared/PwaInstallPrompt";
 import MarketingAttribution from "@/app/shared/MarketingAttribution";
 import SeoJsonLd from "@/app/shared/SeoJsonLd";
+import PortfolioPortal from "@/app/shared/PortfolioPortal";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -74,6 +75,7 @@ export default function Layout({
         <MarketingAttribution />
         <SeoJsonLd />
         {children}
+        <PortfolioPortal />
         <SiteChrome />
         <PwaInstallPrompt />
       </body>
