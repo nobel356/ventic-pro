@@ -1,6 +1,5 @@
 "use client";
 
-import { upload } from "@vercel/blob/client";
 import { useEffect, useState } from "react";
 
 type Item = {
@@ -163,56 +162,174 @@ export default function PortfolioVideosAdmin() {
               .slice(0, 8) || "mp4"
           : "mp4";
 
-      const uniqueId =
-        typeof crypto !== "undefined" &&
-        typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()
-              .toString(36)
-              .slice(2, 12)}`;
+      const contentType =
+        file.type ||
+        (extension === "mov"
+          ? "video/quicktime"
+          : extension === "webm"
+            ? "video/webm"
+            : "video/mp4");
+
+      const presignResponse =
+        await fetch(
+          "/api/admin/portfolio-videos/presign",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                extension,
+                contentType,
+                size:
+                  file.size,
+              }),
+          },
+        );
+
+      const presignData =
+        await presignResponse
+          .json()
+          .catch(
+            () => ({}),
+          );
+
+      if (
+        !presignResponse.ok ||
+        !presignData?.presignedUrl ||
+        !presignData?.pathname
+      ) {
+        throw new Error(
+          presignData?.detail ||
+            presignData?.error ||
+            "تعذر تجهيز رابط الرفع.",
+        );
+      }
 
       const pathname =
-        `portfolio/${uniqueId}.${extension}`;
+        String(
+          presignData.pathname,
+        );
 
-      const blob =
-        await upload(
-          pathname,
-          file,
-          {
-            access:
-              "private",
-            handleUploadUrl:
-              "/api/admin/portfolio-videos/upload",
-            multipart: true,
-            onUploadProgress(
-              progress,
-            ) {
-              setUploadStage(
-                "upload",
-              );
+      setUploadStage(
+        "upload",
+      );
+      setMessage(
+        "جاري رفع الفيديو... 0%",
+      );
 
-              const next =
-                Math.max(
-                  0,
-                  Math.min(
-                    100,
-                    Math.round(
-                      progress.percentage ||
-                        0,
+      const uploadedBlob =
+        await new Promise<{
+          url?: string;
+          pathname?: string;
+        }>(
+          (
+            resolve,
+            reject,
+          ) => {
+            const xhr =
+              new XMLHttpRequest();
+
+            xhr.open(
+              "PUT",
+              String(
+                presignData.presignedUrl,
+              ),
+              true,
+            );
+
+            xhr.setRequestHeader(
+              "content-type",
+              contentType,
+            );
+
+            xhr.upload.onprogress =
+              (event) => {
+                if (
+                  !event.lengthComputable
+                ) {
+                  return;
+                }
+
+                const next =
+                  Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      Math.round(
+                        (event.loaded /
+                          event.total) *
+                          100,
+                      ),
                     ),
+                  );
+
+                setUploadProgress(
+                  next,
+                );
+
+                setMessage(
+                  `جاري رفع الفيديو... ${next}%`,
+                );
+              };
+
+            xhr.onerror =
+              () =>
+                reject(
+                  new Error(
+                    "فشل الاتصال أثناء رفع الفيديو.",
                   ),
                 );
 
-              setUploadProgress(
-                next,
-              );
+            xhr.onabort =
+              () =>
+                reject(
+                  new Error(
+                    "تم إلغاء رفع الفيديو.",
+                  ),
+                );
 
-              setMessage(
-                `جاري رفع الفيديو... ${next}%`,
-              );
-            },
+            xhr.onload = () => {
+              if (
+                xhr.status < 200 ||
+                xhr.status >= 300
+              ) {
+                reject(
+                  new Error(
+                    xhr.responseText ||
+                      `فشل رفع الفيديو (${xhr.status}).`,
+                  ),
+                );
+                return;
+              }
+
+              try {
+                resolve(
+                  xhr.responseText
+                    ? JSON.parse(
+                        xhr.responseText,
+                      )
+                    : {},
+                );
+              } catch {
+                resolve({});
+              }
+            };
+
+            xhr.send(file);
           },
         );
+
+      const blob = {
+        url:
+          uploadedBlob.url ||
+          pathname,
+        pathname:
+          uploadedBlob.pathname ||
+          pathname,
+      };
 
       setUploadProgress(100);
       setUploadStage("save");
@@ -484,7 +601,7 @@ export default function PortfolioVideosAdmin() {
               fontWeight: 900,
             }}
           >
-            Uploader V16H
+            Uploader V16I
           </span>
         </div>
 
