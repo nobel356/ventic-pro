@@ -49,7 +49,7 @@ const navItems: NavItem[] = [
     technicianPerformancePermission: true,
   },
   {
-    href: "/admin/portfolio-videos",
+    href: "/admin/work-videos",
     label: "فيديوهات الأعمال",
     icon: "🎬",
     superAdminOnly: true,
