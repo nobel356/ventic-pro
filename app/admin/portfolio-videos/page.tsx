@@ -27,12 +27,20 @@ const emptyForm = {
   isPublished: false,
 };
 
+function fileSizeLabel(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`;
+}
+
 export default function PortfolioVideosAdmin() {
   const [items, setItems] = useState<Item[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
 
   async function load() {
     const response = await fetch("/api/admin/portfolio-videos", {
@@ -74,15 +82,28 @@ export default function PortfolioVideosAdmin() {
     }
 
     setBusy(true);
-    setMessage("جاري رفع الفيديو مباشرة إلى التخزين...");
+    setUploading(true);
+    setUploadProgress(0);
+    setMessage("جاري رفع الفيديو...");
 
     try {
       const blob = await upload(file.name, file, {
         access: "public",
         handleUploadUrl: "/api/admin/portfolio-videos/upload",
+        multipart: true,
+        onUploadProgress(progress) {
+          const next = Math.max(
+            0,
+            Math.min(100, Math.round(progress.percentage || 0)),
+          );
+          setUploadProgress(next);
+          setMessage(`جاري رفع الفيديو... ${next}%`);
+        },
       });
 
-      setMessage("تم رفع الفيديو. جاري حفظ بياناته...");
+      setUploadProgress(100);
+      setUploading(false);
+      setMessage("تم رفع الفيديو 100%. جاري حفظ بياناته...");
 
       const response = await fetch("/api/admin/portfolio-videos", {
         method: "POST",
@@ -105,12 +126,19 @@ export default function PortfolioVideosAdmin() {
       setMessage("تم رفع الفيديو وحفظه بنجاح.");
       await load();
 
-      const input = document.getElementById("portfolio-video-file") as HTMLInputElement | null;
+      const input = document.getElementById(
+        "portfolio-video-file",
+      ) as HTMLInputElement | null;
+
       if (input) input.value = "";
     } catch (error: any) {
+      setUploading(false);
       setMessage(error?.message || "تعذر رفع الفيديو.");
     } finally {
       setBusy(false);
+      window.setTimeout(() => {
+        setUploadProgress(0);
+      }, 1200);
     }
   }
 
@@ -185,11 +213,12 @@ export default function PortfolioVideosAdmin() {
 
   return (
     <main
+      className="vpPortfolioAdminPage"
       dir="rtl"
       style={{
         width: "min(1180px, calc(100% - 28px))",
         margin: "0 auto",
-        padding: "18px 0 50px",
+        padding: "18px 0 110px",
       }}
     >
       <div style={{ marginBottom: 20 }}>
@@ -293,13 +322,89 @@ export default function PortfolioVideosAdmin() {
             id="portfolio-video-file"
             type="file"
             accept="video/mp4,video/quicktime,video/webm"
-            onChange={(event) => setFile(event.target.files?.[0] || null)}
+            disabled={busy}
+            onChange={(event) => {
+              setFile(event.target.files?.[0] || null);
+              setUploadProgress(0);
+              setMessage("");
+            }}
             style={{ fontSize: 16 }}
           />
+
+          {file && (
+            <small style={{ color: "#475569", fontWeight: 800 }}>
+              {file.name} · {fileSizeLabel(file.size)}
+            </small>
+          )}
+
           <small style={{ color: "#64748b" }}>
             يدعم MP4 / MOV / WebM حتى 500 MB. يفضل MP4 H.264 عشان يشتغل على كل الأجهزة.
           </small>
         </label>
+
+        {(uploading || uploadProgress > 0) && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: 13,
+              border: "1px solid #cfe8f5",
+              borderRadius: 14,
+              background: "#f8fcff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                marginBottom: 8,
+                color: "#0b2f49",
+                fontWeight: 900,
+                fontSize: 13,
+              }}
+            >
+              <span>
+                {uploadProgress >= 100
+                  ? "تم رفع الملف"
+                  : "جاري رفع الفيديو"}
+              </span>
+              <strong>{uploadProgress}%</strong>
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                height: 12,
+                background: "#dcecf5",
+                borderRadius: 999,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${uploadProgress}%`,
+                  height: "100%",
+                  background:
+                    "linear-gradient(90deg,#0a84ff,#38bdf8)",
+                  borderRadius: 999,
+                  transition: "width .18s ease",
+                }}
+              />
+            </div>
+
+            {file && (
+              <small
+                style={{
+                  display: "block",
+                  color: "#64748b",
+                  marginTop: 7,
+                }}
+              >
+                {fileSizeLabel(file.size)}
+              </small>
+            )}
+          </div>
+        )}
 
         <div
           style={{
@@ -313,6 +418,7 @@ export default function PortfolioVideosAdmin() {
             <input
               type="checkbox"
               checked={form.customerConsent}
+              disabled={busy}
               onChange={(event) =>
                 setForm((value) => ({
                   ...value,
@@ -327,6 +433,7 @@ export default function PortfolioVideosAdmin() {
             <input
               type="checkbox"
               checked={form.isPublished}
+              disabled={busy}
               onChange={(event) =>
                 setForm((value) => ({
                   ...value,
@@ -342,9 +449,16 @@ export default function PortfolioVideosAdmin() {
           type="button"
           disabled={busy}
           onClick={() => void createVideo()}
-          style={primaryButton}
+          style={{
+            ...primaryButton,
+            opacity: busy ? 0.65 : 1,
+          }}
         >
-          {busy ? "جاري التنفيذ..." : "رفع الفيديو"}
+          {uploading
+            ? `جاري الرفع ${uploadProgress}%`
+            : busy
+              ? "جاري الحفظ..."
+              : "رفع الفيديو"}
         </button>
       </section>
 

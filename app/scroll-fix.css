@@ -1,0 +1,78 @@
+
+/* Ventic Pro V16B — restore normal desktop/admin document scrolling */
+
+html,
+body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
+}
+
+body {
+  position: static !important;
+}
+
+/* The admin sidebar remains fixed, but the document/content must keep growing. */
+.vpAdminWorkspace {
+  min-height: 100vh !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.vpAdminContent {
+  min-height: 100vh !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  padding-bottom: 96px !important;
+}
+
+.vpAdminContent > main,
+.vpAdminContent > .admin,
+.vpAdminContent > .adminShell,
+.vpAdminContent > .order {
+  height: auto !important;
+  max-height: none !important;
+  overflow-y: visible !important;
+}
+
+.vpAdminContent > .adminShell {
+  min-height: 100vh !important;
+}
+
+.vpAdminContent > .adminShell > .adminMain {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-bottom: 72px !important;
+}
+
+/* Keep horizontal table scrolling without hijacking vertical wheel scrolling. */
+.tableWrap {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+/* Portfolio admin needs breathing room below the final card. */
+.vpPortfolioAdminPage {
+  min-height: calc(100vh - 74px);
+  padding-bottom: 110px !important;
+}
+
+/* Mobile/iPhone keeps safe-area behavior, but no global scroll lock. */
+@media (max-width: 820px) {
+  html,
+  body {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .vpAdminContent {
+    padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 78px)) !important;
+  }
+
+  .vpPortfolioAdminPage {
+    padding-bottom: max(110px, calc(env(safe-area-inset-bottom) + 90px)) !important;
+  }
+}
