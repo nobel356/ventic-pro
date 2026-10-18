@@ -153,8 +153,26 @@ export default function PortfolioVideosAdmin() {
     );
 
     try {
+      const extension =
+        file.name.includes(".")
+          ? file.name
+              .split(".")
+              .pop()
+              ?.toLowerCase()
+              .replace(/[^a-z0-9]/g, "")
+              .slice(0, 8) || "mp4"
+          : "mp4";
+
+      const uniqueId =
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2, 12)}`;
+
       const pathname =
-        `portfolio/${Date.now()}-${file.name}`;
+        `portfolio/${uniqueId}.${extension}`;
 
       const blob =
         await upload(
