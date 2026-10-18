@@ -2,40 +2,50 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import PortfolioGallery from "@/app/shared/PortfolioGallery";
+
+function HeaderWorksLinkPortal() {
+  const [target, setTarget] =
+    useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const header = document.querySelector("main > header");
+    if (!header) return;
+
+    const actionGroups = Array.from(
+      header.querySelectorAll(":scope > div"),
+    );
+
+    const actionGroup = actionGroups.find((element) =>
+      element.querySelector('a[href="/customer"]'),
+    ) as HTMLElement | undefined;
+
+    if (actionGroup) {
+      setTarget(actionGroup);
+    }
+  }, []);
+
+  if (!target) return null;
+
+  return createPortal(
+    <Link className="outline" href="/works">
+      أعمالنا
+    </Link>,
+    target,
+  );
+}
 
 export default function PortfolioPortal() {
   const pathname = usePathname();
 
   if (pathname === "/") {
-    return <PortfolioGallery limit={4} showAllLink />;
-  }
-
-  if (
-    pathname.startsWith("/admin") &&
-    pathname !== "/admin/portfolio-videos"
-  ) {
     return (
-      <Link
-        href="/admin/portfolio-videos"
-        style={{
-          position: "fixed",
-          left: 18,
-          bottom: "max(18px, calc(env(safe-area-inset-bottom) + 10px))",
-          zIndex: 1450,
-          borderRadius: 999,
-          background: "#0b2f49",
-          color: "white",
-          textDecoration: "none",
-          padding: "11px 15px",
-          fontWeight: 900,
-          fontSize: 13,
-          boxShadow: "0 12px 30px rgba(7,26,43,.22)",
-          border: "1px solid rgba(255,255,255,.18)",
-        }}
-      >
-        🎬 فيديوهات الأعمال
-      </Link>
+      <>
+        <HeaderWorksLinkPortal />
+        <PortfolioGallery limit={4} showAllLink />
+      </>
     );
   }
 

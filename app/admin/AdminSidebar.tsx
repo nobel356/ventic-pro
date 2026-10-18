@@ -49,6 +49,12 @@ const navItems: NavItem[] = [
     technicianPerformancePermission: true,
   },
   {
+    href: "/admin/portfolio-videos",
+    label: "فيديوهات الأعمال",
+    icon: "🎬",
+    superAdminOnly: true,
+  },
+  {
     href: "/admin/inventory",
     label: "المخزون",
     icon: "📦",
