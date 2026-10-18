@@ -1,4 +1,8 @@
 import crypto from "crypto";
+import {
+  issueSignedToken,
+  presignUrl,
+} from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/auth-v7";
 import { deleteStoredFile } from "@/lib/storage";
@@ -25,84 +29,196 @@ function clean(value: unknown, max = 300) {
   return text ? text.slice(0, max) : null;
 }
 
-function validBlobUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      url.hostname.endsWith("blob.vercel-storage.com")
-    );
-  } catch {
-    return false;
-  }
-}
-
 async function auth() {
   try {
     return await requireSuperAdmin();
   } catch (error: any) {
-    const message = error?.message || "FORBIDDEN";
-    const status = message === "UNAUTHENTICATED" ? 401 : 403;
-    throw Object.assign(new Error(message), { status });
+    const message =
+      error?.message || "FORBIDDEN";
+    const status =
+      message === "UNAUTHENTICATED"
+        ? 401
+        : 403;
+
+    throw Object.assign(
+      new Error(message),
+      { status },
+    );
   }
+}
+
+async function signedReadUrl(
+  pathname: string,
+) {
+  const validUntil =
+    Date.now() + 60 * 60 * 1000;
+
+  const token =
+    await issueSignedToken({
+      pathname,
+      operations: ["get"],
+      validUntil,
+    });
+
+  const result =
+    await presignUrl(
+      token,
+      {
+        pathname,
+        operation: "get",
+        validUntil,
+      },
+    );
+
+  return result.presignedUrl;
 }
 
 export async function GET() {
   try {
     await auth();
 
-    const items = await prisma.$queryRaw<PortfolioVideoRow[]>`
-      SELECT *
-      FROM "PortfolioVideo"
-      ORDER BY "sortOrder" ASC, "createdAt" DESC
-    `;
+    const rows =
+      await prisma.$queryRaw<
+        PortfolioVideoRow[]
+      >`
+        SELECT *
+        FROM "PortfolioVideo"
+        ORDER BY "sortOrder" ASC, "createdAt" DESC
+      `;
 
-    return Response.json({ items });
+    const items =
+      await Promise.all(
+        rows.map(
+          async (item) => ({
+            ...item,
+            blobUrl:
+              await signedReadUrl(
+                item.blobPathname,
+              ),
+          }),
+        ),
+      );
+
+    return Response.json({
+      items,
+    });
   } catch (error: any) {
+    console.error(
+      "[portfolio-videos-admin-get]",
+      {
+        name: error?.name,
+        message:
+          error?.message,
+      },
+    );
+
     return Response.json(
-      { error: error?.message || "FAILED" },
-      { status: error?.status || 500 },
+      {
+        error:
+          error?.message ||
+          "FAILED",
+      },
+      {
+        status:
+          error?.status || 500,
+      },
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+) {
   try {
     const user = await auth();
-    const body = await request.json();
+    const body =
+      await request.json();
 
-    const title = clean(body?.title, 120);
-    const caption = clean(body?.caption, 700);
-    const location = clean(body?.location, 120);
-    const serviceType = clean(body?.serviceType, 120);
-    const blobUrl = String(body?.blobUrl || "").trim();
-    const blobPathname = String(body?.blobPathname || "").trim();
-    const sortOrder = Number.isFinite(Number(body?.sortOrder))
-      ? Math.max(-9999, Math.min(9999, Number(body.sortOrder)))
-      : 0;
-    const customerConsent = Boolean(body?.customerConsent);
-    const isPublished = Boolean(body?.isPublished);
+    const title = clean(
+      body?.title,
+      120,
+    );
+    const caption = clean(
+      body?.caption,
+      700,
+    );
+    const location = clean(
+      body?.location,
+      120,
+    );
+    const serviceType =
+      clean(
+        body?.serviceType,
+        120,
+      );
+    const blobUrl = String(
+      body?.blobUrl || "",
+    ).trim();
+    const blobPathname =
+      String(
+        body?.blobPathname ||
+          "",
+      ).trim();
 
-    if (!title || !blobUrl || !blobPathname) {
+    const sortOrder =
+      Number.isFinite(
+        Number(
+          body?.sortOrder,
+        ),
+      )
+        ? Math.max(
+            -9999,
+            Math.min(
+              9999,
+              Number(
+                body.sortOrder,
+              ),
+            ),
+          )
+        : 0;
+
+    const customerConsent =
+      Boolean(
+        body?.customerConsent,
+      );
+    const isPublished =
+      Boolean(
+        body?.isPublished,
+      );
+
+    if (
+      !title ||
+      !blobUrl ||
+      !blobPathname
+    ) {
       return Response.json(
-        { error: "MISSING_REQUIRED_FIELDS" },
+        {
+          error:
+            "MISSING_REQUIRED_FIELDS",
+        },
         { status: 400 },
       );
     }
 
-    if (!validBlobUrl(blobUrl)) {
-      return Response.json({ error: "INVALID_BLOB_URL" }, { status: 400 });
-    }
-
-    if (isPublished && !customerConsent) {
+    if (
+      isPublished &&
+      !customerConsent
+    ) {
       return Response.json(
-        { error: "CUSTOMER_CONSENT_REQUIRED" },
+        {
+          error:
+            "CUSTOMER_CONSENT_REQUIRED",
+        },
         { status: 400 },
       );
     }
 
-    const id = crypto.randomUUID();
-    const publishedAt = isPublished ? new Date() : null;
+    const id =
+      crypto.randomUUID();
+    const publishedAt =
+      isPublished
+        ? new Date()
+        : null;
 
     await prisma.$executeRaw`
       INSERT INTO "PortfolioVideo" (
@@ -133,69 +249,157 @@ export async function POST(request: Request) {
         ${customerConsent},
         ${isPublished},
         ${publishedAt},
-        ${user.name || user.email || "Super Admin"},
+        ${
+          user.name ||
+          user.email ||
+          "Super Admin"
+        },
         NOW(),
         NOW()
       )
     `;
 
-    return Response.json({ ok: true, id });
+    return Response.json({
+      ok: true,
+      id,
+    });
   } catch (error: any) {
+    console.error(
+      "[portfolio-videos-admin-post]",
+      {
+        name: error?.name,
+        message:
+          error?.message,
+      },
+    );
+
     return Response.json(
-      { error: error?.message || "FAILED" },
-      { status: error?.status || 500 },
+      {
+        error:
+          error?.message ||
+          "FAILED",
+      },
+      {
+        status:
+          error?.status || 500,
+      },
     );
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(
+  request: Request,
+) {
   try {
     await auth();
-    const body = await request.json();
-    const id = String(body?.id || "").trim();
+    const body =
+      await request.json();
+    const id = String(
+      body?.id || "",
+    ).trim();
 
     if (!id) {
-      return Response.json({ error: "ID_REQUIRED" }, { status: 400 });
+      return Response.json(
+        { error: "ID_REQUIRED" },
+        { status: 400 },
+      );
     }
 
-    const rows = await prisma.$queryRaw<PortfolioVideoRow[]>`
-      SELECT *
-      FROM "PortfolioVideo"
-      WHERE "id" = ${id}
-      LIMIT 1
-    `;
+    const rows =
+      await prisma.$queryRaw<
+        PortfolioVideoRow[]
+      >`
+        SELECT *
+        FROM "PortfolioVideo"
+        WHERE "id" = ${id}
+        LIMIT 1
+      `;
 
-    const current = rows[0];
+    const current =
+      rows[0];
 
     if (!current) {
-      return Response.json({ error: "NOT_FOUND" }, { status: 404 });
+      return Response.json(
+        { error: "NOT_FOUND" },
+        { status: 404 },
+      );
     }
 
-    const title = clean(body?.title ?? current.title, 120) || current.title;
-    const caption = clean(body?.caption ?? current.caption, 700);
-    const location = clean(body?.location ?? current.location, 120);
-    const serviceType = clean(body?.serviceType ?? current.serviceType, 120);
-    const sortOrder = Number.isFinite(Number(body?.sortOrder))
-      ? Math.max(-9999, Math.min(9999, Number(body.sortOrder)))
-      : current.sortOrder;
+    const title =
+      clean(
+        body?.title ??
+          current.title,
+        120,
+      ) || current.title;
+
+    const caption =
+      clean(
+        body?.caption ??
+          current.caption,
+        700,
+      );
+
+    const location =
+      clean(
+        body?.location ??
+          current.location,
+        120,
+      );
+
+    const serviceType =
+      clean(
+        body?.serviceType ??
+          current.serviceType,
+        120,
+      );
+
+    const sortOrder =
+      Number.isFinite(
+        Number(
+          body?.sortOrder,
+        ),
+      )
+        ? Math.max(
+            -9999,
+            Math.min(
+              9999,
+              Number(
+                body.sortOrder,
+              ),
+            ),
+          )
+        : current.sortOrder;
+
     const customerConsent =
-      typeof body?.customerConsent === "boolean"
+      typeof body
+        ?.customerConsent ===
+      "boolean"
         ? body.customerConsent
         : current.customerConsent;
+
     const isPublished =
-      typeof body?.isPublished === "boolean"
+      typeof body
+        ?.isPublished ===
+      "boolean"
         ? body.isPublished
         : current.isPublished;
 
-    if (isPublished && !customerConsent) {
+    if (
+      isPublished &&
+      !customerConsent
+    ) {
       return Response.json(
-        { error: "CUSTOMER_CONSENT_REQUIRED" },
+        {
+          error:
+            "CUSTOMER_CONSENT_REQUIRED",
+        },
         { status: 400 },
       );
     }
 
     const publishedAt =
-      isPublished && !current.isPublished
+      isPublished &&
+      !current.isPublished
         ? new Date()
         : isPublished
           ? current.publishedAt
@@ -216,36 +420,71 @@ export async function PATCH(request: Request) {
       WHERE "id" = ${id}
     `;
 
-    return Response.json({ ok: true });
+    return Response.json({
+      ok: true,
+    });
   } catch (error: any) {
+    console.error(
+      "[portfolio-videos-admin-patch]",
+      {
+        name: error?.name,
+        message:
+          error?.message,
+      },
+    );
+
     return Response.json(
-      { error: error?.message || "FAILED" },
-      { status: error?.status || 500 },
+      {
+        error:
+          error?.message ||
+          "FAILED",
+      },
+      {
+        status:
+          error?.status || 500,
+      },
     );
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(
+  request: Request,
+) {
   try {
     await auth();
-    const body = await request.json();
-    const id = String(body?.id || "").trim();
+
+    const body =
+      await request.json();
+
+    const id = String(
+      body?.id || "",
+    ).trim();
 
     if (!id) {
-      return Response.json({ error: "ID_REQUIRED" }, { status: 400 });
+      return Response.json(
+        { error: "ID_REQUIRED" },
+        { status: 400 },
+      );
     }
 
-    const rows = await prisma.$queryRaw<PortfolioVideoRow[]>`
-      SELECT *
-      FROM "PortfolioVideo"
-      WHERE "id" = ${id}
-      LIMIT 1
-    `;
+    const rows =
+      await prisma.$queryRaw<
+        PortfolioVideoRow[]
+      >`
+        SELECT *
+        FROM "PortfolioVideo"
+        WHERE "id" = ${id}
+        LIMIT 1
+      `;
 
-    const current = rows[0];
+    const current =
+      rows[0];
 
     if (!current) {
-      return Response.json({ error: "NOT_FOUND" }, { status: 404 });
+      return Response.json(
+        { error: "NOT_FOUND" },
+        { status: 404 },
+      );
     }
 
     await prisma.$executeRaw`
@@ -253,13 +492,33 @@ export async function DELETE(request: Request) {
       WHERE "id" = ${id}
     `;
 
-    await deleteStoredFile(current.blobPathname);
+    await deleteStoredFile(
+      current.blobPathname,
+    );
 
-    return Response.json({ ok: true });
+    return Response.json({
+      ok: true,
+    });
   } catch (error: any) {
+    console.error(
+      "[portfolio-videos-admin-delete]",
+      {
+        name: error?.name,
+        message:
+          error?.message,
+      },
+    );
+
     return Response.json(
-      { error: error?.message || "FAILED" },
-      { status: error?.status || 500 },
+      {
+        error:
+          error?.message ||
+          "FAILED",
+      },
+      {
+        status:
+          error?.status || 500,
+      },
     );
   }
 }

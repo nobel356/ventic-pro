@@ -5,9 +5,9 @@ import {
 import { requireSuperAdmin } from "@/lib/auth-v7";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as HandleUploadBody;
-
   try {
+    const body = (await request.json()) as HandleUploadBody;
+
     const response = await handleUpload({
       body,
       request,
@@ -27,26 +27,33 @@ export async function POST(request: Request) {
         };
       },
       onUploadCompleted: async () => {
-        // Metadata is saved explicitly by the admin page after the direct upload.
+        // Metadata is saved by the admin page after the direct upload completes.
       },
     });
 
     return Response.json(response);
   } catch (error: any) {
-    const message =
-      error?.message === "UNAUTHENTICATED"
-        ? "UNAUTHENTICATED"
-        : error?.message === "FORBIDDEN"
-          ? "FORBIDDEN"
-          : "UPLOAD_TOKEN_FAILED";
+    console.error("[portfolio-video-upload-token]", {
+      name: error?.name,
+      message: error?.message,
+    });
 
-    const status =
-      message === "UNAUTHENTICATED"
-        ? 401
-        : message === "FORBIDDEN"
-          ? 403
-          : 400;
+    const message = String(error?.message || "UPLOAD_TOKEN_FAILED");
 
-    return Response.json({ error: message }, { status });
+    if (message === "UNAUTHENTICATED") {
+      return Response.json({ error: message }, { status: 401 });
+    }
+
+    if (message === "FORBIDDEN") {
+      return Response.json({ error: message }, { status: 403 });
+    }
+
+    return Response.json(
+      {
+        error: "UPLOAD_TOKEN_FAILED",
+        detail: message,
+      },
+      { status: 400 },
+    );
   }
 }

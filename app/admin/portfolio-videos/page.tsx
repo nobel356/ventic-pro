@@ -27,33 +27,83 @@ const emptyForm = {
   isPublished: false,
 };
 
-function fileSizeLabel(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
-  const mb = bytes / (1024 * 1024);
-  return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`;
+function fileSizeLabel(
+  bytes: number,
+) {
+  if (
+    !Number.isFinite(bytes) ||
+    bytes <= 0
+  ) {
+    return "";
+  }
+
+  const mb =
+    bytes /
+    (1024 * 1024);
+
+  return `${mb.toFixed(
+    mb >= 100 ? 0 : 1,
+  )} MB`;
 }
 
 export default function PortfolioVideosAdmin() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [form, setForm] = useState(emptyForm);
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploading, setUploading] = useState(false);
+  const [items, setItems] =
+    useState<Item[]>([]);
+  const [form, setForm] =
+    useState(emptyForm);
+  const [file, setFile] =
+    useState<File | null>(
+      null,
+    );
+  const [busy, setBusy] =
+    useState(false);
+  const [message, setMessage] =
+    useState("");
+  const [
+    uploadProgress,
+    setUploadProgress,
+  ] = useState(0);
+  const [
+    uploadStage,
+    setUploadStage,
+  ] =
+    useState<
+      | "idle"
+      | "token"
+      | "upload"
+      | "save"
+      | "done"
+      | "error"
+    >("idle");
 
   async function load() {
-    const response = await fetch("/api/admin/portfolio-videos", {
-      cache: "no-store",
-    });
-    const data = await response.json().catch(() => ({}));
+    const response =
+      await fetch(
+        "/api/admin/portfolio-videos",
+        {
+          cache:
+            "no-store",
+        },
+      );
+
+    const data =
+      await response
+        .json()
+        .catch(
+          () => ({}),
+        );
 
     if (!response.ok) {
-      setMessage(data?.error || "تعذر تحميل الفيديوهات.");
+      setMessage(
+        data?.error ||
+          "تعذر تحميل الفيديوهات.",
+      );
       return;
     }
 
-    setItems(data?.items || []);
+    setItems(
+      data?.items || [],
+    );
   }
 
   useEffect(() => {
@@ -62,119 +112,237 @@ export default function PortfolioVideosAdmin() {
 
   async function createVideo() {
     if (!file) {
-      setMessage("اختار فيديو الأول.");
+      setMessage(
+        "اختار فيديو الأول.",
+      );
       return;
     }
 
     if (!form.title.trim()) {
-      setMessage("اكتب عنوان الفيديو.");
+      setMessage(
+        "اكتب عنوان الفيديو.",
+      );
       return;
     }
 
-    if (form.isPublished && !form.customerConsent) {
-      setMessage("لا يمكن النشر قبل تأكيد موافقة العميل.");
+    if (
+      form.isPublished &&
+      !form.customerConsent
+    ) {
+      setMessage(
+        "لا يمكن النشر قبل تأكيد موافقة العميل.",
+      );
       return;
     }
 
-    if (file.size > 500 * 1024 * 1024) {
-      setMessage("الحد الأقصى للفيديو 500 MB.");
+    if (
+      file.size >
+      500 * 1024 * 1024
+    ) {
+      setMessage(
+        "الحد الأقصى للفيديو 500 MB.",
+      );
       return;
     }
 
     setBusy(true);
-    setUploading(true);
     setUploadProgress(0);
-    setMessage("جاري رفع الفيديو...");
+    setUploadStage("token");
+    setMessage(
+      "جاري تجهيز تصريح الرفع...",
+    );
 
     try {
-      const blob = await upload(file.name, file, {
-        access: "public",
-        handleUploadUrl: "/api/admin/portfolio-videos/upload",
-        multipart: true,
-        onUploadProgress(progress) {
-          const next = Math.max(
-            0,
-            Math.min(100, Math.round(progress.percentage || 0)),
-          );
-          setUploadProgress(next);
-          setMessage(`جاري رفع الفيديو... ${next}%`);
-        },
-      });
+      const pathname =
+        `portfolio/${Date.now()}-${file.name}`;
+
+      const blob =
+        await upload(
+          pathname,
+          file,
+          {
+            access:
+              "private",
+            handleUploadUrl:
+              "/api/admin/portfolio-videos/upload",
+            multipart: true,
+            onUploadProgress(
+              progress,
+            ) {
+              setUploadStage(
+                "upload",
+              );
+
+              const next =
+                Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    Math.round(
+                      progress.percentage ||
+                        0,
+                    ),
+                  ),
+                );
+
+              setUploadProgress(
+                next,
+              );
+
+              setMessage(
+                `جاري رفع الفيديو... ${next}%`,
+              );
+            },
+          },
+        );
 
       setUploadProgress(100);
-      setUploading(false);
-      setMessage("تم رفع الفيديو 100%. جاري حفظ بياناته...");
+      setUploadStage("save");
+      setMessage(
+        "تم رفع الفيديو 100%. جاري حفظ البيانات...",
+      );
 
-      const response = await fetch("/api/admin/portfolio-videos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          blobUrl: blob.url,
-          blobPathname: blob.pathname,
-        }),
-      });
+      const response =
+        await fetch(
+          "/api/admin/portfolio-videos",
+          {
+            method:
+              "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                ...form,
+                blobUrl:
+                  blob.url,
+                blobPathname:
+                  blob.pathname,
+              }),
+          },
+        );
 
-      const data = await response.json().catch(() => ({}));
+      const data =
+        await response
+          .json()
+          .catch(
+            () => ({}),
+          );
 
       if (!response.ok) {
-        throw new Error(data?.error || "تعذر حفظ بيانات الفيديو.");
+        throw new Error(
+          data?.error ||
+            "تعذر حفظ بيانات الفيديو.",
+        );
       }
 
       setForm(emptyForm);
       setFile(null);
-      setMessage("تم رفع الفيديو وحفظه بنجاح.");
+      setUploadStage("done");
+      setMessage(
+        "تم رفع الفيديو وحفظه بنجاح.",
+      );
+
       await load();
 
-      const input = document.getElementById(
-        "portfolio-video-file",
-      ) as HTMLInputElement | null;
+      const input =
+        document.getElementById(
+          "portfolio-video-file",
+        ) as HTMLInputElement | null;
 
-      if (input) input.value = "";
+      if (input) {
+        input.value = "";
+      }
     } catch (error: any) {
-      setUploading(false);
-      setMessage(error?.message || "تعذر رفع الفيديو.");
+      setUploadStage(
+        "error",
+      );
+
+      const raw =
+        String(
+          error?.message ||
+            "تعذر رفع الفيديو.",
+        );
+
+      const friendly =
+        raw.includes(
+          "Failed to retrieve the client token",
+        )
+          ? "تعذر الحصول على تصريح الرفع من التخزين. جرّب Refresh ثم أعد المحاولة."
+          : raw;
+
+      setMessage(
+        friendly,
+      );
     } finally {
       setBusy(false);
-      window.setTimeout(() => {
-        setUploadProgress(0);
-      }, 1200);
     }
   }
 
-  async function save(item: Item) {
+  async function save(
+    item: Item,
+  ) {
     setBusy(true);
     setMessage("");
 
     try {
-      const response = await fetch("/api/admin/portfolio-videos", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item),
-      });
-      const data = await response.json().catch(() => ({}));
+      const response =
+        await fetch(
+          "/api/admin/portfolio-videos",
+          {
+            method:
+              "PATCH",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify(
+                item,
+              ),
+          },
+        );
+
+      const data =
+        await response
+          .json()
+          .catch(
+            () => ({}),
+          );
 
       if (!response.ok) {
         throw new Error(
-          data?.error === "CUSTOMER_CONSENT_REQUIRED"
+          data?.error ===
+            "CUSTOMER_CONSENT_REQUIRED"
             ? "لا يمكن نشر الفيديو قبل تأكيد موافقة العميل."
-            : data?.error || "تعذر حفظ التعديلات.",
+            : data?.error ||
+                "تعذر حفظ التعديلات.",
         );
       }
 
-      setMessage("تم حفظ التعديلات.");
+      setMessage(
+        "تم حفظ التعديلات.",
+      );
+
       await load();
     } catch (error: any) {
-      setMessage(error?.message || "تعذر حفظ التعديلات.");
+      setMessage(
+        error?.message ||
+          "تعذر حفظ التعديلات.",
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  async function remove(item: Item) {
-    const ok = window.confirm(
-      `حذف "${item.title}" نهائيًا من الموقع والتخزين؟`,
-    );
+  async function remove(
+    item: Item,
+  ) {
+    const ok =
+      window.confirm(
+        `حذف "${item.title}" نهائيًا من الموقع والتخزين؟`,
+      );
 
     if (!ok) return;
 
@@ -182,128 +350,328 @@ export default function PortfolioVideosAdmin() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/admin/portfolio-videos", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id }),
-      });
+      const response =
+        await fetch(
+          "/api/admin/portfolio-videos",
+          {
+            method:
+              "DELETE",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                id: item.id,
+              }),
+          },
+        );
 
-      const data = await response.json().catch(() => ({}));
+      const data =
+        await response
+          .json()
+          .catch(
+            () => ({}),
+          );
 
       if (!response.ok) {
-        throw new Error(data?.error || "تعذر حذف الفيديو.");
+        throw new Error(
+          data?.error ||
+            "تعذر حذف الفيديو.",
+        );
       }
 
-      setMessage("تم حذف الفيديو.");
+      setMessage(
+        "تم حذف الفيديو.",
+      );
+
       await load();
     } catch (error: any) {
-      setMessage(error?.message || "تعذر حذف الفيديو.");
+      setMessage(
+        error?.message ||
+          "تعذر حذف الفيديو.",
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  function patchItem(id: string, patch: Partial<Item>) {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, ...patch } : item,
-      ),
+  function patchItem(
+    id: string,
+    patch: Partial<Item>,
+  ) {
+    setItems(
+      (current) =>
+        current.map(
+          (item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  ...patch,
+                }
+              : item,
+        ),
     );
   }
+
+  const progressVisible =
+    uploadStage !==
+      "idle" &&
+    uploadStage !==
+      "done";
 
   return (
     <main
       className="vpPortfolioAdminPage"
       dir="rtl"
       style={{
-        width: "min(1180px, calc(100% - 28px))",
+        width:
+          "min(1180px, calc(100% - 28px))",
         margin: "0 auto",
-        padding: "18px 0 110px",
+        padding:
+          "18px 0 110px",
       }}
     >
-      <div style={{ marginBottom: 20 }}>
-        <span style={{ color: "#0284c7", fontWeight: 900, fontSize: 13 }}>
+      <div
+        style={{
+          marginBottom: 20,
+        }}
+      >
+        <span
+          style={{
+            color:
+              "#0284c7",
+            fontWeight: 900,
+            fontSize: 13,
+          }}
+        >
           Ventic Pro Portfolio
         </span>
-        <h1 style={{ color: "#071a2b", margin: "5px 0 7px" }}>
+
+        <h1
+          style={{
+            color:
+              "#071a2b",
+            margin:
+              "5px 0 7px",
+          }}
+        >
           فيديوهات التنفيذ
         </h1>
-        <p style={{ color: "#64748b", lineHeight: 1.8, margin: 0 }}>
+
+        <p
+          style={{
+            color:
+              "#64748b",
+            lineHeight: 1.8,
+            margin: 0,
+          }}
+        >
           ارفع فيديوهات تنفيذ العملاء. الفيديو لا يظهر للعامة إلا بعد تأكيد موافقة العميل وتفعيل النشر.
         </p>
       </div>
 
-      <section style={cardStyle}>
-        <h2 style={{ marginTop: 0, color: "#0b2f49" }}>رفع فيديو جديد</h2>
+      <section
+        style={cardStyle}
+      >
+        <h2
+          style={{
+            marginTop: 0,
+            color:
+              "#0b2f49",
+          }}
+        >
+          رفع فيديو جديد
+        </h2>
 
-        <div style={gridStyle}>
-          <label style={fieldStyle}>
-            <span>عنوان الفيديو *</span>
+        <div
+          style={gridStyle}
+        >
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span>
+              عنوان الفيديو *
+            </span>
+
             <input
-              value={form.title}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, title: event.target.value }))
+              value={
+                form.title
+              }
+              disabled={
+                busy
+              }
+              onChange={(
+                event,
+              ) =>
+                setForm(
+                  (value) => ({
+                    ...value,
+                    title:
+                      event
+                        .target
+                        .value,
+                  }),
+                )
               }
               placeholder="مثال: تركيب هود وخط طرد"
-              style={inputStyle}
+              style={
+                inputStyle
+              }
             />
           </label>
 
-          <label style={fieldStyle}>
-            <span>نوع الخدمة</span>
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span>
+              نوع الخدمة
+            </span>
+
             <input
-              value={form.serviceType}
-              onChange={(event) =>
-                setForm((value) => ({
-                  ...value,
-                  serviceType: event.target.value,
-                }))
+              value={
+                form.serviceType
+              }
+              disabled={
+                busy
+              }
+              onChange={(
+                event,
+              ) =>
+                setForm(
+                  (value) => ({
+                    ...value,
+                    serviceType:
+                      event
+                        .target
+                        .value,
+                  }),
+                )
               }
               placeholder="هود / بلاور / تهوية مطبخ"
-              style={inputStyle}
+              style={
+                inputStyle
+              }
             />
           </label>
 
-          <label style={fieldStyle}>
-            <span>المنطقة</span>
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span>
+              المنطقة
+            </span>
+
             <input
-              value={form.location}
-              onChange={(event) =>
-                setForm((value) => ({
-                  ...value,
-                  location: event.target.value,
-                }))
+              value={
+                form.location
+              }
+              disabled={
+                busy
+              }
+              onChange={(
+                event,
+              ) =>
+                setForm(
+                  (value) => ({
+                    ...value,
+                    location:
+                      event
+                        .target
+                        .value,
+                  }),
+                )
               }
               placeholder="مثال: التجمع الخامس"
-              style={inputStyle}
+              style={
+                inputStyle
+              }
             />
           </label>
 
-          <label style={fieldStyle}>
-            <span>الترتيب</span>
+          <label
+            style={
+              fieldStyle
+            }
+          >
+            <span>
+              الترتيب
+            </span>
+
             <input
               type="number"
-              value={form.sortOrder}
-              onChange={(event) =>
-                setForm((value) => ({
-                  ...value,
-                  sortOrder: Number(event.target.value) || 0,
-                }))
+              value={
+                form.sortOrder
               }
-              style={inputStyle}
+              disabled={
+                busy
+              }
+              onChange={(
+                event,
+              ) =>
+                setForm(
+                  (value) => ({
+                    ...value,
+                    sortOrder:
+                      Number(
+                        event
+                          .target
+                          .value,
+                      ) ||
+                      0,
+                  }),
+                )
+              }
+              style={
+                inputStyle
+              }
             />
           </label>
         </div>
 
-        <label style={{ ...fieldStyle, marginTop: 12 }}>
-          <span>وصف مختصر</span>
+        <label
+          style={{
+            ...fieldStyle,
+            marginTop: 12,
+          }}
+        >
+          <span>
+            وصف مختصر
+          </span>
+
           <textarea
-            value={form.caption}
-            onChange={(event) =>
-              setForm((value) => ({ ...value, caption: event.target.value }))
+            value={
+              form.caption
+            }
+            disabled={
+              busy
+            }
+            onChange={(
+              event,
+            ) =>
+              setForm(
+                (value) => ({
+                  ...value,
+                  caption:
+                    event
+                      .target
+                      .value,
+                }),
+              )
             }
             placeholder="تفاصيل بسيطة عن التنفيذ..."
-            style={{ ...inputStyle, minHeight: 90, resize: "vertical" }}
+            style={{
+              ...inputStyle,
+              minHeight: 90,
+              resize:
+                "vertical",
+            }}
           />
         </label>
 
@@ -311,136 +679,229 @@ export default function PortfolioVideosAdmin() {
           style={{
             ...fieldStyle,
             marginTop: 12,
-            border: "1px dashed #9ec9e3",
+            border:
+              "1px dashed #9ec9e3",
             borderRadius: 14,
             padding: 14,
-            background: "#f8fcff",
+            background:
+              "#f8fcff",
           }}
         >
-          <span>ملف الفيديو — MP4 هو الأفضل للتوافق</span>
+          <span>
+            ملف الفيديو — MP4 هو الأفضل للتوافق
+          </span>
+
           <input
             id="portfolio-video-file"
             type="file"
             accept="video/mp4,video/quicktime,video/webm"
-            disabled={busy}
-            onChange={(event) => {
-              setFile(event.target.files?.[0] || null);
-              setUploadProgress(0);
+            disabled={
+              busy
+            }
+            onChange={(
+              event,
+            ) => {
+              setFile(
+                event
+                  .target
+                  .files?.[0] ||
+                  null,
+              );
+
+              setUploadProgress(
+                0,
+              );
+
+              setUploadStage(
+                "idle",
+              );
+
               setMessage("");
             }}
-            style={{ fontSize: 16 }}
+            style={{
+              fontSize: 16,
+            }}
           />
 
           {file && (
-            <small style={{ color: "#475569", fontWeight: 800 }}>
-              {file.name} · {fileSizeLabel(file.size)}
+            <small
+              style={{
+                color:
+                  "#475569",
+                fontWeight: 800,
+              }}
+            >
+              {file.name} ·{" "}
+              {fileSizeLabel(
+                file.size,
+              )}
             </small>
           )}
 
-          <small style={{ color: "#64748b" }}>
+          <small
+            style={{
+              color:
+                "#64748b",
+            }}
+          >
             يدعم MP4 / MOV / WebM حتى 500 MB. يفضل MP4 H.264 عشان يشتغل على كل الأجهزة.
           </small>
         </label>
 
-        {(uploading || uploadProgress > 0) && (
+        {progressVisible && (
           <div
             style={{
               marginTop: 14,
               padding: 13,
-              border: "1px solid #cfe8f5",
+              border:
+                uploadStage ===
+                "error"
+                  ? "1px solid #fecaca"
+                  : "1px solid #cfe8f5",
               borderRadius: 14,
-              background: "#f8fcff",
+              background:
+                uploadStage ===
+                "error"
+                  ? "#fef2f2"
+                  : "#f8fcff",
             }}
           >
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
+                display:
+                  "flex",
+                justifyContent:
+                  "space-between",
                 gap: 10,
                 marginBottom: 8,
-                color: "#0b2f49",
+                color:
+                  uploadStage ===
+                  "error"
+                    ? "#991b1b"
+                    : "#0b2f49",
                 fontWeight: 900,
                 fontSize: 13,
               }}
             >
               <span>
-                {uploadProgress >= 100
-                  ? "تم رفع الملف"
-                  : "جاري رفع الفيديو"}
+                {uploadStage ===
+                "token"
+                  ? "جاري تجهيز الرفع..."
+                  : uploadStage ===
+                      "save"
+                    ? "جاري حفظ البيانات..."
+                    : uploadStage ===
+                        "error"
+                      ? "فشل الرفع"
+                      : "جاري رفع الفيديو"}
               </span>
-              <strong>{uploadProgress}%</strong>
+
+              <strong>
+                {uploadProgress}%
+              </strong>
             </div>
 
             <div
               style={{
                 width: "100%",
                 height: 12,
-                background: "#dcecf5",
+                background:
+                  "#dcecf5",
                 borderRadius: 999,
-                overflow: "hidden",
+                overflow:
+                  "hidden",
               }}
             >
               <div
                 style={{
-                  width: `${uploadProgress}%`,
+                  width: `${
+                    uploadStage ===
+                      "token" &&
+                    uploadProgress ===
+                      0
+                      ? 2
+                      : uploadProgress
+                  }%`,
                   height: "100%",
                   background:
-                    "linear-gradient(90deg,#0a84ff,#38bdf8)",
+                    uploadStage ===
+                    "error"
+                      ? "#dc2626"
+                      : "linear-gradient(90deg,#0a84ff,#38bdf8)",
                   borderRadius: 999,
-                  transition: "width .18s ease",
+                  transition:
+                    "width .18s ease",
                 }}
               />
             </div>
-
-            {file && (
-              <small
-                style={{
-                  display: "block",
-                  color: "#64748b",
-                  marginTop: 7,
-                }}
-              >
-                {fileSizeLabel(file.size)}
-              </small>
-            )}
           </div>
         )}
 
         <div
           style={{
-            display: "flex",
+            display:
+              "flex",
             gap: 12,
-            flexWrap: "wrap",
+            flexWrap:
+              "wrap",
             marginTop: 14,
           }}
         >
-          <label style={checkStyle}>
+          <label
+            style={checkStyle}
+          >
             <input
               type="checkbox"
-              checked={form.customerConsent}
-              disabled={busy}
-              onChange={(event) =>
-                setForm((value) => ({
-                  ...value,
-                  customerConsent: event.target.checked,
-                }))
+              checked={
+                form.customerConsent
+              }
+              disabled={
+                busy
+              }
+              onChange={(
+                event,
+              ) =>
+                setForm(
+                  (value) => ({
+                    ...value,
+                    customerConsent:
+                      event
+                        .target
+                        .checked,
+                  }),
+                )
               }
             />
+
             عندي موافقة العميل على عرض الفيديو للعامة
           </label>
 
-          <label style={checkStyle}>
+          <label
+            style={checkStyle}
+          >
             <input
               type="checkbox"
-              checked={form.isPublished}
-              disabled={busy}
-              onChange={(event) =>
-                setForm((value) => ({
-                  ...value,
-                  isPublished: event.target.checked,
-                }))
+              checked={
+                form.isPublished
+              }
+              disabled={
+                busy
+              }
+              onChange={(
+                event,
+              ) =>
+                setForm(
+                  (value) => ({
+                    ...value,
+                    isPublished:
+                      event
+                        .target
+                        .checked,
+                  }),
+                )
               }
             />
+
             نشر فورًا على الموقع
           </label>
         </div>
@@ -448,29 +909,52 @@ export default function PortfolioVideosAdmin() {
         <button
           type="button"
           disabled={busy}
-          onClick={() => void createVideo()}
+          onClick={() =>
+            void createVideo()
+          }
           style={{
             ...primaryButton,
-            opacity: busy ? 0.65 : 1,
+            opacity:
+              busy
+                ? 0.65
+                : 1,
           }}
         >
-          {uploading
-            ? `جاري الرفع ${uploadProgress}%`
-            : busy
-              ? "جاري الحفظ..."
-              : "رفع الفيديو"}
+          {uploadStage ===
+          "token"
+            ? "جاري تجهيز الرفع..."
+            : uploadStage ===
+                "upload"
+              ? `جاري الرفع ${uploadProgress}%`
+              : uploadStage ===
+                  "save"
+                ? "جاري حفظ البيانات..."
+                : "رفع الفيديو"}
         </button>
       </section>
 
       {message && (
         <div
           style={{
-            margin: "14px 0",
+            margin:
+              "14px 0",
             padding: 12,
             borderRadius: 12,
-            background: "#eef8fd",
-            border: "1px solid #cfe8f5",
-            color: "#0b2f49",
+            background:
+              uploadStage ===
+              "error"
+                ? "#fef2f2"
+                : "#eef8fd",
+            border:
+              uploadStage ===
+              "error"
+                ? "1px solid #fecaca"
+                : "1px solid #cfe8f5",
+            color:
+              uploadStage ===
+              "error"
+                ? "#991b1b"
+                : "#0b2f49",
             fontWeight: 800,
           }}
         >
@@ -478,166 +962,369 @@ export default function PortfolioVideosAdmin() {
         </div>
       )}
 
-      <section style={{ marginTop: 22 }}>
-        <h2 style={{ color: "#071a2b" }}>الفيديوهات الحالية ({items.length})</h2>
+      <section
+        style={{
+          marginTop: 22,
+        }}
+      >
+        <h2
+          style={{
+            color:
+              "#071a2b",
+          }}
+        >
+          الفيديوهات الحالية (
+          {items.length})
+        </h2>
 
-        <div style={{ display: "grid", gap: 14 }}>
-          {items.map((item) => (
-            <article key={item.id} style={cardStyle}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(180px,260px) 1fr",
-                  gap: 16,
-                }}
-                className="vpPortfolioAdminRow"
+        <div
+          style={{
+            display:
+              "grid",
+            gap: 14,
+          }}
+        >
+          {items.map(
+            (item) => (
+              <article
+                key={
+                  item.id
+                }
+                style={
+                  cardStyle
+                }
               >
-                <video
-                  src={item.blobUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
+                <div
+                  className="vpPortfolioAdminRow"
                   style={{
-                    width: "100%",
-                    aspectRatio: "9 / 16",
-                    maxHeight: 390,
-                    objectFit: "contain",
-                    background: "#071a2b",
-                    borderRadius: 14,
+                    display:
+                      "grid",
+                    gridTemplateColumns:
+                      "minmax(180px,260px) 1fr",
+                    gap: 16,
                   }}
-                />
+                >
+                  <video
+                    src={
+                      item.blobUrl
+                    }
+                    controls
+                    playsInline
+                    preload="metadata"
+                    style={{
+                      width:
+                        "100%",
+                      aspectRatio:
+                        "9 / 16",
+                      maxHeight:
+                        390,
+                      objectFit:
+                        "contain",
+                      background:
+                        "#071a2b",
+                      borderRadius:
+                        14,
+                    }}
+                  />
 
-                <div>
-                  <div style={gridStyle}>
-                    <label style={fieldStyle}>
-                      <span>العنوان</span>
-                      <input
-                        value={item.title}
-                        onChange={(event) =>
-                          patchItem(item.id, { title: event.target.value })
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-
-                    <label style={fieldStyle}>
-                      <span>نوع الخدمة</span>
-                      <input
-                        value={item.serviceType || ""}
-                        onChange={(event) =>
-                          patchItem(item.id, {
-                            serviceType: event.target.value,
-                          })
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-
-                    <label style={fieldStyle}>
-                      <span>المنطقة</span>
-                      <input
-                        value={item.location || ""}
-                        onChange={(event) =>
-                          patchItem(item.id, { location: event.target.value })
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-
-                    <label style={fieldStyle}>
-                      <span>الترتيب</span>
-                      <input
-                        type="number"
-                        value={item.sortOrder}
-                        onChange={(event) =>
-                          patchItem(item.id, {
-                            sortOrder: Number(event.target.value) || 0,
-                          })
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-                  </div>
-
-                  <label style={{ ...fieldStyle, marginTop: 10 }}>
-                    <span>الوصف</span>
-                    <textarea
-                      value={item.caption || ""}
-                      onChange={(event) =>
-                        patchItem(item.id, { caption: event.target.value })
+                  <div>
+                    <div
+                      style={
+                        gridStyle
                       }
-                      style={{ ...inputStyle, minHeight: 78, resize: "vertical" }}
-                    />
-                  </label>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      marginTop: 12,
-                    }}
-                  >
-                    <label style={checkStyle}>
-                      <input
-                        type="checkbox"
-                        checked={item.customerConsent}
-                        onChange={(event) =>
-                          patchItem(item.id, {
-                            customerConsent: event.target.checked,
-                          })
+                    >
+                      <label
+                        style={
+                          fieldStyle
                         }
+                      >
+                        <span>
+                          العنوان
+                        </span>
+                        <input
+                          value={
+                            item.title
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            patchItem(
+                              item.id,
+                              {
+                                title:
+                                  event
+                                    .target
+                                    .value,
+                              },
+                            )
+                          }
+                          style={
+                            inputStyle
+                          }
+                        />
+                      </label>
+
+                      <label
+                        style={
+                          fieldStyle
+                        }
+                      >
+                        <span>
+                          نوع الخدمة
+                        </span>
+                        <input
+                          value={
+                            item.serviceType ||
+                            ""
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            patchItem(
+                              item.id,
+                              {
+                                serviceType:
+                                  event
+                                    .target
+                                    .value,
+                              },
+                            )
+                          }
+                          style={
+                            inputStyle
+                          }
+                        />
+                      </label>
+
+                      <label
+                        style={
+                          fieldStyle
+                        }
+                      >
+                        <span>
+                          المنطقة
+                        </span>
+                        <input
+                          value={
+                            item.location ||
+                            ""
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            patchItem(
+                              item.id,
+                              {
+                                location:
+                                  event
+                                    .target
+                                    .value,
+                              },
+                            )
+                          }
+                          style={
+                            inputStyle
+                          }
+                        />
+                      </label>
+
+                      <label
+                        style={
+                          fieldStyle
+                        }
+                      >
+                        <span>
+                          الترتيب
+                        </span>
+                        <input
+                          type="number"
+                          value={
+                            item.sortOrder
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            patchItem(
+                              item.id,
+                              {
+                                sortOrder:
+                                  Number(
+                                    event
+                                      .target
+                                      .value,
+                                  ) ||
+                                  0,
+                              },
+                            )
+                          }
+                          style={
+                            inputStyle
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label
+                      style={{
+                        ...fieldStyle,
+                        marginTop: 10,
+                      }}
+                    >
+                      <span>
+                        الوصف
+                      </span>
+
+                      <textarea
+                        value={
+                          item.caption ||
+                          ""
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          patchItem(
+                            item.id,
+                            {
+                              caption:
+                                event
+                                  .target
+                                  .value,
+                            },
+                          )
+                        }
+                        style={{
+                          ...inputStyle,
+                          minHeight: 78,
+                          resize:
+                            "vertical",
+                        }}
                       />
-                      موافقة العميل
                     </label>
 
-                    <label style={checkStyle}>
-                      <input
-                        type="checkbox"
-                        checked={item.isPublished}
-                        onChange={(event) =>
-                          patchItem(item.id, {
-                            isPublished: event.target.checked,
-                          })
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        gap: 12,
+                        flexWrap:
+                          "wrap",
+                        marginTop: 12,
+                      }}
+                    >
+                      <label
+                        style={
+                          checkStyle
                         }
-                      />
-                      منشور
-                    </label>
-                  </div>
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            item.customerConsent
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            patchItem(
+                              item.id,
+                              {
+                                customerConsent:
+                                  event
+                                    .target
+                                    .checked,
+                              },
+                            )
+                          }
+                        />
+                        موافقة العميل
+                      </label>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      marginTop: 14,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void save(item)}
-                      style={primaryButton}
-                    >
-                      حفظ
-                    </button>
+                      <label
+                        style={
+                          checkStyle
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            item.isPublished
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            patchItem(
+                              item.id,
+                              {
+                                isPublished:
+                                  event
+                                    .target
+                                    .checked,
+                              },
+                            )
+                          }
+                        />
+                        منشور
+                      </label>
+                    </div>
 
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void remove(item)}
-                      style={dangerButton}
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        gap: 8,
+                        flexWrap:
+                          "wrap",
+                        marginTop: 14,
+                      }}
                     >
-                      حذف نهائي
-                    </button>
+                      <button
+                        type="button"
+                        disabled={
+                          busy
+                        }
+                        onClick={() =>
+                          void save(
+                            item,
+                          )
+                        }
+                        style={
+                          primaryButton
+                        }
+                      >
+                        حفظ
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          busy
+                        }
+                        onClick={() =>
+                          void remove(
+                            item,
+                          )
+                        }
+                        style={
+                          dangerButton
+                        }
+                      >
+                        حذف نهائي
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            ),
+          )}
 
-          {items.length === 0 && (
-            <div style={{ ...cardStyle, color: "#64748b" }}>
+          {items.length ===
+            0 && (
+            <div
+              style={{
+                ...cardStyle,
+                color:
+                  "#64748b",
+              }}
+            >
               مفيش فيديوهات مرفوعة لسه.
             </div>
           )}
@@ -660,21 +1347,27 @@ export default function PortfolioVideosAdmin() {
   );
 }
 
-const cardStyle: React.CSSProperties = {
+const cardStyle:
+  React.CSSProperties = {
   background: "white",
-  border: "1px solid #dbe7ef",
+  border:
+    "1px solid #dbe7ef",
   borderRadius: 18,
   padding: 18,
-  boxShadow: "0 10px 30px rgba(7,26,43,.07)",
+  boxShadow:
+    "0 10px 30px rgba(7,26,43,.07)",
 };
 
-const gridStyle: React.CSSProperties = {
+const gridStyle:
+  React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))",
+  gridTemplateColumns:
+    "repeat(auto-fit,minmax(190px,1fr))",
   gap: 10,
 };
 
-const fieldStyle: React.CSSProperties = {
+const fieldStyle:
+  React.CSSProperties = {
   display: "grid",
   gap: 6,
   color: "#475569",
@@ -682,10 +1375,12 @@ const fieldStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle:
+  React.CSSProperties = {
   width: "100%",
   minHeight: 46,
-  border: "1px solid #dbe4ec",
+  border:
+    "1px solid #dbe4ec",
   borderRadius: 11,
   padding: "10px 12px",
   background: "white",
@@ -693,7 +1388,8 @@ const inputStyle: React.CSSProperties = {
   font: "inherit",
 };
 
-const checkStyle: React.CSSProperties = {
+const checkStyle:
+  React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 8,
@@ -702,25 +1398,31 @@ const checkStyle: React.CSSProperties = {
   fontSize: 13,
 };
 
-const primaryButton: React.CSSProperties = {
+const primaryButton:
+  React.CSSProperties = {
   minHeight: 44,
   border: 0,
   borderRadius: 11,
-  background: "linear-gradient(135deg,#0a84ff,#0574d4)",
+  background:
+    "linear-gradient(135deg,#0a84ff,#0574d4)",
   color: "white",
-  padding: "10px 16px",
+  padding:
+    "10px 16px",
   fontWeight: 900,
   cursor: "pointer",
   marginTop: 14,
 };
 
-const dangerButton: React.CSSProperties = {
+const dangerButton:
+  React.CSSProperties = {
   minHeight: 44,
-  border: "1px solid #fecaca",
+  border:
+    "1px solid #fecaca",
   borderRadius: 11,
   background: "#fef2f2",
   color: "#b91c1c",
-  padding: "10px 16px",
+  padding:
+    "10px 16px",
   fontWeight: 900,
   cursor: "pointer",
   marginTop: 14,
