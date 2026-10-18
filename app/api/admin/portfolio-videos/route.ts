@@ -66,6 +66,7 @@ async function signedReadUrl(
       {
         pathname,
         operation: "get",
+        access: "private",
         validUntil,
       },
     );
