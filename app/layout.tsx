@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./brand-theme.css";
 import "./brand-v14d.css";
+import "./iphone.css";
 import type { Metadata, Viewport } from "next";
 import SiteChrome from "@/app/shared/SiteChrome";
 import PwaInstallPrompt from "@/app/shared/PwaInstallPrompt";
@@ -23,6 +24,11 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
+  appleWebApp: {
+    capable: true,
+    title: "Ventic Pro",
+    statusBarStyle: "black-translucent",
+  },
   openGraph: {
     type: "website",
     locale: "ar_EG",
@@ -50,6 +56,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#0b2f49",
   colorScheme: "light",
 };
