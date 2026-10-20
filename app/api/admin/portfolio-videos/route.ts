@@ -34,10 +34,25 @@ async function auth() {
   }
 }
 
-function validYouTubePath(value: string) {
-  if (!value.startsWith("youtube:")) return false;
-  return /^[A-Za-z0-9_-]{11}$/.test(value.slice("youtube:".length));
+function validSupportedPath(value: string) {
+  if (value.startsWith("youtube:")) {
+    return /^[A-Za-z0-9_-]{11}$/.test(
+      value.slice("youtube:".length),
+    );
+  }
+
+  if (value.startsWith("tiktok:")) {
+    return /^\d{10,30}$/.test(
+      value.slice("tiktok:".length),
+    );
+  }
+
+  return false;
 }
+
+const supportedWhere = `
+  ("blobPathname" LIKE 'youtube:%' OR "blobPathname" LIKE 'tiktok:%')
+`;
 
 export async function GET() {
   try {
@@ -46,13 +61,16 @@ export async function GET() {
     const items = await prisma.$queryRaw<Row[]>`
       SELECT *
       FROM "PortfolioVideo"
-      WHERE "blobPathname" LIKE 'youtube:%'
+      WHERE (
+        "blobPathname" LIKE 'youtube:%'
+        OR "blobPathname" LIKE 'tiktok:%'
+      )
       ORDER BY "sortOrder" ASC, "createdAt" DESC
     `;
 
     return Response.json({ items });
   } catch (error: any) {
-    console.error("[youtube-portfolio-admin-get]", error?.message);
+    console.error("[portfolio-admin-get]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
@@ -86,9 +104,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!validYouTubePath(blobPathname)) {
+    if (!validSupportedPath(blobPathname)) {
       return Response.json(
-        { error: "YOUTUBE_ONLY" },
+        { error: "SUPPORTED_VIDEO_ONLY" },
         { status: 400 },
       );
     }
@@ -162,7 +180,7 @@ export async function POST(request: Request) {
       upserted: true,
     });
   } catch (error: any) {
-    console.error("[youtube-portfolio-admin-post]", error?.message);
+    console.error("[portfolio-admin-post]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
@@ -185,7 +203,10 @@ export async function PATCH(request: Request) {
       SELECT *
       FROM "PortfolioVideo"
       WHERE "id" = ${id}
-        AND "blobPathname" LIKE 'youtube:%'
+        AND (
+          "blobPathname" LIKE 'youtube:%'
+          OR "blobPathname" LIKE 'tiktok:%'
+        )
       LIMIT 1
     `;
 
@@ -241,12 +262,15 @@ export async function PATCH(request: Request) {
         "publishedAt" = ${publishedAt},
         "updatedAt" = NOW()
       WHERE "id" = ${id}
-        AND "blobPathname" LIKE 'youtube:%'
+        AND (
+          "blobPathname" LIKE 'youtube:%'
+          OR "blobPathname" LIKE 'tiktok:%'
+        )
     `;
 
     return Response.json({ ok: true });
   } catch (error: any) {
-    console.error("[youtube-portfolio-admin-patch]", error?.message);
+    console.error("[portfolio-admin-patch]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
@@ -268,7 +292,10 @@ export async function DELETE(request: Request) {
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       DELETE FROM "PortfolioVideo"
       WHERE "id" = ${id}
-        AND "blobPathname" LIKE 'youtube:%'
+        AND (
+          "blobPathname" LIKE 'youtube:%'
+          OR "blobPathname" LIKE 'tiktok:%'
+        )
       RETURNING "id"
     `;
 
@@ -278,7 +305,7 @@ export async function DELETE(request: Request) {
 
     return Response.json({ ok: true });
   } catch (error: any) {
-    console.error("[youtube-portfolio-admin-delete]", error?.message);
+    console.error("[portfolio-admin-delete]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },

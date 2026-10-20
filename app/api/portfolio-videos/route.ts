@@ -26,7 +26,10 @@ export async function GET() {
       FROM "PortfolioVideo"
       WHERE "isPublished" = true
         AND "customerConsent" = true
-        AND "blobPathname" LIKE 'youtube:%'
+        AND (
+          "blobPathname" LIKE 'youtube:%'
+          OR "blobPathname" LIKE 'tiktok:%'
+        )
       ORDER BY "sortOrder" ASC, "publishedAt" DESC NULLS LAST, "createdAt" DESC
       LIMIT 60
     `;
@@ -40,10 +43,13 @@ export async function GET() {
       },
     );
   } catch (error: any) {
-    console.error("[youtube-portfolio-public]", error?.message);
+    console.error("[portfolio-public]", error?.message);
 
     return Response.json(
-      { items: [], error: "PORTFOLIO_VIDEO_READ_FAILED" },
+      {
+        items: [],
+        error: "PORTFOLIO_VIDEO_READ_FAILED",
+      },
       { status: 500 },
     );
   }

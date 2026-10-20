@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+type Platform = "youtube" | "tiktok";
+
 type Item = {
   id: string;
   title: string;
@@ -17,8 +19,9 @@ type Item = {
 };
 
 type UploadForm = {
+  platform: Platform;
   title: string;
-  youtubeUrl: string;
+  videoUrl: string;
   caption: string;
   location: string;
   serviceType: string;
@@ -28,8 +31,9 @@ type UploadForm = {
 };
 
 const emptyForm: UploadForm = {
+  platform: "youtube",
   title: "",
-  youtubeUrl: "",
+  videoUrl: "",
   caption: "",
   location: "",
   serviceType: "",
@@ -38,9 +42,13 @@ const emptyForm: UploadForm = {
   publishMode: "publish",
 };
 
-function extractYouTubeId(value: string) {
-  const raw = value.trim();
+function firstUrl(value: string) {
+  const match = value.match(/https?:\/\/[^\s]+/i);
+  return (match?.[0] || value.trim()).replace(/[),.]+$/, "");
+}
 
+function extractYouTubeId(value: string) {
+  const raw = firstUrl(value);
   if (!raw) return null;
   if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw;
 
@@ -53,12 +61,9 @@ function extractYouTubeId(value: string) {
     }
 
     if (host === "youtube.com" || host === "m.youtube.com") {
-      if (url.pathname === "/watch") {
-        return url.searchParams.get("v");
-      }
+      if (url.pathname === "/watch") return url.searchParams.get("v");
 
       const parts = url.pathname.split("/").filter(Boolean);
-
       if (["shorts", "embed", "live"].includes(parts[0])) {
         return parts[1] || null;
       }
@@ -68,8 +73,35 @@ function extractYouTubeId(value: string) {
   return null;
 }
 
-function embed(id: string) {
+function extractTikTokId(value: string) {
+  const raw = firstUrl(value);
+  if (/^\d{10,30}$/.test(raw)) return raw;
+
+  const direct =
+    raw.match(/\/video\/(\d{10,30})/i) ||
+    raw.match(/\/player\/v1\/(\d{10,30})/i);
+
+  return direct?.[1] || null;
+}
+
+function youtubeEmbed(id: string) {
   return `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+}
+
+function tiktokEmbed(id: string) {
+  return `https://www.tiktok.com/player/v1/${id}?autoplay=0&controls=1&rel=0&description=0&music_info=0`;
+}
+
+function itemPlatform(item: Item): Platform | null {
+  if (item.blobPathname.startsWith("youtube:")) return "youtube";
+  if (item.blobPathname.startsWith("tiktok:")) return "tiktok";
+  return null;
+}
+
+function itemVideoId(item: Item) {
+  const platform = itemPlatform(item);
+  if (!platform) return null;
+  return item.blobPathname.slice(`${platform}:`.length);
 }
 
 function friendlyError(value: unknown) {
@@ -79,8 +111,16 @@ function friendlyError(value: unknown) {
     return "لا يمكن نشر الفيديو قبل تأكيد موافقة العميل.";
   }
 
-  if (message.includes("YOUTUBE_ONLY")) {
-    return "القسم يقبل روابط YouTube فقط.";
+  if (message.includes("SUPPORTED_VIDEO_ONLY")) {
+    return "القسم يقبل روابط YouTube أو TikTok فقط.";
+  }
+
+  if (message.includes("INVALID_TIKTOK_URL")) {
+    return "لينك TikTok غير صالح. استخدم لينك الفيديو من Share.";
+  }
+
+  if (message.includes("TIKTOK_RESOLVE_FAILED")) {
+    return "تعذر قراءة لينك TikTok المختصر. افتح الفيديو في المتصفح وانسخ الرابط الكامل.";
   }
 
   return message || "حدث خطأ غير متوقع.";
@@ -92,16 +132,16 @@ export default function WorkVideosAdmin() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  const previewId = useMemo(
-    () => extractYouTubeId(form.youtubeUrl),
-    [form.youtubeUrl],
-  );
+  const directPreviewId = useMemo(() => {
+    return form.platform === "youtube"
+      ? extractYouTubeId(form.videoUrl)
+      : extractTikTokId(form.videoUrl);
+  }, [form.platform, form.videoUrl]);
 
   async function load() {
     const res = await fetch("/api/admin/portfolio-videos", {
       cache: "no-store",
     });
-
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
@@ -116,6 +156,33 @@ export default function WorkVideosAdmin() {
     void load();
   }, []);
 
+  async function resolveVideoId() {
+    if (form.platform === "youtube") {
+      const id = extractYouTubeId(form.videoUrl);
+      if (!id) throw new Error("حط لينك YouTube صحيح.");
+      return id;
+    }
+
+    const directId = extractTikTokId(form.videoUrl);
+    if (directId) return directId;
+
+    const res = await fetch("/api/admin/portfolio-videos/resolve-tiktok", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: form.videoUrl }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data?.videoId) {
+      throw new Error(
+        friendlyError(data?.error || "TIKTOK_RESOLVE_FAILED"),
+      );
+    }
+
+    return String(data.videoId);
+  }
+
   async function addVideo() {
     setMessage("");
 
@@ -124,15 +191,17 @@ export default function WorkVideosAdmin() {
       return;
     }
 
-    const videoId = extractYouTubeId(form.youtubeUrl);
-
-    if (!videoId) {
-      setMessage("حط لينك YouTube صحيح.");
+    if (!form.videoUrl.trim()) {
+      setMessage(
+        form.platform === "youtube"
+          ? "حط لينك YouTube."
+          : "حط لينك TikTok.",
+      );
       return;
     }
 
     if (form.customerConsent === null) {
-      setMessage("حدد أولًا هل عندك موافقة العميل على عرض الفيديو أم لا.");
+      setMessage("حدد هل عندك موافقة العميل على عرض الفيديو أم لا.");
       return;
     }
 
@@ -146,14 +215,26 @@ export default function WorkVideosAdmin() {
     }
 
     setBusy(true);
-    setMessage("جاري حفظ الفيديو...");
+    setMessage(
+      form.platform === "tiktok"
+        ? "جاري قراءة رابط TikTok..."
+        : "جاري حفظ الفيديو...",
+    );
 
     try {
+      const videoId = await resolveVideoId();
+
+      const blobPathname = `${form.platform}:${videoId}`;
+      const blobUrl =
+        form.platform === "youtube"
+          ? `https://www.youtube.com/watch?v=${videoId}`
+          : `https://www.tiktok.com/player/v1/${videoId}`;
+
+      setMessage("جاري حفظ الفيديو...");
+
       const res = await fetch("/api/admin/portfolio-videos", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: form.title.trim(),
           caption: form.caption,
@@ -162,8 +243,8 @@ export default function WorkVideosAdmin() {
           sortOrder: form.sortOrder,
           customerConsent: form.customerConsent,
           isPublished,
-          blobUrl: `https://www.youtube.com/watch?v=${videoId}`,
-          blobPathname: `youtube:${videoId}`,
+          blobUrl,
+          blobPathname,
         }),
       });
 
@@ -191,15 +272,18 @@ export default function WorkVideosAdmin() {
   }
 
   async function save(item: Item) {
+    if (item.isPublished && !item.customerConsent) {
+      setMessage("لا يمكن نشر الفيديو قبل تأكيد موافقة العميل.");
+      return;
+    }
+
     setBusy(true);
     setMessage("");
 
     try {
       const res = await fetch("/api/admin/portfolio-videos", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(item),
       });
 
@@ -221,9 +305,7 @@ export default function WorkVideosAdmin() {
   }
 
   async function remove(item: Item) {
-    if (!window.confirm(`حذف "${item.title}" من الموقع؟`)) {
-      return;
-    }
+    if (!window.confirm(`حذف "${item.title}" من الموقع؟`)) return;
 
     setBusy(true);
     setMessage("");
@@ -231,12 +313,8 @@ export default function WorkVideosAdmin() {
     try {
       const res = await fetch("/api/admin/portfolio-videos", {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: item.id,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -259,12 +337,7 @@ export default function WorkVideosAdmin() {
   function patchItem(id: string, patch: Partial<Item>) {
     setItems((current) =>
       current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              ...patch,
-            }
-          : item,
+        item.id === id ? { ...item, ...patch } : item,
       ),
     );
   }
@@ -280,24 +353,10 @@ export default function WorkVideosAdmin() {
       }}
     >
       <div style={{ marginBottom: 20 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <span
-            style={{
-              color: "#0284c7",
-              fontWeight: 900,
-              fontSize: 13,
-            }}
-          >
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ color: "#0284c7", fontWeight: 900, fontSize: 13 }}>
             Ventic Pro Portfolio
           </span>
-
           <span
             style={{
               background: "#dcfce7",
@@ -309,39 +368,69 @@ export default function WorkVideosAdmin() {
               fontWeight: 900,
             }}
           >
-            YouTube Only V17F
+            YouTube + TikTok V17G
           </span>
         </div>
 
-        <h1
-          style={{
-            color: "#071a2b",
-            margin: "5px 0 7px",
-          }}
-        >
+        <h1 style={{ color: "#071a2b", margin: "5px 0 7px" }}>
           فيديوهات التنفيذ
         </h1>
 
-        <p
-          style={{
-            color: "#64748b",
-            lineHeight: 1.8,
-            margin: 0,
-          }}
-        >
-          أضف رابط YouTube وحدد الموافقات وحالة النشر في نفس الخطوة.
+        <p style={{ color: "#64748b", lineHeight: 1.8, margin: 0 }}>
+          أضف فيديو من YouTube أو TikTok وحدد الموافقات وحالة النشر في نفس الخطوة.
         </p>
       </div>
 
       <section style={cardStyle}>
-        <h2
-          style={{
-            marginTop: 0,
-            color: "#0b2f49",
-          }}
-        >
-          إضافة فيديو YouTube
+        <h2 style={{ marginTop: 0, color: "#0b2f49" }}>
+          إضافة فيديو جديد
         </h2>
+
+        <div style={{ marginBottom: 14 }}>
+          <strong style={approvalTitleStyle}>مصدر الفيديو</strong>
+
+          <div style={choiceRowStyle}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                setForm((value) => ({
+                  ...value,
+                  platform: "youtube",
+                  videoUrl: "",
+                }))
+              }
+              style={{
+                ...choiceButtonStyle,
+                ...(form.platform === "youtube"
+                  ? selectedYouTubeStyle
+                  : {}),
+              }}
+            >
+              ▶ YouTube
+            </button>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                setForm((value) => ({
+                  ...value,
+                  platform: "tiktok",
+                  videoUrl: "",
+                }))
+              }
+              style={{
+                ...choiceButtonStyle,
+                ...(form.platform === "tiktok"
+                  ? selectedTikTokStyle
+                  : {}),
+              }}
+            >
+              ♪ TikTok
+            </button>
+          </div>
+        </div>
 
         <div style={gridStyle}>
           <label style={fieldStyle}>
@@ -361,19 +450,25 @@ export default function WorkVideosAdmin() {
           </label>
 
           <label style={fieldStyle}>
-            <span>لينك YouTube *</span>
+            <span>
+              لينك {form.platform === "youtube" ? "YouTube" : "TikTok"} *
+            </span>
             <input
-              value={form.youtubeUrl}
+              value={form.videoUrl}
               disabled={busy}
               onChange={(event) =>
                 setForm((value) => ({
                   ...value,
-                  youtubeUrl: event.target.value,
+                  videoUrl: event.target.value,
                 }))
               }
               style={inputStyle}
               dir="ltr"
-              placeholder="https://youtu.be/..."
+              placeholder={
+                form.platform === "youtube"
+                  ? "https://youtu.be/..."
+                  : "https://www.tiktok.com/@user/video/..."
+              }
             />
           </label>
 
@@ -424,14 +519,8 @@ export default function WorkVideosAdmin() {
           </label>
         </div>
 
-        <label
-          style={{
-            ...fieldStyle,
-            marginTop: 12,
-          }}
-        >
+        <label style={{ ...fieldStyle, marginTop: 12 }}>
           <span>وصف مختصر</span>
-
           <textarea
             value={form.caption}
             disabled={busy}
@@ -449,15 +538,9 @@ export default function WorkVideosAdmin() {
           />
         </label>
 
-        {previewId && (
+        {directPreviewId && (
           <div style={{ marginTop: 14 }}>
-            <strong
-              style={{
-                display: "block",
-                color: "#0b2f49",
-                marginBottom: 7,
-              }}
-            >
+            <strong style={{ display: "block", color: "#0b2f49", marginBottom: 7 }}>
               معاينة الفيديو
             </strong>
 
@@ -471,9 +554,13 @@ export default function WorkVideosAdmin() {
               }}
             >
               <iframe
-                src={embed(previewId)}
+                src={
+                  form.platform === "youtube"
+                    ? youtubeEmbed(directPreviewId)
+                    : tiktokEmbed(directPreviewId)
+                }
                 title="Preview"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
                 style={{
                   width: "100%",
@@ -485,6 +572,14 @@ export default function WorkVideosAdmin() {
           </div>
         )}
 
+        {form.platform === "tiktok" &&
+          form.videoUrl.trim() &&
+          !directPreviewId && (
+            <div style={infoStyle}>
+              لو ده لينك TikTok مختصر من Share، النظام هيحاول يحوله تلقائيًا وقت الحفظ.
+            </div>
+          )}
+
         <div
           style={{
             marginTop: 18,
@@ -494,13 +589,7 @@ export default function WorkVideosAdmin() {
             background: "#f8fcff",
           }}
         >
-          <h3
-            style={{
-              margin: "0 0 13px",
-              color: "#0b2f49",
-              fontSize: 17,
-            }}
-          >
+          <h3 style={{ margin: "0 0 13px", color: "#0b2f49", fontSize: 17 }}>
             الموافقات وحالة النشر
           </h3>
 
@@ -604,18 +693,7 @@ export default function WorkVideosAdmin() {
 
           {form.publishMode === "publish" &&
             form.customerConsent !== true && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 10,
-                  borderRadius: 10,
-                  background: "#fff7ed",
-                  border: "1px solid #fed7aa",
-                  color: "#9a3412",
-                  fontWeight: 800,
-                  fontSize: 13,
-                }}
-              >
+              <div style={warningStyle}>
                 للنشر الفوري لازم تختار "نعم، عندي موافقة".
               </div>
             )}
@@ -639,17 +717,7 @@ export default function WorkVideosAdmin() {
       </section>
 
       {message && (
-        <div
-          style={{
-            margin: "14px 0",
-            padding: 12,
-            borderRadius: 12,
-            background: "#eef8fd",
-            border: "1px solid #cfe8f5",
-            color: "#0b2f49",
-            fontWeight: 800,
-          }}
-        >
+        <div style={messageStyle}>
           {message}
         </div>
       )}
@@ -659,22 +727,13 @@ export default function WorkVideosAdmin() {
           الفيديوهات الحالية ({items.length})
         </h2>
 
-        <div
-          style={{
-            display: "grid",
-            gap: 14,
-          }}
-        >
+        <div style={{ display: "grid", gap: 14 }}>
           {items.map((item) => {
-            const youtubeId = item.blobPathname.startsWith("youtube:")
-              ? item.blobPathname.slice("youtube:".length)
-              : null;
+            const platform = itemPlatform(item);
+            const videoId = itemVideoId(item);
 
             return (
-              <article
-                key={item.id}
-                style={cardStyle}
-              >
+              <article key={item.id} style={cardStyle}>
                 <div
                   className="vpPortfolioAdminRow"
                   style={{
@@ -683,21 +742,43 @@ export default function WorkVideosAdmin() {
                     gap: 16,
                   }}
                 >
-                  {youtubeId && (
-                    <iframe
-                      src={embed(youtubeId)}
-                      title={item.title}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      style={{
-                        width: "100%",
-                        aspectRatio: "9 / 16",
-                        maxHeight: 390,
-                        border: 0,
-                        borderRadius: 14,
-                        background: "#071a2b",
-                      }}
-                    />
+                  {platform && videoId && (
+                    <div>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          marginBottom: 6,
+                          fontSize: 11,
+                          fontWeight: 900,
+                          color:
+                            platform === "youtube"
+                              ? "#b91c1c"
+                              : "#0f172a",
+                        }}
+                      >
+                        {platform === "youtube" ? "YouTube" : "TikTok"}
+                      </span>
+
+                      <iframe
+                        src={
+                          platform === "youtube"
+                            ? youtubeEmbed(videoId)
+                            : tiktokEmbed(videoId)
+                        }
+                        title={item.title}
+                        loading="lazy"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                        allowFullScreen
+                        style={{
+                          width: "100%",
+                          aspectRatio: "9 / 16",
+                          maxHeight: 390,
+                          border: 0,
+                          borderRadius: 14,
+                          background: "#071a2b",
+                        }}
+                      />
+                    </div>
                   )}
 
                   <div>
@@ -756,12 +837,7 @@ export default function WorkVideosAdmin() {
                       </label>
                     </div>
 
-                    <label
-                      style={{
-                        ...fieldStyle,
-                        marginTop: 10,
-                      }}
-                    >
+                    <label style={{ ...fieldStyle, marginTop: 10 }}>
                       <span>الوصف</span>
                       <textarea
                         value={item.caption || ""}
@@ -778,14 +854,7 @@ export default function WorkVideosAdmin() {
                       />
                     </label>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 12,
-                        flexWrap: "wrap",
-                        marginTop: 12,
-                      }}
-                    >
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
                       <label style={checkStyle}>
                         <input
                           type="checkbox"
@@ -813,14 +882,7 @@ export default function WorkVideosAdmin() {
                       </label>
                     </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        flexWrap: "wrap",
-                        marginTop: 14,
-                      }}
-                    >
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
                       <button
                         type="button"
                         disabled={busy}
@@ -846,12 +908,7 @@ export default function WorkVideosAdmin() {
           })}
 
           {items.length === 0 && (
-            <div
-              style={{
-                ...cardStyle,
-                color: "#64748b",
-              }}
-            >
+            <div style={{ ...cardStyle, color: "#64748b" }}>
               مفيش فيديوهات مضافة لسه.
             </div>
           )}
@@ -863,7 +920,7 @@ export default function WorkVideosAdmin() {
           .vpPortfolioAdminRow{
             grid-template-columns:1fr!important
           }
-          .vpPortfolioAdminRow>iframe{
+          .vpPortfolioAdminRow iframe{
             width:min(100%,360px)!important;
             margin:0 auto
           }
@@ -958,6 +1015,50 @@ const selectedDraftStyle: React.CSSProperties = {
   borderColor: "#cbd5e1",
   background: "#f1f5f9",
   color: "#334155",
+};
+
+const selectedYouTubeStyle: React.CSSProperties = {
+  borderColor: "#fecaca",
+  background: "#fff1f2",
+  color: "#b91c1c",
+};
+
+const selectedTikTokStyle: React.CSSProperties = {
+  borderColor: "#94a3b8",
+  background: "#0f172a",
+  color: "white",
+};
+
+const warningStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 10,
+  borderRadius: 10,
+  background: "#fff7ed",
+  border: "1px solid #fed7aa",
+  color: "#9a3412",
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const infoStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 10,
+  borderRadius: 10,
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  color: "#1e40af",
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const messageStyle: React.CSSProperties = {
+  margin: "14px 0",
+  padding: 12,
+  borderRadius: 12,
+  background: "#eef8fd",
+  border: "1px solid #cfe8f5",
+  color: "#0b2f49",
+  fontWeight: 800,
 };
 
 const checkStyle: React.CSSProperties = {

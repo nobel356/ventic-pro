@@ -22,7 +22,6 @@ function sameSiteMutationAllowed(req: NextRequest) {
 
   const origin = req.headers.get("origin");
 
-  // Non-browser/server-to-server requests can legitimately omit Origin.
   if (!origin) return true;
 
   try {
@@ -75,7 +74,7 @@ export function middleware(req: NextRequest) {
     "default-src 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
-    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.tiktok.com",
     "form-action 'self'",
     "object-src 'none'",
     "img-src 'self' data: blob: https:",
