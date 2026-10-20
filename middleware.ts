@@ -75,6 +75,7 @@ export function middleware(req: NextRequest) {
     "default-src 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
     "form-action 'self'",
     "object-src 'none'",
     "img-src 'self' data: blob: https:",
