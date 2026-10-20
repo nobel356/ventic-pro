@@ -38,13 +38,19 @@ async function auth() {
 
 async function signedReadUrl(pathname: string) {
   const validUntil = Date.now() + 60 * 60 * 1000;
-  const token = await issueSignedToken({ pathname, operations: ["get"], validUntil });
+  const token = await issueSignedToken({
+    pathname,
+    operations: ["get"],
+    validUntil,
+  });
+
   const result = await presignUrl(token, {
     pathname,
     operation: "get",
     access: "private",
     validUntil,
   });
+
   return result.presignedUrl;
 }
 
@@ -53,13 +59,15 @@ export async function GET() {
     await auth();
 
     const rows = await prisma.$queryRaw<Row[]>`
-      SELECT * FROM "PortfolioVideo"
+      SELECT *
+      FROM "PortfolioVideo"
       ORDER BY "sortOrder" ASC, "createdAt" DESC
     `;
 
     const items = await Promise.all(
       rows.map(async (item) => {
         if (item.blobPathname.startsWith("youtube:")) return item;
+
         return {
           ...item,
           blobUrl: await signedReadUrl(item.blobPathname),
@@ -120,50 +128,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const id = crypto.randomUUID();
     const publishedAt = isPublished ? new Date() : null;
     const creator = user.name || user.email || "Super Admin";
 
-    const existingRows = await prisma.$queryRaw<Row[]>`
-      SELECT *
-      FROM "PortfolioVideo"
-      WHERE "blobPathname" = ${blobPathname}
-      LIMIT 1
-    `;
-
-    const existing = existingRows[0];
-
-    if (existing) {
-      const nextPublishedAt =
-        isPublished
-          ? existing.publishedAt || publishedAt || new Date()
-          : null;
-
-      await prisma.$executeRaw`
-        UPDATE "PortfolioVideo"
-        SET
-          "title" = ${title},
-          "caption" = ${caption},
-          "location" = ${location},
-          "serviceType" = ${serviceType},
-          "blobUrl" = ${blobUrl},
-          "sortOrder" = ${sortOrder},
-          "customerConsent" = ${customerConsent},
-          "isPublished" = ${isPublished},
-          "publishedAt" = ${nextPublishedAt},
-          "updatedAt" = NOW()
-        WHERE "id" = ${existing.id}
-      `;
-
-      return Response.json({
-        ok: true,
-        id: existing.id,
-        updatedExisting: true,
-      });
-    }
-
-    const id = crypto.randomUUID();
-
-    await prisma.$executeRaw`
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       INSERT INTO "PortfolioVideo" (
         "id",
         "title",
@@ -196,27 +165,31 @@ export async function POST(request: Request) {
         NOW(),
         NOW()
       )
+      ON CONFLICT ("blobPathname")
+      DO UPDATE SET
+        "title" = EXCLUDED."title",
+        "caption" = EXCLUDED."caption",
+        "location" = EXCLUDED."location",
+        "serviceType" = EXCLUDED."serviceType",
+        "blobUrl" = EXCLUDED."blobUrl",
+        "sortOrder" = EXCLUDED."sortOrder",
+        "customerConsent" = EXCLUDED."customerConsent",
+        "isPublished" = EXCLUDED."isPublished",
+        "publishedAt" = CASE
+          WHEN EXCLUDED."isPublished" = true
+            THEN COALESCE("PortfolioVideo"."publishedAt", NOW())
+          ELSE NULL
+        END,
+        "updatedAt" = NOW()
+      RETURNING "id"
     `;
 
     return Response.json({
       ok: true,
-      id,
-      updatedExisting: false,
+      id: rows[0]?.id || id,
+      upserted: true,
     });
   } catch (error: any) {
-    if (
-      error?.code === "P2010" &&
-      String(error?.meta?.code || "") === "23505"
-    ) {
-      return Response.json(
-        {
-          error: "VIDEO_ALREADY_EXISTS",
-          message: "الفيديو موجود بالفعل في أعمالنا.",
-        },
-        { status: 409 },
-      );
-    }
-
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
@@ -236,7 +209,8 @@ export async function PATCH(request: Request) {
     }
 
     const rows = await prisma.$queryRaw<Row[]>`
-      SELECT * FROM "PortfolioVideo"
+      SELECT *
+      FROM "PortfolioVideo"
       WHERE "id" = ${id}
       LIMIT 1
     `;
@@ -316,7 +290,8 @@ export async function DELETE(request: Request) {
     }
 
     const rows = await prisma.$queryRaw<Row[]>`
-      SELECT * FROM "PortfolioVideo"
+      SELECT *
+      FROM "PortfolioVideo"
       WHERE "id" = ${id}
       LIMIT 1
     `;
