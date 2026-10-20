@@ -1,8 +1,6 @@
 import crypto from "crypto";
-import { issueSignedToken, presignUrl } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/auth-v7";
-import { deleteStoredFile } from "@/lib/storage";
 
 type Row = {
   id: string;
@@ -36,47 +34,25 @@ async function auth() {
   }
 }
 
-async function signedReadUrl(pathname: string) {
-  const validUntil = Date.now() + 60 * 60 * 1000;
-  const token = await issueSignedToken({
-    pathname,
-    operations: ["get"],
-    validUntil,
-  });
-
-  const result = await presignUrl(token, {
-    pathname,
-    operation: "get",
-    access: "private",
-    validUntil,
-  });
-
-  return result.presignedUrl;
+function validYouTubePath(value: string) {
+  if (!value.startsWith("youtube:")) return false;
+  return /^[A-Za-z0-9_-]{11}$/.test(value.slice("youtube:".length));
 }
 
 export async function GET() {
   try {
     await auth();
 
-    const rows = await prisma.$queryRaw<Row[]>`
+    const items = await prisma.$queryRaw<Row[]>`
       SELECT *
       FROM "PortfolioVideo"
+      WHERE "blobPathname" LIKE 'youtube:%'
       ORDER BY "sortOrder" ASC, "createdAt" DESC
     `;
 
-    const items = await Promise.all(
-      rows.map(async (item) => {
-        if (item.blobPathname.startsWith("youtube:")) return item;
-
-        return {
-          ...item,
-          blobUrl: await signedReadUrl(item.blobPathname),
-        };
-      }),
-    );
-
     return Response.json({ items });
   } catch (error: any) {
+    console.error("[youtube-portfolio-admin-get]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
@@ -110,15 +86,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (blobPathname.startsWith("youtube:")) {
-      const videoId = blobPathname.slice("youtube:".length);
-
-      if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
-        return Response.json(
-          { error: "INVALID_YOUTUBE_VIDEO_ID" },
-          { status: 400 },
-        );
-      }
+    if (!validYouTubePath(blobPathname)) {
+      return Response.json(
+        { error: "YOUTUBE_ONLY" },
+        { status: 400 },
+      );
     }
 
     if (isPublished && !customerConsent) {
@@ -190,6 +162,7 @@ export async function POST(request: Request) {
       upserted: true,
     });
   } catch (error: any) {
+    console.error("[youtube-portfolio-admin-post]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
@@ -212,6 +185,7 @@ export async function PATCH(request: Request) {
       SELECT *
       FROM "PortfolioVideo"
       WHERE "id" = ${id}
+        AND "blobPathname" LIKE 'youtube:%'
       LIMIT 1
     `;
 
@@ -267,10 +241,12 @@ export async function PATCH(request: Request) {
         "publishedAt" = ${publishedAt},
         "updatedAt" = NOW()
       WHERE "id" = ${id}
+        AND "blobPathname" LIKE 'youtube:%'
     `;
 
     return Response.json({ ok: true });
   } catch (error: any) {
+    console.error("[youtube-portfolio-admin-patch]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
@@ -289,30 +265,20 @@ export async function DELETE(request: Request) {
       return Response.json({ error: "ID_REQUIRED" }, { status: 400 });
     }
 
-    const rows = await prisma.$queryRaw<Row[]>`
-      SELECT *
-      FROM "PortfolioVideo"
-      WHERE "id" = ${id}
-      LIMIT 1
-    `;
-
-    const current = rows[0];
-
-    if (!current) {
-      return Response.json({ error: "NOT_FOUND" }, { status: 404 });
-    }
-
-    await prisma.$executeRaw`
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       DELETE FROM "PortfolioVideo"
       WHERE "id" = ${id}
+        AND "blobPathname" LIKE 'youtube:%'
+      RETURNING "id"
     `;
 
-    if (!current.blobPathname.startsWith("youtube:")) {
-      await deleteStoredFile(current.blobPathname);
+    if (!rows[0]) {
+      return Response.json({ error: "NOT_FOUND" }, { status: 404 });
     }
 
     return Response.json({ ok: true });
   } catch (error: any) {
+    console.error("[youtube-portfolio-admin-delete]", error?.message);
     return Response.json(
       { error: error?.message || "FAILED" },
       { status: error?.status || 500 },
