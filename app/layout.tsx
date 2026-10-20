@@ -3,6 +3,7 @@ import "./brand-theme.css";
 import "./brand-v14d.css";
 import "./iphone.css";
 import "./scroll-fix.css";
+import "./navigation-v18.css";
 import type { Metadata, Viewport } from "next";
 import SiteChrome from "@/app/shared/SiteChrome";
 import PwaInstallPrompt from "@/app/shared/PwaInstallPrompt";

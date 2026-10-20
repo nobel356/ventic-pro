@@ -1,0 +1,521 @@
+/* Ventic Pro V18A — global public navigation */
+
+.vpGlobalNavDock {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 2600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vpNavDockButton {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(15, 47, 73, .14);
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: rgba(255, 255, 255, .94);
+  color: #0b2f49;
+  box-shadow: 0 10px 28px rgba(7, 26, 43, .14);
+  backdrop-filter: blur(12px);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.vpNavDockMenu {
+  background: #0b2f49;
+  color: white;
+  border-color: rgba(255, 255, 255, .12);
+}
+
+.vpNavDockButton > span:first-child {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.vpNavOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  justify-content: flex-start;
+  background: rgba(7, 26, 43, .54);
+  backdrop-filter: blur(4px);
+}
+
+.vpNavDrawer {
+  width: min(420px, 92vw);
+  height: 100dvh;
+  margin-right: auto;
+  background: #f8fbfd;
+  border-left: 1px solid #dbe7ef;
+  box-shadow: -20px 0 60px rgba(7, 26, 43, .25);
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  animation: vpDrawerIn .2s ease-out;
+}
+
+@keyframes vpDrawerIn {
+  from {
+    transform: translateX(40px);
+    opacity: .55;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.vpNavDrawerHead {
+  min-height: 82px;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+}
+
+.vpNavDrawerBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.vpNavDrawerBrand img {
+  width: 70px;
+  height: 50px;
+  object-fit: contain;
+  flex: 0 0 70px;
+}
+
+.vpNavDrawerBrand span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.vpNavDrawerBrand strong {
+  color: #071a2b;
+  font-size: 15px;
+  letter-spacing: .06em;
+}
+
+.vpNavDrawerBrand small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.vpNavClose {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border: 1px solid #dbe4ec;
+  border-radius: 12px;
+  background: white;
+  color: #0b2f49;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vpNavDrawerScroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  padding-bottom: max(30px, calc(env(safe-area-inset-bottom) + 20px));
+}
+
+.vpNavSection {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.vpNavSectionTitle {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .03em;
+  margin-bottom: 3px;
+}
+
+.vpDrawerLink {
+  min-height: 61px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e0e9ef;
+  border-radius: 14px;
+  background: white;
+  padding: 9px 11px;
+  text-decoration: none;
+  color: #0f2d4a;
+  transition: .16s ease;
+}
+
+.vpDrawerLink:hover,
+.vpDrawerLink.active {
+  border-color: #9fd4f2;
+  background: #f0f9ff;
+}
+
+.vpDrawerLink.primary {
+  border-color: #8cc8ff;
+  background: linear-gradient(135deg, #0a84ff, #0574d4);
+  color: white;
+}
+
+.vpDrawerLink.primary .vpDrawerCopy small,
+.vpDrawerLink.primary .vpDrawerArrow {
+  color: #d8eeff;
+}
+
+.vpDrawerIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #eef8fd;
+  color: #075985;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.vpDrawerLink.primary .vpDrawerIcon {
+  background: rgba(255,255,255,.15);
+  color: white;
+}
+
+.vpDrawerCopy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.vpDrawerCopy strong {
+  font-size: 14px;
+}
+
+.vpDrawerCopy small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.vpDrawerArrow {
+  color: #94a3b8;
+  font-weight: 900;
+}
+
+.vpServiceLinkGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 8px;
+}
+
+.vpServiceDrawerLink {
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dfe9ef;
+  border-radius: 14px;
+  background: white;
+  padding: 13px;
+  color: #0b2f49;
+  text-decoration: none;
+}
+
+.vpServiceDrawerLink > span {
+  font-size: 21px;
+  color: #0284c7;
+}
+
+.vpServiceDrawerLink strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.vpServiceDrawerLink.active,
+.vpServiceDrawerLink:hover {
+  background: #eef8fd;
+  border-color: #9fd4f2;
+}
+
+.vpNavContactCard {
+  margin-top: 4px;
+  padding: 16px;
+  border-radius: 17px;
+  background: linear-gradient(145deg, #103e5f, #071a2b);
+  color: white;
+}
+
+.vpNavContactCard .vpNavSectionTitle {
+  color: #7dd3fc;
+}
+
+.vpNavContactCard p {
+  margin: 7px 0 13px;
+  color: #c9e3ef;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.vpNavContactButtons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 8px;
+}
+
+.vpWhatsAppAction,
+.vpPhoneAction,
+.vpCancelAction {
+  min-height: 44px;
+  border-radius: 11px;
+  padding: 10px 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  text-decoration: none;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.vpWhatsAppAction {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+}
+
+.vpPhoneAction {
+  background: white;
+  color: #0b2f49;
+}
+
+.vpCancelAction {
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #0b2f49;
+}
+
+.vpNavPhoneNumber {
+  margin-top: 10px;
+  display: block;
+  color: #bae6fd;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 900;
+  direction: ltr;
+}
+
+.vpNavLegal {
+  margin-top: 17px;
+  display: flex;
+  gap: 7px 12px;
+  flex-wrap: wrap;
+}
+
+.vpNavLegal a {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.vpNavSocials {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.vpNavSocials a {
+  border: 1px solid #dbe7ef;
+  background: white;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #0b2f49;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.vpFloatingWhatsapp {
+  position: fixed;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(18px, calc(env(safe-area-inset-bottom) + 8px));
+  z-index: 3000;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.72);
+  background: linear-gradient(145deg,#22c55e,#16a34a);
+  color: white;
+  font-size: 26px;
+  box-shadow: 0 14px 34px rgba(7,26,43,.24);
+  cursor: pointer;
+}
+
+.vpWhatsappModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  background: rgba(7,26,43,.58);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  backdrop-filter: blur(3px);
+}
+
+.vpWhatsappModal {
+  width: min(430px,100%);
+  background: white;
+  border: 1px solid #dce8ef;
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 26px 70px rgba(7,26,43,.30);
+}
+
+.vpWhatsappModalIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: #ecfdf5;
+  color: #16a34a;
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.vpWhatsappModal h2 {
+  margin-top: 0;
+  color: #0b2f49;
+}
+
+.vpWhatsappModal p {
+  color: #64748b;
+  line-height: 1.8;
+}
+
+.vpWhatsappModalActions {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.vpMobileBottomNav {
+  display: none;
+}
+
+@media(max-width:760px) {
+  .vpGlobalNavDock {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    gap: 6px;
+  }
+
+  .vpNavDockButton {
+    min-height: 40px;
+    padding: 7px 10px;
+  }
+
+  .vpNavDockButton > span:last-child {
+    display: none;
+  }
+
+  .vpNavDrawer {
+    width: min(400px, 94vw);
+  }
+
+  .vpMobileBottomNav {
+    position: fixed;
+    right: max(10px, env(safe-area-inset-right));
+    left: max(10px, env(safe-area-inset-left));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 2900;
+    height: 62px;
+    padding: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    border: 1px solid rgba(15, 47, 73, .13);
+    border-radius: 18px;
+    background: rgba(255,255,255,.95);
+    box-shadow: 0 14px 36px rgba(7,26,43,.18);
+    backdrop-filter: blur(14px);
+  }
+
+  .vpMobileBottomNav a,
+  .vpMobileBottomNav button {
+    border: 0;
+    border-radius: 13px;
+    background: transparent;
+    color: #475569;
+    text-decoration: none;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .vpMobileBottomNav a > span,
+  .vpMobileBottomNav button > span {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .vpMobileBottomNav small {
+    font-size: 10px;
+    font-weight: 900;
+  }
+
+  .vpMobileBottomNav .active {
+    background: #eef8fd;
+    color: #075985;
+  }
+
+  .vpMobileBottomNav .primary {
+    background: linear-gradient(135deg, #0a84ff, #0574d4);
+    color: white;
+  }
+
+  .vpFloatingWhatsapp {
+    display: none;
+  }
+
+  body {
+    padding-bottom: max(86px, calc(env(safe-area-inset-bottom) + 76px));
+  }
+}
+
+@media(max-width:410px) {
+  .vpServiceLinkGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .vpNavContactButtons {
+    grid-template-columns: 1fr;
+  }
+}
