@@ -10,6 +10,13 @@ export type ConversionEvent =
   | "offer_view"
   | "referral_visit";
 
+type ConversionDetailValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined;
+
 function sessionId() {
   if (typeof window === "undefined") return "";
 
@@ -28,15 +35,19 @@ function sessionId() {
 
 export function trackConversion(
   event: ConversionEvent,
-  detail: Record<string, string | number | boolean | null> = {},
+  detail: Record<string, ConversionDetailValue> = {},
 ) {
   if (typeof window === "undefined") return;
+
+  const safeDetail = Object.fromEntries(
+    Object.entries(detail).filter(([, value]) => value !== undefined),
+  );
 
   const payload = JSON.stringify({
     event,
     path: window.location.pathname,
     sessionId: sessionId(),
-    detail,
+    detail: safeDetail,
   });
 
   void fetch("/api/marketing/events", {
