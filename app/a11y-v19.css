@@ -1,0 +1,35 @@
+.vpSkipLink {
+  position: fixed;
+  top: -80px;
+  right: 14px;
+  z-index: 99999;
+  background: #071a2b;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 0 0 10px 10px;
+  font-weight: 900;
+  text-decoration: none;
+  transition: top .15s ease;
+}
+
+.vpSkipLink:focus {
+  top: 0;
+}
+
+:where(a,button,input,select,textarea,summary):focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 3px;
+}
+
+:where(button,a,input,select,textarea) {
+  -webkit-tap-highlight-color: rgba(10,132,255,.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}

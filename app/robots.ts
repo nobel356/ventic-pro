@@ -1,24 +1,27 @@
 import type { MetadataRoute } from "next";
 
-const appUrl =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  "https://ventic-pro-v11-7.vercel.app";
-
 export default function robots(): MetadataRoute.Robots {
+  const base = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://ventic-pro-v11-7.vercel.app"
+  ).replace(/\/$/, "");
+
   return {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/order", "/services/", "/faq", "/legal/"],
+        allow: "/",
         disallow: [
           "/admin/",
           "/technician/",
           "/api/",
-          "/customer/account/",
+          "/login",
+          "/customer/",
+          "/ref/",
         ],
       },
     ],
-    sitemap: `${appUrl}/sitemap.xml`,
-    host: appUrl,
+    sitemap: `${base}/sitemap.xml`,
+    host: base,
   };
 }

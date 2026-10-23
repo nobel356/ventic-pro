@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import PortfolioGallery from "@/app/shared/PortfolioGallery";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "أعمالنا",
-  description: "شاهد فيديوهات من تنفيذات Ventic Pro الفعلية.",
+  description: "شاهد فيديوهات من تنفيذات Ventic Pro الفعلية على YouTube وTikTok.",
+  alternates: { canonical: "/works" },
 };
 
 export default function WorksPage() {
@@ -14,7 +16,7 @@ export default function WorksPage() {
         paddingBottom: 40,
       }}
     >
-      <PortfolioGallery />
+      <PortfolioGallery filters />
     </main>
   );
 }

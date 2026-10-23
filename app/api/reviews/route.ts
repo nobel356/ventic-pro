@@ -16,10 +16,7 @@ export async function POST(req: Request) {
   const customer = await currentCustomer();
 
   if (!customer) {
-    return NextResponse.json(
-      { error: "UNAUTHENTICATED" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
   }
 
   try {
@@ -33,35 +30,26 @@ export async function POST(req: Request) {
         return !Number.isInteger(value) || value < 1 || value > 5;
       })
     ) {
-      return NextResponse.json(
-        { error: "كل التقييمات يجب أن تكون من 1 إلى 5" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "كل التقييمات يجب أن تكون من 1 إلى 5" }, { status: 400 });
+    }
+
+    if (typeof body?.wouldRecommend !== "boolean") {
+      return NextResponse.json({ error: "اختار هل ترشح Ventic Pro أم لا" }, { status: 400 });
     }
 
     const order = await prisma.order.findFirst({
-      where: {
-        id: orderId,
-        customerId: customer.id,
-      },
-      select: {
-        id: true,
-        status: true,
-        technicianId: true,
-        orderNo: true,
-      },
+      where: { id: orderId, customerId: customer.id },
+      select: { id: true, status: true, technicianId: true, orderNo: true },
     });
 
     if (!order || order.status !== "COMPLETED") {
-      return NextResponse.json(
-        { error: "التقييم متاح لطلباتك المكتملة فقط" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "التقييم متاح لطلباتك المكتملة فقط" }, { status: 400 });
     }
 
     const comment = String(body?.comment || "").trim().slice(0, 1200) || null;
     const arrivalNote = String(body?.arrivalNote || "").trim().slice(0, 300) || null;
     const publicConsent = body?.publicConsent === true;
+    const wouldRecommend = body.wouldRecommend === true;
 
     const review = await prisma.review.create({
       data: {
@@ -90,22 +78,17 @@ export async function POST(req: Request) {
           reviewId: review.id,
           overall: review.overall,
           publicConsent,
+          wouldRecommend,
         },
       },
     });
 
-    return NextResponse.json({ ok: true, reviewId: review.id });
+    return NextResponse.json({ ok: true, reviewId: review.id, wouldRecommend });
   } catch (error: any) {
     if (error?.code === "P2002") {
-      return NextResponse.json(
-        { error: "تم تقييم هذا الطلب بالفعل" },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: "تم تقييم هذا الطلب بالفعل" }, { status: 409 });
     }
 
-    return NextResponse.json(
-      { error: error?.message || "تعذر حفظ التقييم" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error?.message || "تعذر حفظ التقييم" }, { status: 500 });
   }
 }

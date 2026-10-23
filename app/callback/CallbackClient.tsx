@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { trackConversion } from "@/lib/client-conversion";
 
 export default function CallbackClient({
   service,
@@ -61,6 +62,7 @@ export default function CallbackClient({
         throw new Error(data?.error || "تعذر إرسال طلب الاتصال.");
       }
 
+      trackConversion("callback_intent", { stage: "submitted", service: service || undefined });
       setDone(true);
     } catch (error: any) {
       setMessage(error?.message || "تعذر إرسال طلب الاتصال.");

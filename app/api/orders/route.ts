@@ -7,6 +7,12 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { createOrderUploadToken } from "@/lib/customer-order-upload";
 import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
 import {
+  findActiveReferral,
+  referralCodeFromRequest,
+  referralDiscountAmount,
+  REFERRAL_REDEEMED,
+} from "@/lib/referrals";
+import {
   clientIp,
   rateLimit,
   rateLimitHeaders,
@@ -47,7 +53,6 @@ export async function POST(req: Request) {
 
     const b = await req.json();
     const c = b.customer || {};
-    // V13C_OPTIONAL_ORDER_DETAILS
     const customerName = clean(c.name);
     const customerPhone = clean(c.phone).replace(/\D/g, "");
 
@@ -88,13 +93,11 @@ export async function POST(req: Request) {
       ]),
     );
 
-    const email =
-      rawEmail || null;
-    const acquisitionSource =
-      acquisitionSourceFromRequest(
-        req,
-        b?.source,
-      );
+    const email = rawEmail || null;
+    const acquisitionSource = acquisitionSourceFromRequest(
+      req,
+      b?.source,
+    );
 
     const customer = await prisma.customer.upsert({
       where: { phone: customerPhone },
@@ -112,8 +115,7 @@ export async function POST(req: Request) {
 
     const governorate = clean(c.governorate) || "غير محدد";
     const area = clean(c.area) || "غير محدد";
-    const address =
-      clean(c.address) || "غير محدد";
+    const address = clean(c.address) || "غير محدد";
 
     let property = await prisma.property.findFirst({
       where: {
@@ -154,10 +156,7 @@ export async function POST(req: Request) {
 
     (b.baths || []).forEach((x: any, i: number) => {
       const code = `BATH_${String(x.service).toUpperCase()}`;
-      const unitPrice =
-        prices[code] ??
-        bp[x.service] ??
-        0;
+      const unitPrice = prices[code] ?? bp[x.service] ?? 0;
 
       serviceCodes.push(code);
       subtotal += unitPrice;
@@ -205,39 +204,19 @@ export async function POST(req: Request) {
       }
 
       if (x.fan) {
-        addService(
-          "KITCHEN_FAN",
-          "تركيب بلاور مطبخ",
-          1,
-          400,
-        );
+        addService("KITCHEN_FAN", "تركيب بلاور مطبخ", 1, 400);
       }
 
       if (x.hood) {
-        addService(
-          "HOOD",
-          "تركيب هود",
-          1,
-          500,
-        );
+        addService("HOOD", "تركيب هود", 1, 500);
       }
 
       if (x.external) {
-        addService(
-          "EXTERNAL_FAN",
-          "مروحة طرد خارجية",
-          1,
-          500,
-        );
+        addService("EXTERNAL_FAN", "مروحة طرد خارجية", 1, 500);
       }
 
       if (+x.duct > 0) {
-        addService(
-          "DUCT_METER",
-          "خط طرد بالمتر",
-          +x.duct,
-          250,
-        );
+        addService("DUCT_METER", "خط طرد بالمتر", +x.duct, 250);
       }
 
       spaces.push({
@@ -266,13 +245,25 @@ export async function POST(req: Request) {
     if (clean(b?.couponCode) && !offer.couponValid) {
       return NextResponse.json(
         {
-          error:
-            offer.couponReason ||
-            "كود الخصم غير صالح",
+          error: offer.couponReason || "كود الخصم غير صالح",
         },
         { status: 400 },
       );
     }
+
+    // A referral discount does not stack with a normal coupon.
+    const referralCookie = referralCodeFromRequest(req);
+    const referral =
+      !offer.couponValid && referralCookie
+        ? await findActiveReferral(prisma, referralCookie)
+        : null;
+    const referralDiscount = referral
+      ? referralDiscountAmount(Number(offer.total), referral)
+      : 0;
+    const estimatedTotal = Math.max(
+      0,
+      Math.round((Number(offer.total) - referralDiscount) * 100) / 100,
+    );
 
     const orderNo = `VP-${new Date().getFullYear()}-${Date.now()
       .toString()
@@ -284,21 +275,22 @@ export async function POST(req: Request) {
           orderNo,
           customerId: customer.id,
           propertyId: property.id,
-          estimatedTotal: offer.total,
+          estimatedTotal,
           travelFeeSnapshot: offer.travelFee,
           couponCodeSnapshot:
             offer.couponValid && offer.coupon
               ? offer.coupon.code
-              : null,
-          couponDiscountSnapshot: offer.discount,
+              : referral
+                ? `REF:${referral.code}`
+                : null,
+          couponDiscountSnapshot:
+            Math.round((Number(offer.discount || 0) + referralDiscount) * 100) / 100,
           acquisitionSource,
           governorate,
           area,
           address,
-          preferredDate:
-            clean(c.date) || null,
-          preferredTime:
-            clean(c.time) || null,
+          preferredDate: clean(c.date) || null,
+          preferredTime: clean(c.time) || null,
           estimateAccepted: true,
           spaces: { create: spaces },
         },
@@ -333,6 +325,22 @@ export async function POST(req: Request) {
         }
       }
 
+      if (referral) {
+        await tx.auditLog.create({
+          data: {
+            orderId: order.id,
+            actorLabel: "النظام",
+            action: REFERRAL_REDEEMED,
+            newValue: {
+              referralId: referral.id,
+              code: referral.code,
+              discount: referralDiscount,
+              benefitLabel: referral.benefitLabel,
+            },
+          },
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           orderId: order.id,
@@ -347,14 +355,13 @@ export async function POST(req: Request) {
                 ? offer.coupon.code
                 : null,
             couponDiscount: offer.discount,
-            estimatedTotal: offer.total,
+            referralCode: referral?.code || null,
+            referralDiscount,
+            estimatedTotal,
             acquisitionSource,
             legalAccepted: true,
-            policyVersion:
-              clean(b?.policyVersion) ||
-              "2026-10-07",
-            customerEmail:
-              email,
+            policyVersion: clean(b?.policyVersion) || "2026-10-07",
+            customerEmail: email,
           },
         },
       });
@@ -365,9 +372,7 @@ export async function POST(req: Request) {
     await notifyAdmins({
       type: AdminNotificationType.NEW_ORDER,
       title: "طلب جديد وصل",
-      message: `${result.orderNo} — ${customer.name}${
-        area ? ` — ${area}` : ""
-      }`,
+      message: `${result.orderNo} — ${customer.name}${area ? ` — ${area}` : ""}`,
       orderId: result.id,
       href: `/admin/orders/${result.id}`,
     });
@@ -391,10 +396,8 @@ export async function POST(req: Request) {
         `الموعد ${clean(c.date) || "سيتم تحديده"} — ${clean(c.time) || "بالتواصل"}. ` +
         `السعر التقديري الحالي ${Number(result.estimatedTotal || 0).toLocaleString("ar-EG")} ج.`,
       payload: {
-        preferredDate:
-          clean(c.date) || null,
-        preferredTime:
-          clean(c.time) || null,
+        preferredDate: clean(c.date) || null,
+        preferredTime: clean(c.time) || null,
         estimatedTotal: Number(result.estimatedTotal || 0),
       },
     });
@@ -403,6 +406,8 @@ export async function POST(req: Request) {
       orderId: result.id,
       orderNo: result.orderNo,
       estimatedTotal: Number(result.estimatedTotal || 0),
+      referralApplied: referral?.code || null,
+      referralDiscount,
       uploadToken: createOrderUploadToken(result.id),
     });
   } catch (error) {

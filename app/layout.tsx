@@ -5,6 +5,7 @@ import "./iphone.css";
 import "./scroll-fix.css";
 import "./navigation-v18.css";
 import "./growth-v18b.css";
+import "./a11y-v19.css";
 import type { Metadata, Viewport } from "next";
 import SiteChrome from "@/app/shared/SiteChrome";
 import PwaInstallPrompt from "@/app/shared/PwaInstallPrompt";
@@ -12,6 +13,10 @@ import MarketingAttribution from "@/app/shared/MarketingAttribution";
 import SeoJsonLd from "@/app/shared/SeoJsonLd";
 import PortfolioPortal from "@/app/shared/PortfolioPortal";
 import GrowthAssist from "@/app/shared/GrowthAssist";
+import QrQuickAccess from "@/app/shared/QrQuickAccess";
+import ReferralBanner from "@/app/shared/ReferralBanner";
+import ConversionTracker from "@/app/shared/ConversionTracker";
+import TrustBar from "@/app/shared/TrustBar";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -27,7 +32,6 @@ export const metadata: Metadata = {
     "خدمات تركيب وتهوية الحمامات والمطابخ والهود وخطوط الطرد. اطلب الخدمة أونلاين وارفع صور المكان وتابع طلبك خطوة بخطوة.",
   applicationName: "Ventic Pro",
   manifest: "/manifest.webmanifest",
-  alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   appleWebApp: {
     capable: true,
@@ -76,12 +80,19 @@ export default function Layout({
   return (
     <html lang="ar" dir="rtl">
       <body>
+        <a href="#main-content" className="vpSkipLink">
+          تخطي للمحتوى
+        </a>
         <MarketingAttribution />
+        <ConversionTracker />
+        <ReferralBanner />
         <SeoJsonLd />
-        {children}
+        <TrustBar />
+        <div id="main-content">{children}</div>
         <PortfolioPortal />
         <SiteChrome />
         <GrowthAssist />
+        <QrQuickAccess />
         <PwaInstallPrompt />
       </body>
     </html>

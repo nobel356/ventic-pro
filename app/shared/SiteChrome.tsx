@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { trackConversion } from "@/lib/client-conversion";
 
 const whatsappNumber =
   process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
@@ -31,6 +32,30 @@ const mainLinks = [
     icon: "＋",
     description: "ابدأ طلب خدمة جديد",
     primary: true,
+  },
+  {
+    href: "/calculator",
+    label: "حاسبة السعر",
+    icon: "∑",
+    description: "تقدير سريع قبل الطلب",
+  },
+  {
+    href: "/callback",
+    label: "كلّمني",
+    icon: "☎",
+    description: "سيب رقمك وإحنا نتواصل معاك",
+  },
+  {
+    href: "/offers",
+    label: "العروض",
+    icon: "%",
+    description: "العروض والكوبونات النشطة",
+  },
+  {
+    href: "/why-ventic",
+    label: "ليه Ventic Pro؟",
+    icon: "✓",
+    description: "اعرف رحلة الخدمة والضمان",
   },
   {
     href: "/works",
@@ -69,6 +94,11 @@ const serviceLinks = [
     icon: "↗",
   },
   {
+    href: "/areas",
+    label: "مناطق الخدمة",
+    icon: "⌖",
+  },
+  {
     href: "/customer/account/aftercare",
     label: "الصيانة وما بعد التركيب",
     icon: "⚙",
@@ -94,6 +124,18 @@ function whatsappDigits(value: string) {
   }
 
   return digits;
+}
+
+function whatsappMessageForPath(pathname: string) {
+  if (pathname.startsWith("/services/bathroom-ventilation")) return "مرحبًا Ventic Pro، أنا في صفحة تهوية الحمامات وعاوز أعرف أنسب حل للمكان عندي.";
+  if (pathname.startsWith("/services/kitchen-ventilation")) return "مرحبًا Ventic Pro، أنا في صفحة تهوية المطابخ وعاوز استفسر عن الحل المناسب للمطبخ عندي.";
+  if (pathname.startsWith("/services/hood-exhaust")) return "مرحبًا Ventic Pro، أنا في صفحة الهود وخطوط الطرد وعاوز استفسر عن التركيب.";
+  if (pathname.startsWith("/works")) return "مرحبًا Ventic Pro، شفت أعمالكم وعاوز تنفيذ مشابه عندي.";
+  if (pathname.startsWith("/calculator")) return "مرحبًا Ventic Pro، استخدمت حاسبة السعر وعاوز أتأكد من التقدير.";
+  if (pathname.startsWith("/offers")) return "مرحبًا Ventic Pro، شفت العروض وعاوز أعرف الأنسب لطلبي.";
+  if (pathname.startsWith("/areas")) return "مرحبًا Ventic Pro، عاوز أتأكد إن منطقتي ضمن مناطق الخدمة.";
+  if (pathname.startsWith("/order")) return "مرحبًا Ventic Pro، عندي استفسار وأنا بعمل طلب تركيب.";
+  return "مرحبًا Ventic Pro، أريد الاستفسار عن خدمات التهوية والتركيب.";
 }
 
 function isActive(pathname: string, href: string) {
@@ -134,8 +176,10 @@ export default function SiteChrome() {
 
     if (!digits) return;
 
+    trackConversion("whatsapp_click", { source: "site_chrome" });
+
     const message = encodeURIComponent(
-      "مرحبًا Ventic Pro، أريد الاستفسار عن خدمات التهوية والتركيب.",
+      whatsappMessageForPath(pathname),
     );
 
     window.open(
@@ -400,6 +444,15 @@ export default function SiteChrome() {
                 >
                   <Link style={footerLink} href="/order">
                     اطلب تركيب
+                  </Link>
+                  <Link style={footerLink} href="/calculator">
+                    حاسبة السعر
+                  </Link>
+                  <Link style={footerLink} href="/offers">
+                    العروض
+                  </Link>
+                  <Link style={footerLink} href="/areas">
+                    مناطق الخدمة
                   </Link>
                   <Link style={footerLink} href="/works">
                     أعمالنا

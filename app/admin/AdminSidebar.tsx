@@ -29,6 +29,12 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/admin", label: "الرئيسية", icon: "⌂" },
   {
+    href: "/admin/growth-dashboard",
+    label: "Growth Dashboard",
+    icon: "🚀",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/search",
     label: "بحث شامل",
     icon: "🔎",
@@ -110,6 +116,12 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/conversions",
+    label: "Conversion Tracking",
+    icon: "🎯",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/areas",
     label: "المناطق",
     icon: "📍",
@@ -122,6 +134,12 @@ const navItems: NavItem[] = [
     promotionsPermission: true,
   },
   {
+    href: "/admin/referrals",
+    label: "الإحالات",
+    icon: "🔗",
+    promotionsPermission: true,
+  },
+  {
     href: "/admin/exports",
     label: "مركز Excel",
     icon: "📗",
@@ -131,6 +149,12 @@ const navItems: NavItem[] = [
     href: "/admin/leads",
     label: "غير المكتملة",
     icon: "🕓",
+    leadsPermission: true,
+  },
+  {
+    href: "/admin/lead-recovery",
+    label: "Lead Recovery",
+    icon: "🔥",
     leadsPermission: true,
   },
   {
@@ -167,6 +191,12 @@ const navItems: NavItem[] = [
     href: "/admin/system-health",
     label: "صحة النظام",
     icon: "🩺",
+    superAdminOnly: true,
+  },
+  {
+    href: "/admin/security-audit",
+    label: "Security Audit",
+    icon: "🛡️",
     superAdminOnly: true,
   },
   {
@@ -247,12 +277,7 @@ export default function AdminSidebar({
             if (item.purchasesPermission && !canPurchases) return false;
             if (item.exportsPermission && !canExports) return false;
             if (item.aftercarePermission && !canViewAftercare) return false;
-            if (
-              item.technicianPerformancePermission &&
-              !canViewTechnicianPerformance
-            ) {
-              return false;
-            }
+            if (item.technicianPerformancePermission && !canViewTechnicianPerformance) return false;
             if (item.reportsPermission && !canViewReports) return false;
             if (item.profitabilityPermission && !canViewProfitability) return false;
             if (item.areasPermission && !canManageAreas) return false;
