@@ -1,0 +1,5 @@
+
+@media(max-width:760px){
+  .vpMobileBottomNav{display:none!important}
+  body{padding-bottom:max(88px,calc(env(safe-area-inset-bottom) + 78px))!important}
+}

@@ -16,9 +16,7 @@ function clean(value: unknown) {
 function requestTypeFromPayload(
   payload: Record<string, unknown>,
 ) {
-  const value = clean(
-    payload?.requestType,
-  );
+  const value = clean(payload?.requestType);
 
   return value === "QUICK_REQUEST" ||
     value === "DETAILED_ENTRY"
@@ -38,10 +36,7 @@ export async function POST(req: Request) {
 
     if (!limited.allowed) {
       return NextResponse.json(
-        {
-          error:
-            "تم تجاوز عدد المحاولات مؤقتًا.",
-        },
+        { error: "تم تجاوز عدد المحاولات مؤقتًا." },
         {
           status: 429,
           headers: rateLimitHeaders(limited),
@@ -70,8 +65,8 @@ export async function POST(req: Request) {
       !Array.isArray(body.payload)
         ? (body.payload as Record<string, unknown>)
         : {};
-    const requestType =
-      requestTypeFromPayload(payload);
+    const requestType = requestTypeFromPayload(payload);
+    const intent = clean(payload?.intent);
 
     if (phone && !/^01\d{9}$/.test(phone)) {
       return NextResponse.json(
@@ -85,10 +80,7 @@ export async function POST(req: Request) {
       (!name || name.length < 2 || !phone)
     ) {
       return NextResponse.json(
-        {
-          error:
-            "الاسم ورقم الموبايل مطلوبان.",
-        },
+        { error: "الاسم ورقم الموبايل مطلوبان." },
         { status: 400 },
       );
     }
@@ -128,11 +120,6 @@ export async function POST(req: Request) {
       });
     }
 
-    /*
-     * Gate submissions are intentionally deduplicated for 24 hours by phone.
-     * A double tap, refresh or return from TikTok should update the same lead,
-     * not create several rows for the same person.
-     */
     if (requestType && phone) {
       const recent = await prisma.lead.findFirst({
         where: {
@@ -143,8 +130,7 @@ export async function POST(req: Request) {
           },
           lastActivityAt: {
             gte: new Date(
-              Date.now() -
-                24 * 60 * 60 * 1000,
+              Date.now() - 24 * 60 * 60 * 1000,
             ),
           },
         },
@@ -174,12 +160,16 @@ export async function POST(req: Request) {
     });
 
     if (requestType === "QUICK_REQUEST") {
+      const callback = intent === "CALLBACK";
+
       await notifyAdmins({
         type: AdminNotificationType.SYSTEM,
-        title: "طلب سريع جديد",
-        message: `${name} — ${phone}`,
+        title: callback ? "طلب اتصال جديد" : "طلب سريع جديد",
+        message: callback
+          ? `${name} — ${phone} — يريد مكالمة`
+          : `${name} — ${phone}`,
         href: "/admin/leads",
-        dedupeKey: `quick-lead:${created.id}`,
+        dedupeKey: `${callback ? "callback" : "quick-lead"}:${created.id}`,
       });
     }
 

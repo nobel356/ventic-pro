@@ -4,12 +4,14 @@ import "./brand-v14d.css";
 import "./iphone.css";
 import "./scroll-fix.css";
 import "./navigation-v18.css";
+import "./growth-v18b.css";
 import type { Metadata, Viewport } from "next";
 import SiteChrome from "@/app/shared/SiteChrome";
 import PwaInstallPrompt from "@/app/shared/PwaInstallPrompt";
 import MarketingAttribution from "@/app/shared/MarketingAttribution";
 import SeoJsonLd from "@/app/shared/SeoJsonLd";
 import PortfolioPortal from "@/app/shared/PortfolioPortal";
+import GrowthAssist from "@/app/shared/GrowthAssist";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -79,6 +81,7 @@ export default function Layout({
         {children}
         <PortfolioPortal />
         <SiteChrome />
+        <GrowthAssist />
         <PwaInstallPrompt />
       </body>
     </html>
