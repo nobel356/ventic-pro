@@ -17,6 +17,7 @@ import QrQuickAccess from "@/app/shared/QrQuickAccess";
 import ReferralBanner from "@/app/shared/ReferralBanner";
 import ConversionTracker from "@/app/shared/ConversionTracker";
 import TrustBar from "@/app/shared/TrustBar";
+import CalculatorOrderSummary from "@/app/shared/CalculatorOrderSummary";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -32,7 +33,10 @@ export const metadata: Metadata = {
     "خدمات تركيب وتهوية الحمامات والمطابخ والهود وخطوط الطرد. اطلب الخدمة أونلاين وارفع صور المكان وتابع طلبك خطوة بخطوة.",
   applicationName: "Ventic Pro",
   manifest: "/manifest.webmanifest",
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+  },
   appleWebApp: {
     capable: true,
     title: "Ventic Pro",
@@ -55,11 +59,21 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icon.png", sizes: "512x512", type: "image/png" },
-      { url: "/favicon.ico" },
+      {
+        url: "/icon.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
+        url: "/favicon.ico",
+      },
     ],
     apple: [
-      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+      {
+        url: "/apple-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
     ],
   },
 };
@@ -78,17 +92,29 @@ export default function Layout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ar" dir="rtl">
+    <html
+      lang="ar"
+      dir="rtl"
+    >
       <body>
-        <a href="#main-content" className="vpSkipLink">
+        <a
+          href="#main-content"
+          className="vpSkipLink"
+        >
           تخطي للمحتوى
         </a>
+
         <MarketingAttribution />
         <ConversionTracker />
         <ReferralBanner />
         <SeoJsonLd />
         <TrustBar />
-        <div id="main-content">{children}</div>
+        <CalculatorOrderSummary />
+
+        <div id="main-content">
+          {children}
+        </div>
+
         <PortfolioPortal />
         <SiteChrome />
         <GrowthAssist />
