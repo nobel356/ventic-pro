@@ -24,6 +24,9 @@ const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
   "https://ventic-pro-v11-7.vercel.app";
 
+const gtmId =
+  String(process.env.NEXT_PUBLIC_GTM_ID || "").trim();
+
 const googleVerification =
   process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined;
 
@@ -101,6 +104,35 @@ export const viewport: Viewport = {
   colorScheme: "light",
 };
 
+function gtmBootstrap(containerId: string) {
+  return `
+(function(w,d,s,l,i){
+  w[l]=w[l]||[];
+  w.gtag=w.gtag||function(){w[l].push(arguments);};
+
+  w.gtag('consent','default',{
+    analytics_storage:'denied',
+    ad_storage:'denied',
+    ad_user_data:'denied',
+    ad_personalization:'denied'
+  });
+
+  w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
+
+  var f=d.getElementsByTagName(s)[0],
+      j=d.createElement(s),
+      dl=l!='dataLayer'?'&l='+l:'';
+
+  j.async=true;
+  j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+  f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${containerId.replace(
+    /[^A-Za-z0-9_-]/g,
+    "",
+  )}');
+`;
+}
+
 export default function Layout({
   children,
 }: {
@@ -108,7 +140,35 @@ export default function Layout({
 }) {
   return (
     <html lang="ar" dir="rtl">
+      <head>
+        {gtmId ? (
+          <script
+            id="ventic-gtm-bootstrap"
+            dangerouslySetInnerHTML={{
+              __html: gtmBootstrap(gtmId),
+            }}
+          />
+        ) : null}
+      </head>
+
       <body>
+        {gtmId ? (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(
+                gtmId,
+              )}`}
+              height={0}
+              width={0}
+              style={{
+                display: "none",
+                visibility: "hidden",
+              }}
+              title="Google Tag Manager"
+            />
+          </noscript>
+        ) : null}
+
         <a href="#main-content" className="vpSkipLink">
           تخطي للمحتوى
         </a>

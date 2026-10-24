@@ -56,32 +56,6 @@ function ensureGoogleQueue() {
   return window.gtag;
 }
 
-function loadGtm() {
-  if (!gtmId) return;
-
-  const layer = ensureDataLayer();
-  const gtag = ensureGoogleQueue();
-
-  if (!document.getElementById("ventic-gtm")) {
-    gtag("consent", "default", {
-      analytics_storage: "denied",
-      ad_storage: "denied",
-      ad_user_data: "denied",
-      ad_personalization: "denied",
-    });
-
-    layer.push({
-      "gtm.start": Date.now(),
-      event: "gtm.js",
-    });
-
-    appendScript(
-      "ventic-gtm",
-      `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(gtmId)}`,
-    );
-  }
-}
-
 function loadDirectGa() {
   if (!gaMeasurementId || gtmId) return;
 
@@ -144,15 +118,14 @@ function pushConsent(consent: VenticConsent) {
     ad_personalization: marketingState,
   });
 
-  const gtag = window.gtag;
-  if (gtag) {
-    gtag("consent", "update", {
-      analytics_storage: analyticsState,
-      ad_storage: marketingState,
-      ad_user_data: marketingState,
-      ad_personalization: marketingState,
-    });
-  }
+  const gtag = ensureGoogleQueue();
+
+  gtag("consent", "update", {
+    analytics_storage: analyticsState,
+    ad_storage: marketingState,
+    ad_user_data: marketingState,
+    ad_personalization: marketingState,
+  });
 
   const clarity = window.clarity;
   if (clarity) {
@@ -164,10 +137,6 @@ function pushConsent(consent: VenticConsent) {
 }
 
 function activate(consent: VenticConsent) {
-  if (consent.analytics || consent.marketing) {
-    loadGtm();
-  }
-
   if (consent.analytics) {
     loadDirectGa();
     loadClarity();

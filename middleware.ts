@@ -37,6 +37,16 @@ function sameSiteMutationAllowed(req: NextRequest) {
   }
 }
 
+function shouldIsolateWindow(pathname: string) {
+  return (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/technician") ||
+    pathname.startsWith("/customer/account") ||
+    pathname.startsWith("/api/") ||
+    pathname === "/login"
+  );
+}
+
 export function middleware(req: NextRequest) {
   if (!sameSiteMutationAllowed(req)) {
     return NextResponse.json(
@@ -57,10 +67,14 @@ export function middleware(req: NextRequest) {
     "Permissions-Policy",
     "camera=(self), microphone=(), geolocation=()",
   );
-  res.headers.set(
-    "Cross-Origin-Opener-Policy",
-    "same-origin",
-  );
+
+  if (shouldIsolateWindow(req.nextUrl.pathname)) {
+    res.headers.set(
+      "Cross-Origin-Opener-Policy",
+      "same-origin",
+    );
+  }
+
   res.headers.set(
     "X-DNS-Prefetch-Control",
     "off",
