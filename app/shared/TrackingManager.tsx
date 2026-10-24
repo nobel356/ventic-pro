@@ -102,7 +102,7 @@ function loadDirectGa() {
   });
 
   gtag("js", new Date());
-  window.gtag("config", gaMeasurementId, {
+  gtag("config", gaMeasurementId, {
     send_page_view: false,
   });
 }
@@ -144,8 +144,9 @@ function pushConsent(consent: VenticConsent) {
     ad_personalization: marketingState,
   });
 
-  if (window.gtag) {
-    window.gtag("consent", "update", {
+  const gtag = window.gtag;
+  if (gtag) {
+    gtag("consent", "update", {
       analytics_storage: analyticsState,
       ad_storage: marketingState,
       ad_user_data: marketingState,
@@ -153,8 +154,9 @@ function pushConsent(consent: VenticConsent) {
     });
   }
 
-  if (window.clarity) {
-    window.clarity("consentv2", {
+  const clarity = window.clarity;
+  if (clarity) {
+    clarity("consentv2", {
       analytics_Storage: analyticsState,
       ad_Storage: marketingState,
     });
