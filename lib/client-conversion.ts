@@ -29,6 +29,10 @@ declare global {
   }
 }
 
+const gtmConfigured = Boolean(
+  String(process.env.NEXT_PUBLIC_GTM_ID || "").trim(),
+);
+
 function sessionId() {
   if (typeof window === "undefined") return "";
 
@@ -69,7 +73,13 @@ function pushExternal(
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push(payload);
 
-  if (analyticsConsentGranted() && window.gtag) {
+  // GTM is the single external analytics path when configured.
+  // Direct gtag() remains only as a fallback for installations without GTM.
+  if (
+    !gtmConfigured &&
+    analyticsConsentGranted() &&
+    window.gtag
+  ) {
     window.gtag("event", event, {
       page_path: window.location.pathname,
       ...safeDetail(detail),
