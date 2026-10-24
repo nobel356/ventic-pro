@@ -6,6 +6,10 @@ import {
   trackConversion,
   type ConversionEvent,
 } from "@/lib/client-conversion";
+import {
+  anyTrackingConsentGranted,
+  VENTIC_CONSENT_EVENT,
+} from "@/lib/privacy-consent";
 
 const trackablePrefixes = [
   "/services/",
@@ -22,31 +26,46 @@ export default function ConversionTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (
-      pathname.startsWith("/admin") ||
-      pathname.startsWith("/technician") ||
-      pathname.startsWith("/customer/account")
-    ) {
-      return;
+    function trackPage() {
+      if (
+        pathname.startsWith("/admin") ||
+        pathname.startsWith("/technician") ||
+        pathname.startsWith("/customer/account")
+      ) {
+        return;
+      }
+
+      if (!anyTrackingConsentGranted()) return;
+
+      const shouldTrack =
+        pathname === "/" ||
+        trackablePrefixes.some((prefix) => pathname.startsWith(prefix));
+
+      if (!shouldTrack) return;
+
+      const key = `ventic_seen:${pathname}`;
+      if (window.sessionStorage.getItem(key)) return;
+
+      trackConversion("page_view", {
+        section: pathname.split("/").filter(Boolean)[0] || "home",
+      });
+
+      window.sessionStorage.setItem(key, "1");
     }
 
-    const shouldTrack =
-      pathname === "/" ||
-      trackablePrefixes.some((prefix) => pathname.startsWith(prefix));
+    trackPage();
 
-    if (!shouldTrack) return;
+    window.addEventListener(VENTIC_CONSENT_EVENT, trackPage);
 
-    const key = `ventic_seen:${pathname}`;
-    if (window.sessionStorage.getItem(key)) return;
-
-    window.sessionStorage.setItem(key, "1");
-    trackConversion("page_view", {
-      section: pathname.split("/").filter(Boolean)[0] || "home",
-    });
+    return () => {
+      window.removeEventListener(VENTIC_CONSENT_EVENT, trackPage);
+    };
   }, [pathname]);
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
+      if (!anyTrackingConsentGranted()) return;
+
       const element = (event.target as Element | null)?.closest<HTMLElement>(
         "[data-track]",
       );
@@ -61,7 +80,9 @@ export default function ConversionTracker() {
         return;
       }
 
-      const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
+      const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>(
+        "a[href]",
+      );
       const href = anchor?.getAttribute("href") || "";
 
       if (href.startsWith("/order")) {

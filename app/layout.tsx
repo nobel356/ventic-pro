@@ -18,10 +18,17 @@ import ReferralBanner from "@/app/shared/ReferralBanner";
 import ConversionTracker from "@/app/shared/ConversionTracker";
 import TrustBar from "@/app/shared/TrustBar";
 import CalculatorOrderSummary from "@/app/shared/CalculatorOrderSummary";
+import TrackingManager from "@/app/shared/TrackingManager";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
   "https://ventic-pro-v11-7.vercel.app";
+
+const googleVerification =
+  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined;
+
+const bingVerification =
+  process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION || undefined;
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
@@ -36,6 +43,14 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+  },
+  verification: {
+    google: googleVerification,
+    other: bingVerification
+      ? {
+          "msvalidate.01": bingVerification,
+        }
+      : undefined,
   },
   appleWebApp: {
     capable: true,
@@ -52,7 +67,7 @@ export const metadata: Metadata = {
       "اطلب خدمة التهوية والتركيب أونلاين وتابع طلبك حتى الإتمام والضمان.",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Ventic Pro | حلول التهوية والتركيب",
     description:
       "تهوية وتركيب للحمامات والمطابخ والهود مع متابعة وتوثيق كامل.",
@@ -92,18 +107,13 @@ export default function Layout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="ar"
-      dir="rtl"
-    >
+    <html lang="ar" dir="rtl">
       <body>
-        <a
-          href="#main-content"
-          className="vpSkipLink"
-        >
+        <a href="#main-content" className="vpSkipLink">
           تخطي للمحتوى
         </a>
 
+        <TrackingManager />
         <MarketingAttribution />
         <ConversionTracker />
         <ReferralBanner />
@@ -111,9 +121,7 @@ export default function Layout({
         <TrustBar />
         <CalculatorOrderSummary />
 
-        <div id="main-content">
-          {children}
-        </div>
+        <div id="main-content">{children}</div>
 
         <PortfolioPortal />
         <SiteChrome />

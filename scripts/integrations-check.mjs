@@ -50,7 +50,34 @@ if (sms === "twilio") {
 
 if (!process.env.NEXT_PUBLIC_APP_URL) {
   warnings.push(
-    "NEXT_PUBLIC_APP_URL is missing; customer approval links will fall back to the Vercel production hostname.",
+    "NEXT_PUBLIC_APP_URL is missing; public links will fall back to the Vercel production hostname.",
+  );
+}
+
+if (!process.env.NEXT_PUBLIC_GTM_ID) {
+  warnings.push(
+    "NEXT_PUBLIC_GTM_ID is missing; GA4/Meta/TikTok should be managed through GTM before marketing launch.",
+  );
+}
+
+if (
+  !process.env.NEXT_PUBLIC_GTM_ID &&
+  !process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+) {
+  warnings.push(
+    "Neither GTM nor direct GA4 measurement ID is configured.",
+  );
+}
+
+if (!process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID) {
+  warnings.push(
+    "NEXT_PUBLIC_CLARITY_PROJECT_ID is missing; heatmaps/session recordings are not active.",
+  );
+}
+
+if (!process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL) {
+  warnings.push(
+    "NEXT_PUBLIC_GOOGLE_REVIEW_URL is missing; high-rating customers will not see the Google Review CTA.",
   );
 }
 
@@ -89,4 +116,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Ventic Pro V12B integration configuration looks ready.");
+console.log("Ventic Pro V20A integration configuration looks ready.");

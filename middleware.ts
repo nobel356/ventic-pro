@@ -74,13 +74,13 @@ export function middleware(req: NextRequest) {
     "default-src 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
-    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.tiktok.com",
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.tiktok.com https://www.googletagmanager.com",
     "form-action 'self'",
     "object-src 'none'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://www.clarity.ms https://scripts.clarity.ms https://connect.facebook.net https://analytics.tiktok.com",
     "connect-src 'self' https:",
   ].join("; ");
 

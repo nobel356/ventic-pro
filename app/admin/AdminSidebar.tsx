@@ -182,6 +182,12 @@ const navItems: NavItem[] = [
     superAdminOnly: true,
   },
   {
+    href: "/admin/launch-center",
+    label: "Launch Center",
+    icon: "🚦",
+    superAdminOnly: true,
+  },
+  {
     href: "/admin/notification-health",
     label: "صحة الرسائل",
     icon: "📨",

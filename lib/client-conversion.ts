@@ -1,3 +1,8 @@
+import {
+  analyticsConsentGranted,
+  anyTrackingConsentGranted,
+} from "@/lib/privacy-consent";
+
 export type ConversionEvent =
   | "page_view"
   | "order_intent"
@@ -17,6 +22,13 @@ type ConversionDetailValue =
   | null
   | undefined;
 
+declare global {
+  interface Window {
+    dataLayer?: Array<Record<string, unknown>>;
+    gtag?: (...args: any[]) => void;
+  }
+}
+
 function sessionId() {
   if (typeof window === "undefined") return "";
 
@@ -33,21 +45,53 @@ function sessionId() {
   return created;
 }
 
+function safeDetail(
+  detail: Record<string, ConversionDetailValue>,
+) {
+  return Object.fromEntries(
+    Object.entries(detail).filter(([, value]) => value !== undefined),
+  );
+}
+
+function pushExternal(
+  event: ConversionEvent,
+  detail: Record<string, ConversionDetailValue>,
+) {
+  if (!anyTrackingConsentGranted()) return;
+
+  const payload = {
+    event: `ventic_${event}`,
+    ventic_event: event,
+    page_path: window.location.pathname,
+    ...safeDetail(detail),
+  };
+
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push(payload);
+
+  if (analyticsConsentGranted() && window.gtag) {
+    window.gtag("event", event, {
+      page_path: window.location.pathname,
+      ...safeDetail(detail),
+    });
+  }
+}
+
 export function trackConversion(
   event: ConversionEvent,
   detail: Record<string, ConversionDetailValue> = {},
 ) {
   if (typeof window === "undefined") return;
 
-  const safeDetail = Object.fromEntries(
-    Object.entries(detail).filter(([, value]) => value !== undefined),
-  );
+  pushExternal(event, detail);
+
+  if (!analyticsConsentGranted()) return;
 
   const payload = JSON.stringify({
     event,
     path: window.location.pathname,
     sessionId: sessionId(),
-    detail: safeDetail,
+    detail: safeDetail(detail),
   });
 
   void fetch("/api/marketing/events", {
