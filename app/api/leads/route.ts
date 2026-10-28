@@ -16,127 +16,125 @@ function clean(value: unknown) {
 function requestTypeFromPayload(
   payload: Record<string, unknown>,
 ) {
-  const value =
-    clean(
-      payload?.requestType,
-    );
+  const value = clean(payload?.requestType);
 
-  return value ===
-    "QUICK_REQUEST" ||
-    value ===
-      "DETAILED_ENTRY"
+  return value === "QUICK_REQUEST" ||
+    value === "DETAILED_ENTRY"
     ? value
     : "";
 }
 
-export async function POST(
-  req: Request,
-) {
+async function notifyLeadStarted(input: {
+  leadId: string;
+  requestType: string;
+  intent: string;
+  name: string | null;
+  phone: string | null;
+  source: string | null;
+  currentStep: number;
+}) {
+  if (!input.requestType) return;
+
+  if (input.requestType === "QUICK_REQUEST") {
+    const callback = input.intent === "CALLBACK";
+
+    await notifyAdmins({
+      type: AdminNotificationType.SYSTEM,
+      title: callback
+        ? "طلب اتصال جديد"
+        : "طلب سريع جديد",
+      message: callback
+        ? `${input.name} — ${input.phone} — يريد مكالمة`
+        : `${input.name} — ${input.phone}`,
+      href: "/admin/leads",
+      dedupeKey: `${
+        callback ? "callback" : "quick-lead"
+      }:${input.leadId}`,
+    });
+
+    return;
+  }
+
+  if (input.requestType === "DETAILED_ENTRY") {
+    const sourceSuffix = input.source
+      ? ` — ${input.source}`
+      : "";
+
+    await notifyAdmins({
+      type: AdminNotificationType.SYSTEM,
+      title: "عميل بدأ طلب تفصيلي",
+      message:
+        `${input.name} — ${input.phone} — الخطوة ${input.currentStep}/4${sourceSuffix}`,
+      href: "/admin/lead-recovery",
+      dedupeKey: `detailed-lead:${input.leadId}`,
+    });
+  }
+}
+
+export async function POST(req: Request) {
   try {
-    const limited =
-      rateLimit(
-        `public-lead:${clientIp(
-          req,
-        )}`,
-        {
-          limit: 60,
-          windowMs:
-            60 *
-            60 *
-            1000,
-        },
-      );
+    const limited = rateLimit(
+      `public-lead:${clientIp(req)}`,
+      {
+        limit: 60,
+        windowMs: 60 * 60 * 1000,
+      },
+    );
 
     if (!limited.allowed) {
       return NextResponse.json(
         {
-          error:
-            "تم تجاوز عدد المحاولات مؤقتًا.",
+          error: "تم تجاوز عدد المحاولات مؤقتًا.",
         },
         {
           status: 429,
-          headers:
-            rateLimitHeaders(
-              limited,
-            ),
+          headers: rateLimitHeaders(limited),
         },
       );
     }
 
-    const body =
-      await req.json();
+    const body = await req.json();
 
-    const id =
-      clean(body?.id);
+    const id = clean(body?.id);
 
     const phone =
-      clean(
-        body?.phone,
-      ).replace(
-        /\D/g,
-        "",
-      ) || null;
+      clean(body?.phone).replace(/\D/g, "") || null;
 
-    const name =
-      clean(body?.name) ||
-      null;
+    const name = clean(body?.name) || null;
 
-    const source =
-      acquisitionSourceFromRequest(
-        req,
-        body?.source,
-      );
+    const source = acquisitionSourceFromRequest(
+      req,
+      body?.source,
+    );
 
-    const currentStep =
-      Math.min(
-        4,
-        Math.max(
-          1,
-          Number(
-            body?.currentStep ||
-              1,
-          ),
-        ),
-      );
+    const currentStep = Math.min(
+      4,
+      Math.max(
+        1,
+        Number(body?.currentStep || 1),
+      ),
+    );
 
-    const consentToFollowUp =
-      Boolean(
-        body?.consentToFollowUp,
-      );
+    const consentToFollowUp = Boolean(
+      body?.consentToFollowUp,
+    );
 
     const payload =
       body?.payload &&
-      typeof body.payload ===
-        "object" &&
-      !Array.isArray(
-        body.payload,
-      )
-        ? (body.payload as Record<
-            string,
-            unknown
-          >)
+      typeof body.payload === "object" &&
+      !Array.isArray(body.payload)
+        ? (body.payload as Record<string, unknown>)
         : {};
 
     const requestType =
-      requestTypeFromPayload(
-        payload,
-      );
+      requestTypeFromPayload(payload);
 
-    const intent =
-      clean(
-        payload?.intent,
-      );
+    const intent = clean(payload?.intent);
 
-    if (
-      phone &&
-      !/^01\d{9}$/.test(
-        phone,
-      )
-    ) {
+    if (phone && !/^01\d{9}$/.test(phone)) {
       return NextResponse.json(
         {
-          error:
-            "رقم الموبايل غير صحيح",
+          error: "رقم الموبايل غير صحيح",
         },
         {
           status: 400,
@@ -146,14 +144,11 @@ export async function POST(
 
     if (
       requestType &&
-      (!name ||
-        name.length < 2 ||
-        !phone)
+      (!name || name.length < 2 || !phone)
     ) {
       return NextResponse.json(
         {
-          error:
-            "الاسم ورقم الموبايل مطلوبان.",
+          error: "الاسم ورقم الموبايل مطلوبان.",
         },
         {
           status: 400,
@@ -168,31 +163,21 @@ export async function POST(
       currentStep,
       payload,
       consentToFollowUp,
-      lastActivityAt:
-        new Date(),
+      lastActivityAt: new Date(),
     };
 
     if (id) {
-      const existing =
-        await prisma.lead.findFirst(
-          {
-            where: {
-              id,
-              archivedAt:
-                null,
-            },
-          },
-        );
+      const existing = await prisma.lead.findFirst({
+        where: {
+          id,
+          archivedAt: null,
+        },
+      });
 
-      if (
-        !existing ||
-        existing.status ===
-          "CONVERTED"
-      ) {
+      if (!existing || existing.status === "CONVERTED") {
         return NextResponse.json(
           {
-            error:
-              "المتابعة غير متاحة",
+            error: "المتابعة غير متاحة",
           },
           {
             status: 404,
@@ -200,26 +185,28 @@ export async function POST(
         );
       }
 
-      // A public client must never be able to mutate a lead that belongs
-      // to a different phone number. If the same customer changes their
-      // phone while filling the form, start a fresh lead instead.
       if (
         existing.phone &&
         phone &&
-        existing.phone !==
-          phone
+        existing.phone !== phone
       ) {
-        const replacement =
-          await prisma.lead.create(
-            {
-              data,
-            },
-          );
+        const replacement = await prisma.lead.create({
+          data,
+        });
+
+        await notifyLeadStarted({
+          leadId: replacement.id,
+          requestType,
+          intent,
+          name,
+          phone,
+          source,
+          currentStep,
+        });
 
         return NextResponse.json(
           {
-            id:
-              replacement.id,
+            id: replacement.id,
             replaced: true,
           },
           {
@@ -228,126 +215,96 @@ export async function POST(
         );
       }
 
-      const updated =
-        await prisma.lead.update(
-          {
-            where: {
-              id,
-            },
-            data: {
-              phone:
-                phone ??
-                existing.phone,
-              name:
-                name ??
-                existing.name,
-              source:
-                source ??
-                existing.source,
-              currentStep,
-              payload,
-              consentToFollowUp,
-              lastActivityAt:
-                new Date(),
-            },
-          },
-        );
+      const updated = await prisma.lead.update({
+        where: {
+          id,
+        },
+        data: {
+          phone: phone ?? existing.phone,
+          name: name ?? existing.name,
+          source: source ?? existing.source,
+          currentStep,
+          payload,
+          consentToFollowUp,
+          lastActivityAt: new Date(),
+        },
+      });
+
+      await notifyLeadStarted({
+        leadId: updated.id,
+        requestType,
+        intent,
+        name: updated.name,
+        phone: updated.phone,
+        source: updated.source,
+        currentStep,
+      });
 
       return NextResponse.json({
         id: updated.id,
       });
     }
 
-    if (
-      requestType &&
-      phone
-    ) {
-      const recent =
-        await prisma.lead.findFirst(
-          {
-            where: {
-              archivedAt:
-                null,
-              phone,
-              status: {
-                not:
-                  "CONVERTED",
-              },
-              lastActivityAt:
-                {
-                  gte:
-                    new Date(
-                      Date.now() -
-                        24 *
-                          60 *
-                          60 *
-                          1000,
-                    ),
-                },
-            },
-            orderBy: {
-              lastActivityAt:
-                "desc",
-            },
+    if (requestType && phone) {
+      const recent = await prisma.lead.findFirst({
+        where: {
+          archivedAt: null,
+          phone,
+          status: {
+            not: "CONVERTED",
           },
-        );
+          lastActivityAt: {
+            gte: new Date(
+              Date.now() - 24 * 60 * 60 * 1000,
+            ),
+          },
+        },
+        orderBy: {
+          lastActivityAt: "desc",
+        },
+      });
 
       if (recent) {
-        const updated =
-          await prisma.lead.update(
-            {
-              where: {
-                id:
-                  recent.id,
-              },
-              data: {
-                ...data,
-                status:
-                  "STARTED",
-              },
-            },
-          );
+        const updated = await prisma.lead.update({
+          where: {
+            id: recent.id,
+          },
+          data: {
+            ...data,
+            status: "STARTED",
+          },
+        });
+
+        await notifyLeadStarted({
+          leadId: updated.id,
+          requestType,
+          intent,
+          name: updated.name,
+          phone: updated.phone,
+          source: updated.source,
+          currentStep,
+        });
 
         return NextResponse.json({
           id: updated.id,
-          deduplicated:
-            true,
+          deduplicated: true,
         });
       }
     }
 
-    const created =
-      await prisma.lead.create(
-        {
-          data,
-        },
-      );
+    const created = await prisma.lead.create({
+      data,
+    });
 
-    if (
-      requestType ===
-      "QUICK_REQUEST"
-    ) {
-      const callback =
-        intent ===
-        "CALLBACK";
-
-      await notifyAdmins({
-        type:
-          AdminNotificationType.SYSTEM,
-        title: callback
-          ? "طلب اتصال جديد"
-          : "طلب سريع جديد",
-        message: callback
-          ? `${name} — ${phone} — يريد مكالمة`
-          : `${name} — ${phone}`,
-        href: "/admin/leads",
-        dedupeKey: `${
-          callback
-            ? "callback"
-            : "quick-lead"
-        }:${created.id}`,
-      });
-    }
+    await notifyLeadStarted({
+      leadId: created.id,
+      requestType,
+      intent,
+      name: created.name,
+      phone: created.phone,
+      source: created.source,
+      currentStep,
+    });
 
     return NextResponse.json(
       {
