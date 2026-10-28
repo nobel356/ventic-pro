@@ -1,4 +1,4 @@
-import "./globals.css";
+﻿import "./globals.css";
 import "./brand-theme.css";
 import "./brand-v14d.css";
 import "./iphone.css";
@@ -68,12 +68,21 @@ export const metadata: Metadata = {
     title: "Ventic Pro | حلول التهوية والتركيب",
     description:
       "اطلب خدمة التهوية والتركيب أونلاين وتابع طلبك حتى الإتمام والضمان.",
+    images: [
+      {
+        url: "/social-preview.png",
+        width: 1200,
+        height: 630,
+        alt: "Ventic Pro - Ø­Ù„ÙˆÙ„ Ø§Ù„ØªÙ‡ÙˆÙŠØ© ÙˆØ§Ù„ØªØ±ÙƒÙŠØ¨",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Ventic Pro | حلول التهوية والتركيب",
     description:
       "تهوية وتركيب للحمامات والمطابخ والهود مع متابعة وتوثيق كامل.",
+    images: ["/social-preview.png"],
   },
   icons: {
     icon: [
