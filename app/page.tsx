@@ -1,7 +1,12 @@
-import Link from "next/link";
+﻿import Link from "next/link";
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const steps = [
   {
@@ -551,3 +556,4 @@ const sectionStyle: React.CSSProperties = {
   margin: "55px auto 0",
   padding: "0 18px",
 };
+
