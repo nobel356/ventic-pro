@@ -8,14 +8,39 @@ import {
   validEgyptMobile,
 } from "@/lib/customer-auth";
 import {
-  clearRateLimit,
+  clearDurableRateLimit,
   clientIp,
-  rateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
 export async function POST(req: Request) {
   try {
+    const ip = clientIp(req);
+    const ipKey =
+      `customer-login-ip:${ip}`;
+    const ipLimited =
+      await durableRateLimit(ipKey, {
+        limit: 30,
+        windowMs: 15 * 60 * 1000,
+      });
+
+    if (!ipLimited.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "تم تجاوز عدد محاولات الدخول. حاول مرة أخرى بعد قليل.",
+        },
+        {
+          status: 429,
+          headers:
+            rateLimitHeaders(
+              ipLimited,
+            ),
+        },
+      );
+    }
+
     const body = await req.json();
     const phone =
       normalizeCustomerPhone(
@@ -24,8 +49,10 @@ export async function POST(req: Request) {
     const password = String(
       body?.password || "",
     );
-    const key = `customer-login:${clientIp(req)}:${phone || "empty"}`;
-    const limited = rateLimit(key, {
+    const key =
+      `customer-login:${ip}:${phone || "empty"}`;
+    const limited =
+      await durableRateLimit(key, {
       limit: 8,
       windowMs: 15 * 60 * 1000,
     });
@@ -80,7 +107,9 @@ export async function POST(req: Request) {
       );
     }
 
-    clearRateLimit(key);
+    await clearDurableRateLimit(
+      key,
+    );
 
     const session =
       await createCustomerSession(

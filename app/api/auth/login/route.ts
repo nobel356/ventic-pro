@@ -3,16 +3,40 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import {
-  clearRateLimit,
+  clearDurableRateLimit,
   clientIp,
-  rateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LIMIT = 8;
+const LOGIN_IP_LIMIT = 30;
 
 export async function POST(req: Request) {
+  const ip = clientIp(req);
+  const ipKey =
+    `staff-login-ip:${ip}`;
+  const ipLimited =
+    await durableRateLimit(ipKey, {
+      limit: LOGIN_IP_LIMIT,
+      windowMs: LOGIN_WINDOW_MS,
+    });
+
+  if (!ipLimited.allowed) {
+    return NextResponse.json(
+      {
+        error:
+          "تم تجاوز عدد محاولات الدخول. حاول مرة أخرى بعد قليل.",
+      },
+      {
+        status: 429,
+        headers:
+          rateLimitHeaders(ipLimited),
+      },
+    );
+  }
+
   const body = await req.json();
   const identifier = String(
     body?.identifier ?? body?.email ?? "",
@@ -20,9 +44,10 @@ export async function POST(req: Request) {
     .trim()
     .toLowerCase();
   const password = String(body?.password ?? "");
-  const ip = clientIp(req);
-  const rateKey = `staff-login:${ip}:${identifier || "empty"}`;
-  const limited = rateLimit(rateKey, {
+  const rateKey =
+    `staff-login:${ip}:${identifier || "empty"}`;
+  const limited =
+    await durableRateLimit(rateKey, {
     limit: LOGIN_LIMIT,
     windowMs: LOGIN_WINDOW_MS,
   });
@@ -66,7 +91,9 @@ export async function POST(req: Request) {
     );
   }
 
-  clearRateLimit(rateKey);
+  await clearDurableRateLimit(
+    rateKey,
+  );
 
   const now = new Date();
 

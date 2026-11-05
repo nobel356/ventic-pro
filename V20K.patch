@@ -1,0 +1,771 @@
+diff --git a/app/api/auth/login/route.ts b/app/api/auth/login/route.ts
+index 2f17099..4896fba 100644
+--- a/app/api/auth/login/route.ts
++++ b/app/api/auth/login/route.ts
+@@ -3,16 +3,40 @@ import { NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
+ import { verifyPassword } from "@/lib/password";
+ import {
+-  clearRateLimit,
++  clearDurableRateLimit,
+   clientIp,
+-  rateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+ const LOGIN_LIMIT = 8;
++const LOGIN_IP_LIMIT = 30;
+ 
+ export async function POST(req: Request) {
++  const ip = clientIp(req);
++  const ipKey =
++    `staff-login-ip:${ip}`;
++  const ipLimited =
++    await durableRateLimit(ipKey, {
++      limit: LOGIN_IP_LIMIT,
++      windowMs: LOGIN_WINDOW_MS,
++    });
++
++  if (!ipLimited.allowed) {
++    return NextResponse.json(
++      {
++        error:
++          "تم تجاوز عدد محاولات الدخول. حاول مرة أخرى بعد قليل.",
++      },
++      {
++        status: 429,
++        headers:
++          rateLimitHeaders(ipLimited),
++      },
++    );
++  }
++
+   const body = await req.json();
+   const identifier = String(
+     body?.identifier ?? body?.email ?? "",
+@@ -20,9 +44,10 @@ export async function POST(req: Request) {
+     .trim()
+     .toLowerCase();
+   const password = String(body?.password ?? "");
+-  const ip = clientIp(req);
+-  const rateKey = `staff-login:${ip}:${identifier || "empty"}`;
+-  const limited = rateLimit(rateKey, {
++  const rateKey =
++    `staff-login:${ip}:${identifier || "empty"}`;
++  const limited =
++    await durableRateLimit(rateKey, {
+     limit: LOGIN_LIMIT,
+     windowMs: LOGIN_WINDOW_MS,
+   });
+@@ -66,7 +91,9 @@ export async function POST(req: Request) {
+     );
+   }
+ 
+-  clearRateLimit(rateKey);
++  await clearDurableRateLimit(
++    rateKey,
++  );
+ 
+   const now = new Date();
+ 
+diff --git a/app/api/coupons/validate/route.ts b/app/api/coupons/validate/route.ts
+index 9e7dbe3..7c702a9 100644
+--- a/app/api/coupons/validate/route.ts
++++ b/app/api/coupons/validate/route.ts
+@@ -1,2 +1,119 @@
+-import {NextResponse} from "next/server";import {prisma} from "@/lib/prisma";
+-export async function POST(req:Request){const {code,subtotal}=await req.json();const c=await prisma.coupon.findUnique({where:{code:String(code||"").trim().toUpperCase()}});const now=new Date();if(!c||!c.active||(c.startsAt&&c.startsAt>now)||(c.endsAt&&c.endsAt<now)||(c.maxUses&&c.usedCount>=c.maxUses)||Number(subtotal)<Number(c.minOrder||0))return NextResponse.json({valid:false,discount:0});const discount=c.type==="PERCENT"?Number(subtotal)*Number(c.value)/100:Number(c.value);return NextResponse.json({valid:true,discount:Math.min(Number(subtotal),discount),code:c.code})}
++import { NextResponse } from "next/server";
++import { prisma } from "@/lib/prisma";
++import {
++  clientIp,
++  durableRateLimit,
++  rateLimitHeaders,
++} from "@/lib/request-security";
++
++const MAX_SUBTOTAL = 10_000_000;
++
++export async function POST(
++  req: Request,
++) {
++  const limited =
++    await durableRateLimit(
++      `coupon-validate:${clientIp(req)}`,
++      {
++        limit: 60,
++        windowMs:
++          15 * 60 * 1000,
++      },
++    );
++
++  if (!limited.allowed) {
++    return NextResponse.json(
++      {
++        valid: false,
++        discount: 0,
++      },
++      {
++        status: 429,
++        headers:
++          rateLimitHeaders(limited),
++      },
++    );
++  }
++
++  try {
++    const body = await req.json();
++    const code = String(
++      body?.code || "",
++    )
++      .trim()
++      .toUpperCase();
++    const subtotal = Number(
++      body?.subtotal,
++    );
++
++    if (
++      !code ||
++      code.length > 64 ||
++      !Number.isFinite(subtotal) ||
++      subtotal < 0 ||
++      subtotal > MAX_SUBTOTAL
++    ) {
++      return NextResponse.json(
++        {
++          valid: false,
++          discount: 0,
++        },
++        { status: 400 },
++      );
++    }
++
++    const coupon =
++      await prisma.coupon.findUnique({
++        where: { code },
++      });
++    const now = new Date();
++
++    if (
++      !coupon ||
++      !coupon.active ||
++      (coupon.startsAt &&
++        coupon.startsAt > now) ||
++      (coupon.endsAt &&
++        coupon.endsAt < now) ||
++      (coupon.maxUses &&
++        coupon.usedCount >=
++          coupon.maxUses) ||
++      subtotal <
++        Number(
++          coupon.minOrder || 0,
++        )
++    ) {
++      return NextResponse.json({
++        valid: false,
++        discount: 0,
++      });
++    }
++
++    const rawDiscount =
++      coupon.type === "PERCENT"
++        ? (subtotal *
++            Number(coupon.value)) /
++          100
++        : Number(coupon.value);
++
++    return NextResponse.json({
++      valid: true,
++      discount: Math.min(
++        subtotal,
++        Math.max(
++          0,
++          rawDiscount,
++        ),
++      ),
++      code: coupon.code,
++    });
++  } catch {
++    return NextResponse.json(
++      {
++        valid: false,
++        discount: 0,
++      },
++      { status: 400 },
++    );
++  }
++}
+diff --git a/app/api/customer/auth/forgot-password/route.ts b/app/api/customer/auth/forgot-password/route.ts
+index 2faac62..9e2f684 100644
+--- a/app/api/customer/auth/forgot-password/route.ts
++++ b/app/api/customer/auth/forgot-password/route.ts
+@@ -16,7 +16,7 @@ import {
+ } from "@/lib/customer-password-reset";
+ import {
+   clientIp,
+-  rateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+@@ -25,7 +25,8 @@ const GENERIC_MESSAGE =
+ 
+ export async function POST(req: Request) {
+   try {
+-    const limited = rateLimit(
++    const limited =
++      await durableRateLimit(
+       `password-forgot:${clientIp(req)}`,
+       {
+         limit: 8,
+@@ -65,6 +66,32 @@ export async function POST(req: Request) {
+       });
+     }
+ 
++    const phoneLimited =
++      await durableRateLimit(
++        `password-forgot-phone:${phone}`,
++        {
++          limit: 5,
++          windowMs:
++            15 * 60 * 1000,
++        },
++      );
++
++    if (!phoneLimited.allowed) {
++      return NextResponse.json(
++        {
++          ok: true,
++          message: GENERIC_MESSAGE,
++        },
++        {
++          status: 429,
++          headers:
++            rateLimitHeaders(
++              phoneLimited,
++            ),
++        },
++      );
++    }
++
+     const customer =
+       await prisma.customer.findUnique({
+         where: { phone },
+diff --git a/app/api/customer/auth/login/route.ts b/app/api/customer/auth/login/route.ts
+index a77234e..bf8e3b0 100644
+--- a/app/api/customer/auth/login/route.ts
++++ b/app/api/customer/auth/login/route.ts
+@@ -8,14 +8,39 @@ import {
+   validEgyptMobile,
+ } from "@/lib/customer-auth";
+ import {
+-  clearRateLimit,
++  clearDurableRateLimit,
+   clientIp,
+-  rateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+ export async function POST(req: Request) {
+   try {
++    const ip = clientIp(req);
++    const ipKey =
++      `customer-login-ip:${ip}`;
++    const ipLimited =
++      await durableRateLimit(ipKey, {
++        limit: 30,
++        windowMs: 15 * 60 * 1000,
++      });
++
++    if (!ipLimited.allowed) {
++      return NextResponse.json(
++        {
++          error:
++            "تم تجاوز عدد محاولات الدخول. حاول مرة أخرى بعد قليل.",
++        },
++        {
++          status: 429,
++          headers:
++            rateLimitHeaders(
++              ipLimited,
++            ),
++        },
++      );
++    }
++
+     const body = await req.json();
+     const phone =
+       normalizeCustomerPhone(
+@@ -24,8 +49,10 @@ export async function POST(req: Request) {
+     const password = String(
+       body?.password || "",
+     );
+-    const key = `customer-login:${clientIp(req)}:${phone || "empty"}`;
+-    const limited = rateLimit(key, {
++    const key =
++      `customer-login:${ip}:${phone || "empty"}`;
++    const limited =
++      await durableRateLimit(key, {
+       limit: 8,
+       windowMs: 15 * 60 * 1000,
+     });
+@@ -80,7 +107,9 @@ export async function POST(req: Request) {
+       );
+     }
+ 
+-    clearRateLimit(key);
++    await clearDurableRateLimit(
++      key,
++    );
+ 
+     const session =
+       await createCustomerSession(
+diff --git a/app/api/public/order-estimate/route.ts b/app/api/public/order-estimate/route.ts
+index d25a5be..f290aad 100644
+--- a/app/api/public/order-estimate/route.ts
++++ b/app/api/public/order-estimate/route.ts
+@@ -1,6 +1,11 @@
+ import { NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
+ import { calculateOrderOffer } from "@/lib/promotions";
++import {
++  clientIp,
++  durableRateLimit,
++  rateLimitHeaders,
++} from "@/lib/request-security";
+ 
+ const fallbackPrices: Record<string, number> = {
+   BATH_NEW: 350,
+@@ -13,28 +18,100 @@ const fallbackPrices: Record<string, number> = {
+ };
+ 
+ export async function POST(req: Request) {
++  const limited =
++    await durableRateLimit(
++      `public-order-estimate:${clientIp(req)}`,
++      {
++        limit: 120,
++        windowMs:
++          15 * 60 * 1000,
++      },
++    );
++
++  if (!limited.allowed) {
++    return NextResponse.json(
++      {
++        error:
++          "تم تجاوز عدد طلبات التسعير. حاول مرة أخرى بعد قليل.",
++      },
++      {
++        status: 429,
++        headers:
++          rateLimitHeaders(limited),
++      },
++    );
++  }
++
+   try {
+     const body = await req.json();
+-    const rawLines = Array.isArray(body?.serviceLines)
+-      ? body.serviceLines
+-      : [];
++    const rawLines =
++      Array.isArray(
++        body?.serviceLines,
++      )
++        ? body.serviceLines.slice(
++            0,
++            50,
++          )
++        : [];
+ 
+     const lines = rawLines
+       .map((line: any) => ({
+-        code: String(line?.code || "").trim().toUpperCase(),
+-        qty: Math.max(0, Number(line?.qty || 0)),
++        code: String(
++          line?.code || "",
++        )
++          .trim()
++          .toUpperCase()
++          .slice(0, 64),
++        qty: Math.min(
++          1000,
++          Math.max(
++            0,
++            Number(
++              line?.qty || 0,
++            ),
++          ),
++        ),
+       }))
+       .filter(
+         (line: { code: string; qty: number }) =>
+           line.code && Number.isFinite(line.qty) && line.qty > 0,
+       );
+ 
+-    let subtotal = Math.max(0, Number(body?.subtotal || 0));
+-    let serviceCodes: string[] = Array.isArray(body?.serviceCodes)
+-      ? body.serviceCodes.map((value: unknown) =>
+-          String(value || "").trim().toUpperCase(),
+-        )
+-      : [];
++    const submittedSubtotal =
++      Number(
++        body?.subtotal || 0,
++      );
++    let subtotal =
++      Number.isFinite(
++        submittedSubtotal,
++      )
++        ? Math.min(
++            10_000_000,
++            Math.max(
++              0,
++              submittedSubtotal,
++            ),
++          )
++        : 0;
++    let serviceCodes: string[] =
++      Array.isArray(
++        body?.serviceCodes,
++      )
++        ? body.serviceCodes
++            .slice(0, 50)
++            .map(
++              (
++                value: unknown,
++              ) =>
++                String(
++                  value || "",
++                )
++                  .trim()
++                  .toUpperCase()
++                  .slice(0, 64),
++            )
++            .filter(Boolean)
++        : [];
+ 
+     if (lines.length > 0) {
+       serviceCodes = lines.map((line: { code: string }) => line.code);
+@@ -72,9 +149,15 @@ export async function POST(req: Request) {
+     }
+ 
+     const result = await calculateOrderOffer(prisma, {
+-      governorate: body?.governorate,
+-      area: body?.area,
+-      couponCode: body?.couponCode,
++      governorate: String(
++        body?.governorate || "",
++      ).slice(0, 120),
++      area: String(
++        body?.area || "",
++      ).slice(0, 120),
++      couponCode: String(
++        body?.couponCode || "",
++      ).slice(0, 64),
+       subtotal,
+       serviceCodes,
+     });
+diff --git a/lib/request-security.ts b/lib/request-security.ts
+index 03ce3a8..79af2ac 100644
+--- a/lib/request-security.ts
++++ b/lib/request-security.ts
+@@ -1,3 +1,5 @@
++import { prisma } from "@/lib/prisma";
++
+ type Bucket = {
+   count: number;
+   resetAt: number;
+@@ -102,6 +104,83 @@ export function rateLimitHeaders(result: {
+   };
+ }
+ 
++
++
++export async function durableRateLimit(
++  key: string,
++  options: {
++    limit: number;
++    windowMs: number;
++  },
++) {
++  const safeKey = String(key).slice(0, 500);
++  const now = new Date();
++  const nextResetAt = new Date(
++    now.getTime() + options.windowMs,
++  );
++
++  const rows =
++    await prisma.$queryRaw<
++      Array<{
++        count: number;
++        resetAt: Date;
++      }>
++    >`
++      INSERT INTO "SecurityRateLimit"
++        ("key", "count", "resetAt", "updatedAt")
++      VALUES
++        (${safeKey}, 1, ${nextResetAt}, ${now})
++      ON CONFLICT ("key")
++      DO UPDATE SET
++        "count" = CASE
++          WHEN "SecurityRateLimit"."resetAt" <= ${now}
++            THEN 1
++          ELSE "SecurityRateLimit"."count" + 1
++        END,
++        "resetAt" = CASE
++          WHEN "SecurityRateLimit"."resetAt" <= ${now}
++            THEN ${nextResetAt}
++          ELSE "SecurityRateLimit"."resetAt"
++        END,
++        "updatedAt" = ${now}
++      RETURNING "count", "resetAt"
++    `;
++
++  const row = rows[0];
++
++  if (!row) {
++    throw new Error(
++      "RATE_LIMIT_STORE_UNAVAILABLE",
++    );
++  }
++
++  return {
++    allowed: row.count <= options.limit,
++    remaining: Math.max(
++      0,
++      options.limit - row.count,
++    ),
++    retryAfterSeconds: Math.max(
++      1,
++      Math.ceil(
++        (new Date(row.resetAt).getTime() -
++          now.getTime()) /
++          1000,
++      ),
++    ),
++  };
++}
++
++export async function clearDurableRateLimit(
++  key: string,
++) {
++  await prisma.securityRateLimit.deleteMany({
++    where: {
++      key: String(key).slice(0, 500),
++    },
++  });
++}
++
+ export function approvalLinkExpired(
+   issuedAt: Date | null | undefined,
+   maxAgeMs = 7 * 24 * 60 * 60 * 1000,
+diff --git a/package.json b/package.json
+index abdc4a9..f7139d4 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "private": true,
+   "scripts": {
+     "dev": "next dev",
+-    "build": "node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
++    "build": "node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+     "start": "next start",
+     "create-user": "node scripts/create-user.mjs",
+     "db:generate": "prisma generate",
+@@ -16,12 +16,13 @@
+     "db:studio": "prisma studio",
+     "typecheck": "tsc --noEmit",
+     "check": "npm run typecheck && npm run build",
+-    "security:check": "node scripts/security-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
++    "security:check": "node scripts/security-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
+     "security:routes": "node scripts/security-route-guard.mjs",
+     "integrations:check": "node scripts/integrations-check.mjs",
+     "db:migrate:production": "node scripts/production-migrate.mjs",
+     "security:customer-claim": "node scripts/security-customer-claim-check.mjs",
+-    "security:dual-otp": "node scripts/security-dual-otp-check.mjs"
++    "security:dual-otp": "node scripts/security-dual-otp-check.mjs",
++    "security:abuse-protection": "node scripts/security-abuse-protection-check.mjs"
+   },
+   "dependencies": {
+     "next": "15.5.26",
+diff --git a/prisma/migrations/20261105220000_security_rate_limits/migration.sql b/prisma/migrations/20261105220000_security_rate_limits/migration.sql
+new file mode 100644
+index 0000000..b78d1ef
+--- /dev/null
++++ b/prisma/migrations/20261105220000_security_rate_limits/migration.sql
+@@ -0,0 +1,10 @@
++CREATE TABLE "SecurityRateLimit" (
++    "key" TEXT NOT NULL,
++    "count" INTEGER NOT NULL DEFAULT 0,
++    "resetAt" TIMESTAMP(3) NOT NULL,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "SecurityRateLimit_pkey" PRIMARY KEY ("key")
++);
++
++CREATE INDEX "SecurityRateLimit_resetAt_idx" ON "SecurityRateLimit"("resetAt");
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 1028a8f..0ac7b9c 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -339,6 +339,15 @@ model CustomerPasswordReset {
+   @@index([expiresAt, usedAt])
+ }
+ 
++model SecurityRateLimit {
++  key       String   @id
++  count     Int      @default(0)
++  resetAt   DateTime
++  updatedAt DateTime @updatedAt
++
++  @@index([resetAt])
++}
++
+ enum PaymentMethod {
+   CASH
+   CARD
+diff --git a/scripts/security-abuse-protection-check.mjs b/scripts/security-abuse-protection-check.mjs
+new file mode 100644
+index 0000000..ef84951
+--- /dev/null
++++ b/scripts/security-abuse-protection-check.mjs
+@@ -0,0 +1,135 @@
++import fs from "node:fs";
++
++const failures = [];
++
++function read(path) {
++  if (!fs.existsSync(path)) {
++    failures.push(
++      `${path} is missing.`,
++    );
++    return "";
++  }
++
++  return fs.readFileSync(
++    path,
++    "utf8",
++  );
++}
++
++const requestSecurity =
++  read("lib/request-security.ts");
++const staffLogin =
++  read("app/api/auth/login/route.ts");
++const customerLogin =
++  read(
++    "app/api/customer/auth/login/route.ts",
++  );
++const forgot =
++  read(
++    "app/api/customer/auth/forgot-password/route.ts",
++  );
++const coupon =
++  read(
++    "app/api/coupons/validate/route.ts",
++  );
++const estimate =
++  read(
++    "app/api/public/order-estimate/route.ts",
++  );
++const schema =
++  read("prisma/schema.prisma");
++
++if (
++  !requestSecurity.includes(
++    "durableRateLimit",
++  ) ||
++  !requestSecurity.includes(
++    'INSERT INTO "SecurityRateLimit"',
++  ) ||
++  !schema.includes(
++    "model SecurityRateLimit",
++  )
++) {
++  failures.push(
++    "Durable PostgreSQL rate-limit store is missing.",
++  );
++}
++
++for (const [
++  label,
++  source,
++  markers,
++] of [
++  [
++    "staff login",
++    staffLogin,
++    [
++      "staff-login-ip:",
++      "durableRateLimit",
++      "LOGIN_IP_LIMIT",
++    ],
++  ],
++  [
++    "customer login",
++    customerLogin,
++    [
++      "customer-login-ip:",
++      "durableRateLimit",
++    ],
++  ],
++  [
++    "forgot password",
++    forgot,
++    [
++      "password-forgot-phone:",
++      "durableRateLimit",
++    ],
++  ],
++  [
++    "coupon validation",
++    coupon,
++    [
++      "coupon-validate:",
++      "durableRateLimit",
++      "10_000_000",
++      "code.length > 64",
++    ],
++  ],
++  [
++    "public estimate",
++    estimate,
++    [
++      "public-order-estimate:",
++      "durableRateLimit",
++      ".slice(",
++      "10_000_000",
++      "1000",
++    ],
++  ],
++]) {
++  for (const marker of markers) {
++    if (!source.includes(marker)) {
++      failures.push(
++        `${label} missing ${marker}`,
++      );
++    }
++  }
++}
++
++if (failures.length) {
++  console.error(
++    "\nV20K abuse protection check FAILED:\n",
++  );
++
++  for (const failure of failures) {
++    console.error(
++      `- ${failure}`,
++    );
++  }
++
++  process.exit(1);
++}
++
++console.log(
++  "V20K durable abuse protection check passed.",
++);

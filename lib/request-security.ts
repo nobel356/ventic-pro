@@ -1,3 +1,5 @@
+import { prisma } from "@/lib/prisma";
+
 type Bucket = {
   count: number;
   resetAt: number;
@@ -100,6 +102,83 @@ export function rateLimitHeaders(result: {
     "Retry-After": String(result.retryAfterSeconds),
     "X-RateLimit-Remaining": String(result.remaining),
   };
+}
+
+
+
+export async function durableRateLimit(
+  key: string,
+  options: {
+    limit: number;
+    windowMs: number;
+  },
+) {
+  const safeKey = String(key).slice(0, 500);
+  const now = new Date();
+  const nextResetAt = new Date(
+    now.getTime() + options.windowMs,
+  );
+
+  const rows =
+    await prisma.$queryRaw<
+      Array<{
+        count: number;
+        resetAt: Date;
+      }>
+    >`
+      INSERT INTO "SecurityRateLimit"
+        ("key", "count", "resetAt", "updatedAt")
+      VALUES
+        (${safeKey}, 1, ${nextResetAt}, ${now})
+      ON CONFLICT ("key")
+      DO UPDATE SET
+        "count" = CASE
+          WHEN "SecurityRateLimit"."resetAt" <= ${now}
+            THEN 1
+          ELSE "SecurityRateLimit"."count" + 1
+        END,
+        "resetAt" = CASE
+          WHEN "SecurityRateLimit"."resetAt" <= ${now}
+            THEN ${nextResetAt}
+          ELSE "SecurityRateLimit"."resetAt"
+        END,
+        "updatedAt" = ${now}
+      RETURNING "count", "resetAt"
+    `;
+
+  const row = rows[0];
+
+  if (!row) {
+    throw new Error(
+      "RATE_LIMIT_STORE_UNAVAILABLE",
+    );
+  }
+
+  return {
+    allowed: row.count <= options.limit,
+    remaining: Math.max(
+      0,
+      options.limit - row.count,
+    ),
+    retryAfterSeconds: Math.max(
+      1,
+      Math.ceil(
+        (new Date(row.resetAt).getTime() -
+          now.getTime()) /
+          1000,
+      ),
+    ),
+  };
+}
+
+export async function clearDurableRateLimit(
+  key: string,
+) {
+  await prisma.securityRateLimit.deleteMany({
+    where: {
+      key: String(key).slice(0, 500),
+    },
+  });
 }
 
 export function approvalLinkExpired(

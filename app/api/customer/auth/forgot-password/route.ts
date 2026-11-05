@@ -16,7 +16,7 @@ import {
 } from "@/lib/customer-password-reset";
 import {
   clientIp,
-  rateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
@@ -25,7 +25,8 @@ const GENERIC_MESSAGE =
 
 export async function POST(req: Request) {
   try {
-    const limited = rateLimit(
+    const limited =
+      await durableRateLimit(
       `password-forgot:${clientIp(req)}`,
       {
         limit: 8,
@@ -63,6 +64,32 @@ export async function POST(req: Request) {
         ok: true,
         message: GENERIC_MESSAGE,
       });
+    }
+
+    const phoneLimited =
+      await durableRateLimit(
+        `password-forgot-phone:${phone}`,
+        {
+          limit: 5,
+          windowMs:
+            15 * 60 * 1000,
+        },
+      );
+
+    if (!phoneLimited.allowed) {
+      return NextResponse.json(
+        {
+          ok: true,
+          message: GENERIC_MESSAGE,
+        },
+        {
+          status: 429,
+          headers:
+            rateLimitHeaders(
+              phoneLimited,
+            ),
+        },
+      );
     }
 
     const customer =

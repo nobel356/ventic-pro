@@ -339,6 +339,15 @@ model CustomerPasswordReset {
   @@index([expiresAt, usedAt])
 }
 
+model SecurityRateLimit {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
+
 enum PaymentMethod {
   CASH
   CARD
