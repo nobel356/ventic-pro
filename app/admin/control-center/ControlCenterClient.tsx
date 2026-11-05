@@ -372,14 +372,51 @@ export default function ControlCenterClient() {
                   );
 
                 return (
-                  <label
+                  <div
                     key={key}
-                    style={toggleRow}
+                    style={{
+                      ...toggleRow,
+                      border: checked
+                        ? "1px solid #86efac"
+                        : "1px solid #cbd5e1",
+                      background: checked
+                        ? "#f0fdf4"
+                        : "#f8fafc",
+                    }}
                   >
                     <div>
-                      <strong>
-                        {label}
-                      </strong>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <strong>
+                          {label}
+                        </strong>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            borderRadius: 999,
+                            padding: "3px 9px",
+                            fontSize: 12,
+                            fontWeight: 900,
+                            background: checked
+                              ? "#dcfce7"
+                              : "#e2e8f0",
+                            color: checked
+                              ? "#166534"
+                              : "#475569",
+                          }}
+                        >
+                          {checked
+                            ? "● شغال"
+                            : "○ مقفول"}
+                        </span>
+                      </div>
                       <div
                         style={{
                           color:
@@ -394,22 +431,56 @@ export default function ControlCenterClient() {
                       </div>
                     </div>
 
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(event) =>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={checked}
+                      aria-label={`${label}: ${checked ? "شغال" : "مقفول"}`}
+                      onClick={() =>
                         set(
                           key as keyof Control,
-                          event.target
-                            .checked as never,
+                          (!checked) as never,
                         )
                       }
                       style={{
-                        width: 22,
-                        height: 22,
+                        position: "relative",
+                        flex: "0 0 auto",
+                        width: 68,
+                        height: 36,
+                        borderRadius: 999,
+                        border: checked
+                          ? "2px solid #16a34a"
+                          : "2px solid #94a3b8",
+                        background: checked
+                          ? "#22c55e"
+                          : "#cbd5e1",
+                        cursor: "pointer",
+                        transition:
+                          "background .18s ease, border-color .18s ease",
+                        boxShadow:
+                          "inset 0 1px 2px rgba(15,23,42,.12)",
                       }}
-                    />
-                  </label>
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          position: "absolute",
+                          top: 3,
+                          left: checked
+                            ? 33
+                            : 3,
+                          width: 26,
+                          height: 26,
+                          borderRadius: "50%",
+                          background: "white",
+                          boxShadow:
+                            "0 2px 6px rgba(15,23,42,.28)",
+                          transition:
+                            "left .18s ease",
+                        }}
+                      />
+                    </button>
+                  </div>
                 );
               },
             )}
