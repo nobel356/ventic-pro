@@ -1,0 +1,231 @@
+$ErrorActionPreference = "Stop"
+
+function Fail-V20H2 {
+    param([string]$Message)
+    Write-Host ""
+    Write-Host "V20H2 FAILED: $Message" -ForegroundColor Red
+    Write-Host "No production files were claimed as successfully secured." -ForegroundColor Yellow
+    exit 1
+}
+
+function Write-Base64File {
+    param(
+        [string]$Target,
+        [string]$Base64
+    )
+    $dir = Split-Path -Parent $Target
+    if (!(Test-Path $dir)) {
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    }
+    [System.IO.File]::WriteAllBytes(
+        $Target,
+        [Convert]::FromBase64String($Base64)
+    )
+}
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $scriptDir
+
+# Locate repository root.
+$root = $scriptDir
+$found = $false
+
+for ($i = 0; $i -lt 5; $i++) {
+    if (
+        (Test-Path (Join-Path $root "package.json")) -and
+        (Test-Path (Join-Path $root "app")) -and
+        (Test-Path (Join-Path $root ".git"))
+    ) {
+        $found = $true
+        break
+    }
+
+    $parent = Split-Path -Parent $root
+    if (!$parent -or $parent -eq $root) {
+        break
+    }
+    $root = $parent
+}
+
+if (!$found) {
+    Write-Host ""
+    Write-Host "V20H2 could not find the Ventic Pro repository automatically." -ForegroundColor Yellow
+    Write-Host "Put APPLY-V20H2.cmd and APPLY-V20H2.ps1 inside the Ventic Pro repository root" -ForegroundColor Yellow
+    Write-Host "(the same folder that contains package.json and the app folder), then run again." -ForegroundColor Yellow
+    exit 1
+}
+
+Set-Location $root
+
+$git = Get-Command git -ErrorAction SilentlyContinue
+if (!$git) {
+    Fail-V20H2 "Git is required."
+}
+
+$inside = (& git rev-parse --is-inside-work-tree 2>$null)
+if ($LASTEXITCODE -ne 0 -or "$inside".Trim() -ne "true") {
+    Fail-V20H2 "The detected folder is not a Git repository."
+}
+
+Write-Host ""
+Write-Host "Repository detected:" -ForegroundColor Cyan
+Write-Host $root
+Write-Host ""
+
+$ordersPath = Join-Path $root "app\api\admin\orders\route.ts"
+$pricingPath = Join-Path $root "app\api\admin\pricing\route.ts"
+$legacyMaintenance = Join-Path $root "app\api\maintenance\route.ts"
+$legacyComplaints = Join-Path $root "app\api\complaints\route.ts"
+$guardPath = Join-Path $root "scripts\security-route-guard.mjs"
+$readmePath = Join-Path $root "README-V20H.md"
+$packagePath = Join-Path $root "package.json"
+
+$required = @(
+    $ordersPath,
+    $pricingPath,
+    $packagePath
+)
+
+foreach ($item in $required) {
+    if (!(Test-Path $item)) {
+        Fail-V20H2 "Missing expected repository file: $item"
+    }
+}
+
+$targetPaths = @(
+    "app/api/admin/orders/route.ts",
+    "app/api/admin/pricing/route.ts",
+    "app/api/maintenance/route.ts",
+    "app/api/complaints/route.ts",
+    "package.json",
+    "scripts/security-route-guard.mjs",
+    "README-V20H.md"
+)
+
+$dirty = & git status --porcelain -- $targetPaths
+if ($dirty) {
+    # Permit leftovers from the failed V20H only when they are the new untracked helper files.
+    $blocking = @()
+    foreach ($line in $dirty) {
+        if (
+            $line -notmatch '^\?\? scripts/security-route-guard\.mjs$' -and
+            $line -notmatch '^\?\? README-V20H\.md$'
+        ) {
+            $blocking += $line
+        }
+    }
+
+    if ($blocking.Count -gt 0) {
+        Fail-V20H2 ("V20H target files already have local changes. Commit/stash them first:`n" + ($blocking -join "`n"))
+    }
+}
+
+$ordersCurrent = Get-Content -Raw -Encoding UTF8 $ordersPath
+$pricingCurrent = Get-Content -Raw -Encoding UTF8 $pricingPath
+$packageCurrent = Get-Content -Raw -Encoding UTF8 $packagePath
+
+$alreadyApplied =
+    $ordersCurrent.Contains("PERMISSIONS.ORDERS_VIEW") -and
+    $pricingCurrent.Contains("PERMISSIONS.PRICE_EDIT") -and
+    (Test-Path $guardPath) -and
+    !(Test-Path $legacyMaintenance) -and
+    !(Test-Path $legacyComplaints)
+
+if ($alreadyApplied) {
+    Write-Host "V20H already appears applied. Verifying..." -ForegroundColor Yellow
+    & node scripts/security-route-guard.mjs
+    if ($LASTEXITCODE -ne 0) {
+        Fail-V20H2 "Existing V20H guard failed."
+    }
+    Write-Host "V20H is already applied and verified." -ForegroundColor Green
+    exit 0
+}
+
+if ($ordersCurrent.Contains("@/lib/auth-v7") -and !$ordersCurrent.Contains("PERMISSIONS.ORDERS_VIEW")) {
+    Fail-V20H2 "Orders route contains unexpected partial auth edits. Refusing to overwrite."
+}
+
+if ($pricingCurrent.Contains("@/lib/auth-v7") -and !$pricingCurrent.Contains("PERMISSIONS.PRICE_EDIT")) {
+    Fail-V20H2 "Pricing route contains unexpected partial auth edits. Refusing to overwrite."
+}
+
+$oldBuild = '"build": "prisma generate && node scripts/production-migrate.mjs && next build"'
+$newBuild = '"build": "node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build"'
+$oldSecurity = '"security:check": "node scripts/security-check.mjs"'
+$newSecurity = '"security:check": "node scripts/security-check.mjs && node scripts/security-route-guard.mjs",' + [Environment]::NewLine + '    "security:routes": "node scripts/security-route-guard.mjs"'
+
+if (
+    !$packageCurrent.Contains($oldBuild) -and
+    !$packageCurrent.Contains('"build": "node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build"')
+) {
+    Fail-V20H2 "package.json build script differs from the tested Ventic Pro version."
+}
+
+Write-Host "Applying V20H2 Security Lockdown..." -ForegroundColor Cyan
+
+# Embedded payload - no external V20H-PAYLOAD folder required.
+$ordersB64 = "aW1wb3J0IHsgTmV4dFJlc3BvbnNlIH0gZnJvbSAibmV4dC9zZXJ2ZXIiOwppbXBvcnQgeyBwcmlzbWEgfSBmcm9tICJAL2xpYi9wcmlzbWEiOwppbXBvcnQgewogIFBFUk1JU1NJT05TLAogIGNhbiwKICByZXF1aXJlUGVybWlzc2lvbiwKfSBmcm9tICJAL2xpYi9hdXRoLXY3IjsKCmV4cG9ydCBhc3luYyBmdW5jdGlvbiBHRVQoKSB7CiAgdHJ5IHsKICAgIGNvbnN0IGFjdG9yID0gYXdhaXQgcmVxdWlyZVBlcm1pc3Npb24oCiAgICAgIFBFUk1JU1NJT05TLk9SREVSU19WSUVXLAogICAgKTsKCiAgICBjb25zdCBjYW5TZWVTZW5zaXRpdmUgPSBjYW4oCiAgICAgIGFjdG9yLnJvbGUsCiAgICAgIFBFUk1JU1NJT05TLkNVU1RPTUVSX1NFTlNJVElWRSwKICAgICAgYWN0b3IucGVybWlzc2lvbnMsCiAgICApOwoKICAgIGNvbnN0IG9yZGVycyA9IGF3YWl0IHByaXNtYS5vcmRlci5maW5kTWFueSh7CiAgICAgIHdoZXJlOiB7CiAgICAgICAgYXJjaGl2ZWRBdDogbnVsbCwKICAgICAgfSwKICAgICAgc2VsZWN0OiB7CiAgICAgICAgaWQ6IHRydWUsCiAgICAgICAgb3JkZXJObzogdHJ1ZSwKICAgICAgICBzdGF0dXM6IHRydWUsCiAgICAgICAgZXN0aW1hdGVkVG90YWw6IHRydWUsCiAgICAgICAgZ292ZXJub3JhdGU6IHRydWUsCiAgICAgICAgYXJlYTogdHJ1ZSwKICAgICAgICBhZGRyZXNzOiB0cnVlLAogICAgICAgIHByZWZlcnJlZERhdGU6IHRydWUsCiAgICAgICAgcHJlZmVycmVkVGltZTogdHJ1ZSwKICAgICAgICB0ZWNobmljaWFuSWQ6IHRydWUsCiAgICAgICAgY3JlYXRlZEF0OiB0cnVlLAogICAgICAgIGN1c3RvbWVyOiB7CiAgICAgICAgICBzZWxlY3Q6IHsKICAgICAgICAgICAgaWQ6IHRydWUsCiAgICAgICAgICAgIG5hbWU6IHRydWUsCiAgICAgICAgICAgIHBob25lOiB0cnVlLAogICAgICAgICAgfSwKICAgICAgICB9LAogICAgICAgIHRlY2huaWNpYW46IHsKICAgICAgICAgIHNlbGVjdDogewogICAgICAgICAgICBpZDogdHJ1ZSwKICAgICAgICAgICAgbmFtZTogdHJ1ZSwKICAgICAgICAgIH0sCiAgICAgICAgfSwKICAgICAgfSwKICAgICAgb3JkZXJCeTogewogICAgICAgIGNyZWF0ZWRBdDogImRlc2MiLAogICAgICB9LAogICAgfSk7CgogICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKAogICAgICBvcmRlcnMubWFwKChvcmRlcikgPT4gKHsKICAgICAgICAuLi5vcmRlciwKICAgICAgICBhZGRyZXNzOiBjYW5TZWVTZW5zaXRpdmUKICAgICAgICAgID8gb3JkZXIuYWRkcmVzcwogICAgICAgICAgOiBudWxsLAogICAgICAgIGN1c3RvbWVyOiB7CiAgICAgICAgICBpZDogb3JkZXIuY3VzdG9tZXIuaWQsCiAgICAgICAgICBuYW1lOiBvcmRlci5jdXN0b21lci5uYW1lLAogICAgICAgICAgcGhvbmU6IGNhblNlZVNlbnNpdGl2ZQogICAgICAgICAgICA/IG9yZGVyLmN1c3RvbWVyLnBob25lCiAgICAgICAgICAgIDogbnVsbCwKICAgICAgICB9LAogICAgICB9KSksCiAgICAgIHsKICAgICAgICBoZWFkZXJzOiB7CiAgICAgICAgICAiQ2FjaGUtQ29udHJvbCI6CiAgICAgICAgICAgICJwcml2YXRlLCBuby1zdG9yZSwgbWF4LWFnZT0wIiwKICAgICAgICB9LAogICAgICB9LAogICAgKTsKICB9IGNhdGNoIChlcnJvcjogYW55KSB7CiAgICBjb25zdCBtZXNzYWdlID0gZXJyb3I/Lm1lc3NhZ2U7CgogICAgaWYgKAogICAgICBtZXNzYWdlID09PSAiVU5BVVRIRU5USUNBVEVEIiB8fAogICAgICBtZXNzYWdlID09PSAiRk9SQklEREVOIgogICAgKSB7CiAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbigKICAgICAgICB7CiAgICAgICAgICBlcnJvcjogbWVzc2FnZSwKICAgICAgICB9LAogICAgICAgIHsKICAgICAgICAgIHN0YXR1czoKICAgICAgICAgICAgbWVzc2FnZSA9PT0gIlVOQVVUSEVOVElDQVRFRCIKICAgICAgICAgICAgICA/IDQwMQogICAgICAgICAgICAgIDogNDAzLAogICAgICAgICAgaGVhZGVyczogewogICAgICAgICAgICAiQ2FjaGUtQ29udHJvbCI6CiAgICAgICAgICAgICAgInByaXZhdGUsIG5vLXN0b3JlLCBtYXgtYWdlPTAiLAogICAgICAgICAgfSwKICAgICAgICB9LAogICAgICApOwogICAgfQoKICAgIGNvbnNvbGUuZXJyb3IoCiAgICAgICJBRE1JTl9PUkRFUlNfTElTVF9GQUlMRUQiLAogICAgICBlcnJvciwKICAgICk7CgogICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKAogICAgICB7CiAgICAgICAgZXJyb3I6CiAgICAgICAgICAi2KrYudiw2LEg2KrYrdmF2YrZhCDYp9mE2LfZhNio2KfYqiIsCiAgICAgIH0sCiAgICAgIHsKICAgICAgICBzdGF0dXM6IDUwMCwKICAgICAgICBoZWFkZXJzOiB7CiAgICAgICAgICAiQ2FjaGUtQ29udHJvbCI6CiAgICAgICAgICAgICJwcml2YXRlLCBuby1zdG9yZSwgbWF4LWFnZT0wIiwKICAgICAgICB9LAogICAgICB9LAogICAgKTsKICB9Cn0K"
+$pricingB64 = "aW1wb3J0IHsgTmV4dFJlc3BvbnNlIH0gZnJvbSAibmV4dC9zZXJ2ZXIiOwppbXBvcnQgeyBwcmlzbWEgfSBmcm9tICJAL2xpYi9wcmlzbWEiOwppbXBvcnQgewogIFBFUk1JU1NJT05TLAogIHJlcXVpcmVQZXJtaXNzaW9uLAp9IGZyb20gIkAvbGliL2F1dGgtdjciOwoKY29uc3QgUFJJQ0lOR19UWVBFUyA9IG5ldyBTZXQoWwogICJGSVhFRCIsCiAgIlBFUl9NRVRFUiIsCiAgIlJBTkdFIiwKXSk7CgpmdW5jdGlvbiBhdWRpdFZhbHVlKHNlcnZpY2U6IGFueSkgewogIHJldHVybiB7CiAgICBpZDogc2VydmljZS5pZCwKICAgIGNvZGU6IHNlcnZpY2UuY29kZSwKICAgIG5hbWVBcjogc2VydmljZS5uYW1lQXIsCiAgICBwcmljaW5nVHlwZToKICAgICAgc2VydmljZS5wcmljaW5nVHlwZSwKICAgIHByaWNlRnJvbToKICAgICAgTnVtYmVyKHNlcnZpY2UucHJpY2VGcm9tKSwKICAgIHByaWNlVG86CiAgICAgIHNlcnZpY2UucHJpY2VUbyA9PT0gbnVsbAogICAgICAgID8gbnVsbAogICAgICAgIDogTnVtYmVyKHNlcnZpY2UucHJpY2VUbyksCiAgICBhY3RpdmU6IHNlcnZpY2UuYWN0aXZlLAogICAgY3VzdG9tZXJWaXNpYmxlOgogICAgICBzZXJ2aWNlLmN1c3RvbWVyVmlzaWJsZSwKICB9Owp9CgpmdW5jdGlvbiBhdXRoRXJyb3IoZXJyb3I6IGFueSkgewogIGNvbnN0IG1lc3NhZ2UgPSBlcnJvcj8ubWVzc2FnZTsKCiAgaWYgKAogICAgbWVzc2FnZSAhPT0gIlVOQVVUSEVOVElDQVRFRCIgJiYKICAgIG1lc3NhZ2UgIT09ICJGT1JCSURERU4iCiAgKSB7CiAgICByZXR1cm4gbnVsbDsKICB9CgogIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbigKICAgIHsgZXJyb3I6IG1lc3NhZ2UgfSwKICAgIHsKICAgICAgc3RhdHVzOgogICAgICAgIG1lc3NhZ2UgPT09ICJVTkFVVEhFTlRJQ0FURUQiCiAgICAgICAgICA/IDQwMQogICAgICAgICAgOiA0MDMsCiAgICAgIGhlYWRlcnM6IHsKICAgICAgICAiQ2FjaGUtQ29udHJvbCI6CiAgICAgICAgICAicHJpdmF0ZSwgbm8tc3RvcmUsIG1heC1hZ2U9MCIsCiAgICAgIH0sCiAgICB9LAogICk7Cn0KCmV4cG9ydCBhc3luYyBmdW5jdGlvbiBHRVQoKSB7CiAgdHJ5IHsKICAgIGF3YWl0IHJlcXVpcmVQZXJtaXNzaW9uKAogICAgICBQRVJNSVNTSU9OUy5QUklDRV9FRElULAogICAgKTsKCiAgICBjb25zdCBzZXJ2aWNlcyA9CiAgICAgIGF3YWl0IHByaXNtYS5zZXJ2aWNlLmZpbmRNYW55KHsKICAgICAgICBvcmRlckJ5OiB7CiAgICAgICAgICBuYW1lQXI6ICJhc2MiLAogICAgICAgIH0sCiAgICAgIH0pOwoKICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbigKICAgICAgc2VydmljZXMsCiAgICAgIHsKICAgICAgICBoZWFkZXJzOiB7CiAgICAgICAgICAiQ2FjaGUtQ29udHJvbCI6CiAgICAgICAgICAgICJwcml2YXRlLCBuby1zdG9yZSwgbWF4LWFnZT0wIiwKICAgICAgICB9LAogICAgICB9LAogICAgKTsKICB9IGNhdGNoIChlcnJvcjogYW55KSB7CiAgICBjb25zdCBhdXRoID0gYXV0aEVycm9yKGVycm9yKTsKICAgIGlmIChhdXRoKSByZXR1cm4gYXV0aDsKCiAgICBjb25zb2xlLmVycm9yKAogICAgICAiQURNSU5fUFJJQ0lOR19MSVNUX0ZBSUxFRCIsCiAgICAgIGVycm9yLAogICAgKTsKCiAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oCiAgICAgIHsKICAgICAgICBlcnJvcjoKICAgICAgICAgICLYqti52LDYsSDYqtit2YXZitmEINin2YTYo9iz2LnYp9ixIiwKICAgICAgfSwKICAgICAgeyBzdGF0dXM6IDUwMCB9LAogICAgKTsKICB9Cn0KCmV4cG9ydCBhc3luYyBmdW5jdGlvbiBQT1NUKAogIHJlcTogUmVxdWVzdCwKKSB7CiAgdHJ5IHsKICAgIGNvbnN0IGFjdG9yID0KICAgICAgYXdhaXQgcmVxdWlyZVBlcm1pc3Npb24oCiAgICAgICAgUEVSTUlTU0lPTlMuUFJJQ0VfRURJVCwKICAgICAgKTsKCiAgICBsZXQgYm9keTogYW55OwoKICAgIHRyeSB7CiAgICAgIGJvZHkgPSBhd2FpdCByZXEuanNvbigpOwogICAgfSBjYXRjaCB7CiAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbigKICAgICAgICB7CiAgICAgICAgICBlcnJvcjoKICAgICAgICAgICAgItio2YrYp9mG2KfYqiDYp9mE2LfZhNioINi62YrYsSDYtdin2YTYrdipIiwKICAgICAgICB9LAogICAgICAgIHsgc3RhdHVzOiA0MDAgfSwKICAgICAgKTsKICAgIH0KCiAgICBjb25zdCBjb2RlID0gU3RyaW5nKAogICAgICBib2R5Py5jb2RlIHx8ICIiLAogICAgKQogICAgICAudHJpbSgpCiAgICAgIC50b1VwcGVyQ2FzZSgpOwogICAgY29uc3QgbmFtZUFyID0gU3RyaW5nKAogICAgICBib2R5Py5uYW1lQXIgfHwgIiIsCiAgICApLnRyaW0oKTsKICAgIGNvbnN0IHByaWNpbmdUeXBlID0gU3RyaW5nKAogICAgICBib2R5Py5wcmljaW5nVHlwZSB8fAogICAgICAgICJGSVhFRCIsCiAgICApCiAgICAgIC50cmltKCkKICAgICAgLnRvVXBwZXJDYXNlKCk7CgogICAgaWYgKAogICAgICAhL15bQS1aMC05Xy1dezIsNjR9JC8udGVzdCgKICAgICAgICBjb2RlLAogICAgICApIHx8CiAgICAgICFuYW1lQXIgfHwKICAgICAgbmFtZUFyLmxlbmd0aCA+IDE2MCB8fAogICAgICAhUFJJQ0lOR19UWVBFUy5oYXMoCiAgICAgICAgcHJpY2luZ1R5cGUsCiAgICAgICkKICAgICkgewogICAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oCiAgICAgICAgewogICAgICAgICAgZXJyb3I6CiAgICAgICAgICAgICLYqNmK2KfZhtin2Kog2KfZhNiu2K/ZhdipINi62YrYsSDYtdin2YTYrdipIiwKICAgICAgICB9LAogICAgICAgIHsgc3RhdHVzOiA0MDAgfSwKICAgICAgKTsKICAgIH0KCiAgICBjb25zdCBmcm9tUmF3ID0KICAgICAgYm9keT8ucHJpY2VGcm9tOwogICAgY29uc3QgaGFzRnJvbSA9CiAgICAgIGZyb21SYXcgIT09IG51bGwgJiYKICAgICAgZnJvbVJhdyAhPT0gdW5kZWZpbmVkICYmCiAgICAgIFN0cmluZyhmcm9tUmF3KS50cmltKCkgIT09ICIiOwogICAgY29uc3QgcHJpY2VGcm9tID0KICAgICAgaGFzRnJvbQogICAgICAgID8gTnVtYmVyKGZyb21SYXcpCiAgICAgICAgOiBOdW1iZXIuTmFOOwoKICAgIGNvbnN0IHRvUmF3ID0KICAgICAgYm9keT8ucHJpY2VUbzsKICAgIGNvbnN0IGhhc1RvID0KICAgICAgdG9SYXcgIT09IG51bGwgJiYKICAgICAgdG9SYXcgIT09IHVuZGVmaW5lZCAmJgogICAgICBTdHJpbmcodG9SYXcpLnRyaW0oKSAhPT0gIiI7CiAgICBjb25zdCBwcmljZVRvID0KICAgICAgaGFzVG8KICAgICAgICA/IE51bWJlcih0b1JhdykKICAgICAgICA6IG51bGw7CgogICAgaWYgKAogICAgICAhTnVtYmVyLmlzRmluaXRlKAogICAgICAgIHByaWNlRnJvbSwKICAgICAgKSB8fAogICAgICBwcmljZUZyb20gPCAwIHx8CiAgICAgIChwcmljZVRvICE9PSBudWxsICYmCiAgICAgICAgKCFOdW1iZXIuaXNGaW5pdGUoCiAgICAgICAgICBwcmljZVRvLAogICAgICAgICkgfHwKICAgICAgICAgIHByaWNlVG8gPCBwcmljZUZyb20pKQogICAgKSB7CiAgICAgIHJldHVybiBOZXh0UmVzcG9uc2UuanNvbigKICAgICAgICB7CiAgICAgICAgICBlcnJvcjoKICAgICAgICAgICAgItmC2YrZhdipINin2YTYs9i52LEg2LrZitixINi12KfZhNit2KkiLAogICAgICAgIH0sCiAgICAgICAgeyBzdGF0dXM6IDQwMCB9LAogICAgICApOwogICAgfQoKICAgIGNvbnN0IGV4aXN0aW5nID0KICAgICAgYXdhaXQgcHJpc21hLnNlcnZpY2UuZmluZFVuaXF1ZSh7CiAgICAgICAgd2hlcmU6IHsgY29kZSB9LAogICAgICB9KTsKCiAgICBjb25zdCBzZXJ2aWNlID0KICAgICAgYXdhaXQgcHJpc21hLiR0cmFuc2FjdGlvbigKICAgICAgICBhc3luYyAodHgpID0+IHsKICAgICAgICAgIGNvbnN0IHNhdmVkID0KICAgICAgICAgICAgYXdhaXQgdHguc2VydmljZS51cHNlcnQoewogICAgICAgICAgICAgIHdoZXJlOiB7IGNvZGUgfSwKICAgICAgICAgICAgICB1cGRhdGU6IHsKICAgICAgICAgICAgICAgIG5hbWVBciwKICAgICAgICAgICAgICAgIHByaWNpbmdUeXBlLAogICAgICAgICAgICAgICAgcHJpY2VGcm9tLAogICAgICAgICAgICAgICAgcHJpY2VUbywKICAgICAgICAgICAgICAgIGFjdGl2ZToKICAgICAgICAgICAgICAgICAgYm9keT8uYWN0aXZlICE9PQogICAgICAgICAgICAgICAgICBmYWxzZSwKICAgICAgICAgICAgICAgIGN1c3RvbWVyVmlzaWJsZToKICAgICAgICAgICAgICAgICAgYm9keT8uY3VzdG9tZXJWaXNpYmxlICE9PQogICAgICAgICAgICAgICAgICBmYWxzZSwKICAgICAgICAgICAgICB9LAogICAgICAgICAgICAgIGNyZWF0ZTogewogICAgICAgICAgICAgICAgY29kZSwKICAgICAgICAgICAgICAgIG5hbWVBciwKICAgICAgICAgICAgICAgIHByaWNpbmdUeXBlLAogICAgICAgICAgICAgICAgcHJpY2VGcm9tLAogICAgICAgICAgICAgICAgcHJpY2VUbywKICAgICAgICAgICAgICAgIGFjdGl2ZToKICAgICAgICAgICAgICAgICAgYm9keT8uYWN0aXZlICE9PQogICAgICAgICAgICAgICAgICBmYWxzZSwKICAgICAgICAgICAgICAgIGN1c3RvbWVyVmlzaWJsZToKICAgICAgICAgICAgICAgICAgYm9keT8uY3VzdG9tZXJWaXNpYmxlICE9PQogICAgICAgICAgICAgICAgICBmYWxzZSwKICAgICAgICAgICAgICB9LAogICAgICAgICAgICB9KTsKCiAgICAgICAgICBhd2FpdCB0eC5hdWRpdExvZy5jcmVhdGUoewogICAgICAgICAgICBkYXRhOiB7CiAgICAgICAgICAgICAgYWN0b3JJZDogYWN0b3IuaWQsCiAgICAgICAgICAgICAgYWN0b3JMYWJlbDoKICAgICAgICAgICAgICAgIGFjdG9yLm5hbWUsCiAgICAgICAgICAgICAgYWN0aW9uOiBleGlzdGluZwogICAgICAgICAgICAgICAgPyAiU0VSVklDRV9QUklDSU5HX1VQREFURUQiCiAgICAgICAgICAgICAgICA6ICJTRVJWSUNFX1BSSUNJTkdfQ1JFQVRFRCIsCiAgICAgICAgICAgICAgb2xkVmFsdWU6IGV4aXN0aW5nCiAgICAgICAgICAgICAgICA/IGF1ZGl0VmFsdWUoCiAgICAgICAgICAgICAgICAgICAgZXhpc3RpbmcsCiAgICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgIDogdW5kZWZpbmVkLAogICAgICAgICAgICAgIG5ld1ZhbHVlOgogICAgICAgICAgICAgICAgYXVkaXRWYWx1ZShzYXZlZCksCiAgICAgICAgICAgIH0sCiAgICAgICAgICB9KTsKCiAgICAgICAgICByZXR1cm4gc2F2ZWQ7CiAgICAgICAgfSwKICAgICAgKTsKCiAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oCiAgICAgIHNlcnZpY2UsCiAgICAgIHsKICAgICAgICBzdGF0dXM6IGV4aXN0aW5nCiAgICAgICAgICA/IDIwMAogICAgICAgICAgOiAyMDEsCiAgICAgICAgaGVhZGVyczogewogICAgICAgICAgIkNhY2hlLUNvbnRyb2wiOgogICAgICAgICAgICAicHJpdmF0ZSwgbm8tc3RvcmUsIG1heC1hZ2U9MCIsCiAgICAgICAgfSwKICAgICAgfSwKICAgICk7CiAgfSBjYXRjaCAoZXJyb3I6IGFueSkgewogICAgY29uc3QgYXV0aCA9IGF1dGhFcnJvcihlcnJvcik7CiAgICBpZiAoYXV0aCkgcmV0dXJuIGF1dGg7CgogICAgY29uc29sZS5lcnJvcigKICAgICAgIkFETUlOX1BSSUNJTkdfU0FWRV9GQUlMRUQiLAogICAgICBlcnJvciwKICAgICk7CgogICAgcmV0dXJuIE5leHRSZXNwb25zZS5qc29uKAogICAgICB7CiAgICAgICAgZXJyb3I6CiAgICAgICAgICAi2KrYudiw2LEg2K3Zgdi4INin2YTYs9i52LEiLAogICAgICB9LAogICAgICB7IHN0YXR1czogNTAwIH0sCiAgICApOwogIH0KfQo="
+$guardB64 = "aW1wb3J0IGZzIGZyb20gIm5vZGU6ZnMiOwppbXBvcnQgcGF0aCBmcm9tICJub2RlOnBhdGgiOwoKY29uc3Qgcm9vdCA9IHByb2Nlc3MuY3dkKCk7CmNvbnN0IGFkbWluUm9vdCA9IHBhdGguam9pbigKICByb290LAogICJhcHAiLAogICJhcGkiLAogICJhZG1pbiIsCik7Cgpjb25zdCBmYWlsdXJlcyA9IFtdOwoKZnVuY3Rpb24gd2FsayhkaXIpIHsKICBpZiAoIWZzLmV4aXN0c1N5bmMoZGlyKSkgewogICAgcmV0dXJuIFtdOwogIH0KCiAgY29uc3QgZW50cmllcyA9CiAgICBmcy5yZWFkZGlyU3luYyhkaXIsIHsKICAgICAgd2l0aEZpbGVUeXBlczogdHJ1ZSwKICAgIH0pOwoKICByZXR1cm4gZW50cmllcy5mbGF0TWFwKAogICAgKGVudHJ5KSA9PiB7CiAgICAgIGNvbnN0IGZ1bGwgPSBwYXRoLmpvaW4oCiAgICAgICAgZGlyLAogICAgICAgIGVudHJ5Lm5hbWUsCiAgICAgICk7CgogICAgICBpZiAoZW50cnkuaXNEaXJlY3RvcnkoKSkgewogICAgICAgIHJldHVybiB3YWxrKGZ1bGwpOwogICAgICB9CgogICAgICByZXR1cm4gZW50cnkuaXNGaWxlKCkgJiYKICAgICAgICBlbnRyeS5uYW1lID09PSAicm91dGUudHMiCiAgICAgICAgPyBbZnVsbF0KICAgICAgICA6IFtdOwogICAgfSwKICApOwp9Cgpjb25zdCBhdXRoTWFya2VycyA9IFsKICAicmVxdWlyZVBlcm1pc3Npb24oIiwKICAicmVxdWlyZVN1cGVyQWRtaW4oIiwKICAiY3VycmVudFVzZXIoIiwKICAicmVxdWlyZUFyY2hpdmVBY3RvcigiLAogICJyZXF1aXJlVmF1bHRVbmxvY2tlZCgiLAogICJhcmNoaXZlQWN0b3JGb3IoIiwKXTsKCmNvbnN0IGF1dGhNb2R1bGVzID0gWwogICJAL2xpYi9hdXRoLXY3IiwKICAiQC9saWIvYXJjaGl2ZS12YXVsdCIsCl07Cgpjb25zdCByb3V0ZXMgPSB3YWxrKGFkbWluUm9vdCk7Cgpmb3IgKGNvbnN0IGZpbGUgb2Ygcm91dGVzKSB7CiAgY29uc3QgY29udGVudCA9CiAgICBmcy5yZWFkRmlsZVN5bmMoCiAgICAgIGZpbGUsCiAgICAgICJ1dGY4IiwKICAgICk7CiAgY29uc3QgcmVsYXRpdmUgPQogICAgcGF0aAogICAgICAucmVsYXRpdmUocm9vdCwgZmlsZSkKICAgICAgLnJlcGxhY2VBbGwoCiAgICAgICAgcGF0aC5zZXAsCiAgICAgICAgIi8iLAogICAgICApOwoKICBjb25zdCBpbXBvcnRzQXV0aE1vZHVsZSA9CiAgICBhdXRoTW9kdWxlcy5zb21lKChtYXJrZXIpID0+CiAgICAgIGNvbnRlbnQuaW5jbHVkZXMobWFya2VyKSwKICAgICk7CiAgY29uc3QgY2FsbHNBdXRoR3VhcmQgPQogICAgYXV0aE1hcmtlcnMuc29tZSgobWFya2VyKSA9PgogICAgICBjb250ZW50LmluY2x1ZGVzKG1hcmtlciksCiAgICApOwoKICBpZiAoCiAgICAhaW1wb3J0c0F1dGhNb2R1bGUgfHwKICAgICFjYWxsc0F1dGhHdWFyZAogICkgewogICAgZmFpbHVyZXMucHVzaCgKICAgICAgYCR7cmVsYXRpdmV9OiBBZG1pbiBBUEkgcm91dGUgaGFzIG5vIHJlY29nbml6ZWQgYXV0aGVudGljYXRpb24vYXV0aG9yaXphdGlvbiBndWFyZC5gLAogICAgKTsKICB9Cn0KCmNvbnN0IGxlZ2FjeVB1YmxpY1JvdXRlcyA9IFsKICAiYXBwL2FwaS9tYWludGVuYW5jZS9yb3V0ZS50cyIsCiAgImFwcC9hcGkvY29tcGxhaW50cy9yb3V0ZS50cyIsCl07Cgpmb3IgKGNvbnN0IHJlbGF0aXZlIG9mIGxlZ2FjeVB1YmxpY1JvdXRlcykgewogIGlmICgKICAgIGZzLmV4aXN0c1N5bmMoCiAgICAgIHBhdGguam9pbihyb290LCByZWxhdGl2ZSksCiAgICApCiAgKSB7CiAgICBmYWlsdXJlcy5wdXNoKAogICAgICBgJHtyZWxhdGl2ZX06IGxlZ2FjeSB1bmF1dGhlbnRpY2F0ZWQgZW5kcG9pbnQgbXVzdCByZW1haW4gcmVtb3ZlZC5gLAogICAgKTsKICB9Cn0KCmNvbnN0IG9yZGVyc1JvdXRlID0KICBwYXRoLmpvaW4oCiAgICBhZG1pblJvb3QsCiAgICAib3JkZXJzIiwKICAgICJyb3V0ZS50cyIsCiAgKTsKCmlmICghZnMuZXhpc3RzU3luYyhvcmRlcnNSb3V0ZSkpIHsKICBmYWlsdXJlcy5wdXNoKAogICAgImFwcC9hcGkvYWRtaW4vb3JkZXJzL3JvdXRlLnRzIGlzIG1pc3NpbmcuIiwKICApOwp9IGVsc2UgewogIGNvbnN0IGNvbnRlbnQgPQogICAgZnMucmVhZEZpbGVTeW5jKAogICAgICBvcmRlcnNSb3V0ZSwKICAgICAgInV0ZjgiLAogICAgKTsKCiAgaWYgKAogICAgIWNvbnRlbnQuaW5jbHVkZXMoCiAgICAgICJQRVJNSVNTSU9OUy5PUkRFUlNfVklFVyIsCiAgICApCiAgKSB7CiAgICBmYWlsdXJlcy5wdXNoKAogICAgICAiYXBwL2FwaS9hZG1pbi9vcmRlcnMvcm91dGUudHMgbXVzdCBlbmZvcmNlIE9SREVSU19WSUVXLiIsCiAgICApOwogIH0KCiAgaWYgKAogICAgL2N1c3RvbWVyXHMqOlxzKnRydWUvLnRlc3QoCiAgICAgIGNvbnRlbnQsCiAgICApCiAgKSB7CiAgICBmYWlsdXJlcy5wdXNoKAogICAgICAiYXBwL2FwaS9hZG1pbi9vcmRlcnMvcm91dGUudHMgbXVzdCBub3Qgc2VyaWFsaXplIHRoZSBmdWxsIEN1c3RvbWVyIHJlY29yZC4iLAogICAgKTsKICB9Cn0KCmNvbnN0IHByaWNpbmdSb3V0ZSA9CiAgcGF0aC5qb2luKAogICAgYWRtaW5Sb290LAogICAgInByaWNpbmciLAogICAgInJvdXRlLnRzIiwKICApOwoKaWYgKCFmcy5leGlzdHNTeW5jKHByaWNpbmdSb3V0ZSkpIHsKICBmYWlsdXJlcy5wdXNoKAogICAgImFwcC9hcGkvYWRtaW4vcHJpY2luZy9yb3V0ZS50cyBpcyBtaXNzaW5nLiIsCiAgKTsKfSBlbHNlIHsKICBjb25zdCBjb250ZW50ID0KICAgIGZzLnJlYWRGaWxlU3luYygKICAgICAgcHJpY2luZ1JvdXRlLAogICAgICAidXRmOCIsCiAgICApOwoKICBpZiAoCiAgICAhY29udGVudC5pbmNsdWRlcygKICAgICAgIlBFUk1JU1NJT05TLlBSSUNFX0VESVQiLAogICAgKQogICkgewogICAgZmFpbHVyZXMucHVzaCgKICAgICAgImFwcC9hcGkvYWRtaW4vcHJpY2luZy9yb3V0ZS50cyBtdXN0IGVuZm9yY2UgUFJJQ0VfRURJVC4iLAogICAgKTsKICB9Cn0KCmlmIChmYWlsdXJlcy5sZW5ndGgpIHsKICBjb25zb2xlLmVycm9yKAogICAgIlxuVjIwSCBzZWN1cml0eSByb3V0ZSBndWFyZCBGQUlMRUQ6XG4iLAogICk7CgogIGZvciAoY29uc3QgZmFpbHVyZSBvZiBmYWlsdXJlcykgewogICAgY29uc29sZS5lcnJvcigKICAgICAgYC0gJHtmYWlsdXJlfWAsCiAgICApOwogIH0KCiAgcHJvY2Vzcy5leGl0KDEpOwp9Cgpjb25zb2xlLmxvZygKICBgVjIwSCBzZWN1cml0eSByb3V0ZSBndWFyZCBwYXNzZWQ6ICR7cm91dGVzLmxlbmd0aH0gYWRtaW4gQVBJIHJvdXRlcyBjaGVja2VkLmAsCik7Cg=="
+$readmeB64 = "IyBWZW50aWMgUHJvIFYyMEgg4oCUIFNlY3VyaXR5IExvY2tkb3duCgpWMjBIIGNsb3NlcyB0aGUgZm91ciBoaWdoLXJpc2sgQVBJIGZpbmRpbmdzIGlkZW50aWZpZWQgYWZ0ZXIgVjIwRzIuCgojIyBGaXhlZAoKLSBgL2FwaS9hZG1pbi9vcmRlcnNgIG5vdyByZXF1aXJlcyBgT1JERVJTX1ZJRVdgLgotIFRoZSBvcmRlcnMgbGlzdCBubyBsb25nZXIgc2VyaWFsaXplcyB0aGUgZnVsbCBDdXN0b21lciByZWNvcmQsIHNvIGBwYXNzd29yZEhhc2hgIGNhbm5vdCBsZWFrIHRocm91Z2ggYGN1c3RvbWVyOiB0cnVlYC4KLSBDdXN0b21lciBwaG9uZS9hZGRyZXNzIGFyZSBtYXNrZWQgdW5sZXNzIHRoZSBzaWduZWQtaW4gc3RhZmYgYWNjb3VudCBoYXMgYENVU1RPTUVSX1NFTlNJVElWRWAuCi0gYC9hcGkvYWRtaW4vcHJpY2luZ2Agbm93IHJlcXVpcmVzIGBQUklDRV9FRElUYCBmb3IgYm90aCByZWFkIGFuZCB3cml0ZSBvcGVyYXRpb25zLgotIFByaWNpbmcgd3JpdGVzIHZhbGlkYXRlIGlucHV0cyBhbmQgY3JlYXRlIEF1ZGl0IExvZyBlbnRyaWVzLgotIExlZ2FjeSB1bmF1dGhlbnRpY2F0ZWQgZW5kcG9pbnRzIGAvYXBpL21haW50ZW5hbmNlYCBhbmQgYC9hcGkvY29tcGxhaW50c2AgYXJlIHJlbW92ZWQuCi0gVGhlIHN1cHBvcnRlZCBjdXN0b21lciByb3V0ZSByZW1haW5zIGAvYXBpL2N1c3RvbWVyL2FmdGVyY2FyZWAsIHdoaWNoIHZlcmlmaWVzIHRoZSBjdXN0b21lciBzZXNzaW9uIGFuZCBvcmRlciBvd25lcnNoaXAuCi0gQSBidWlsZC10aW1lIHJlZ3Jlc3Npb24gZ3VhcmQgc2NhbnMgZXZlcnkgYGFwcC9hcGkvYWRtaW4vKiovcm91dGUudHNgIGFuZCBmYWlscyB0aGUgYnVpbGQgaWYgYSByb3V0ZSBoYXMgbm8gcmVjb2duaXplZCBhdXRoIGd1YXJkLgotIFRoZSByZWdyZXNzaW9uIGd1YXJkIGFsc28gZmFpbHMgaWYgZWl0aGVyIGxlZ2FjeSBlbmRwb2ludCBpcyByZWludHJvZHVjZWQuCgojIyBCdWlsZCBwcm90ZWN0aW9uCgpUaGUgbm9ybWFsIGBucG0gcnVuIGJ1aWxkYCBub3cgcnVucyB0aGUgcm91dGUgZ3VhcmQgYmVmb3JlIFByaXNtYSBnZW5lcmF0aW9uL21pZ3JhdGlvbnMvTmV4dC5qcyBidWlsZC4KCiMjIFZlcmlmaWNhdGlvbiBhbHJlYWR5IGNvbXBsZXRlZAoKVjIwSCB3YXMgdGVzdGVkIGFnYWluc3QgY29tbWl0OgoKYDAyZDZhOWFmZDM4M2UzY2FiZGEzNjcyZDdkMzM1ZDQyYmM3ZGYxNWVgIOKAlCBgVjIwRzIgLSBmaXggc29jaWFsIHByZXZpZXcgaW1hZ2VzYAoKQ2hlY2tzIGNvbXBsZXRlZCBzdWNjZXNzZnVsbHk6CgotIFJlZ3Jlc3Npb24gc2NhbjogNTIgQWRtaW4gQVBJIHJvdXRlcyBwYXNzZWQuCi0gTmVnYXRpdmUgcmVncmVzc2lvbiB0ZXN0OiBhbiBpbnRlbnRpb25hbGx5IHVucHJvdGVjdGVkIEFkbWluIHJvdXRlIHdhcyBjb3JyZWN0bHkgcmVqZWN0ZWQuCi0gYHByaXNtYSBnZW5lcmF0ZWA6IHBhc3NlZC4KLSBgbnB4IHRzYyAtLW5vRW1pdGA6IHBhc3NlZCB3aXRoIDAgVHlwZVNjcmlwdCBlcnJvcnMuCi0gYGdpdCBkaWZmIC0tY2hlY2tgOiBwYXNzZWQuCgojIyBBcHBseQoKMS4gRXh0cmFjdCB0aGlzIFpJUCBpbnRvIHRoZSBWZW50aWMgUHJvIHJlcG9zaXRvcnkgcm9vdC4KMi4gRG91YmxlLWNsaWNrIGBBUFBMWS1WMjBILmNtZGAuCjMuIENvbmZpcm0gdGhlIHNjcmlwdCByZXBvcnRzIGBWMjBIIEFQUExJRUQgU1VDQ0VTU0ZVTExZYC4KNC4gQ29tbWl0IGFuZCBwdXNoOgoKYFYyMEggLSBzZWN1cml0eSBsb2NrZG93bmAKClZlcmNlbCB3aWxsIHRoZW4gZGVwbG95IHRoZSBzZWN1cmVkIHZlcnNpb24gZnJvbSBgbWFpbmAuCg=="
+
+Write-Base64File -Target $ordersPath -Base64 $ordersB64
+Write-Base64File -Target $pricingPath -Base64 $pricingB64
+Write-Base64File -Target $guardPath -Base64 $guardB64
+Write-Base64File -Target $readmePath -Base64 $readmeB64
+
+if (Test-Path $legacyMaintenance) {
+    Remove-Item -Force $legacyMaintenance
+}
+if (Test-Path $legacyComplaints) {
+    Remove-Item -Force $legacyComplaints
+}
+
+$packageUpdated = Get-Content -Raw -Encoding UTF8 $packagePath
+
+if ($packageUpdated.Contains($oldBuild)) {
+    $packageUpdated = $packageUpdated.Replace($oldBuild, $newBuild)
+}
+
+if ($packageUpdated.Contains($oldSecurity)) {
+    $packageUpdated = $packageUpdated.Replace($oldSecurity, $newSecurity)
+}
+
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($packagePath, $packageUpdated, $utf8)
+
+Write-Host "Running security regression guard..." -ForegroundColor Cyan
+& node scripts/security-route-guard.mjs
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Guard failed. Restoring tracked files..." -ForegroundColor Yellow
+    & git restore -- `
+        app/api/admin/orders/route.ts `
+        app/api/admin/pricing/route.ts `
+        app/api/maintenance/route.ts `
+        app/api/complaints/route.ts `
+        package.json
+    Remove-Item -Force -ErrorAction SilentlyContinue $guardPath
+    Remove-Item -Force -ErrorAction SilentlyContinue $readmePath
+    Fail-V20H2 "Regression guard rejected the result."
+}
+
+Write-Host "Running git diff --check..." -ForegroundColor Cyan
+& git diff --check
+if ($LASTEXITCODE -ne 0) {
+    Fail-V20H2 "git diff --check found a patch/whitespace error."
+}
+
+Write-Host ""
+Write-Host "V20H2 APPLIED SUCCESSFULLY" -ForegroundColor Green
+Write-Host ""
+Write-Host "Protected:" -ForegroundColor Cyan
+Write-Host "- Admin orders authentication"
+Write-Host "- Customer sensitive-data exposure"
+Write-Host "- Admin pricing authentication and audit"
+Write-Host "- Legacy maintenance/complaints endpoints"
+Write-Host "- Future unprotected Admin API regression"
+Write-Host ""
+Write-Host "Commit message:" -ForegroundColor Cyan
+Write-Host "V20H - security lockdown"
+Write-Host ""
+Write-Host "Now commit and push main." -ForegroundColor Yellow
