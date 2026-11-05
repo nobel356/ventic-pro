@@ -1,0 +1,318 @@
+diff --git a/app/api/customer/auth/forgot-password/route.ts b/app/api/customer/auth/forgot-password/route.ts
+index ad9c681..2faac62 100644
+--- a/app/api/customer/auth/forgot-password/route.ts
++++ b/app/api/customer/auth/forgot-password/route.ts
+@@ -52,6 +52,11 @@ export async function POST(req: Request) {
+       normalizeCustomerPhone(
+         body?.phone,
+       );
++    const deliveryMethod =
++      body?.deliveryMethod ===
++      "EMAIL"
++        ? "EMAIL"
++        : "PHONE";
+ 
+     if (!validEgyptMobile(phone)) {
+       return NextResponse.json({
+@@ -137,6 +142,8 @@ export async function POST(req: Request) {
+         phone: customer.phone,
+         email: customer.email,
+         otp,
++        preferredChannel:
++          deliveryMethod,
+       });
+ 
+     const channel: NotificationChannel =
+@@ -146,7 +153,10 @@ export async function POST(req: Request) {
+         : delivery.channel ===
+             "SMS"
+           ? "SMS"
+-          : "IN_APP";
++          : delivery.channel ===
++              "EMAIL"
++            ? "EMAIL"
++            : "IN_APP";
+ 
+     await prisma.notification.create({
+       data: {
+@@ -201,6 +211,8 @@ export async function POST(req: Request) {
+             delivery.sent,
+           deliveryChannel:
+             delivery.channel,
++          requestedDeliveryMethod:
++            deliveryMethod,
+         },
+       },
+     });
+@@ -219,6 +231,8 @@ export async function POST(req: Request) {
+       message: GENERIC_MESSAGE,
+       expiresInMinutes: 10,
+       retryAfterSeconds: 60,
++      requestedDeliveryMethod:
++        deliveryMethod,
+       stagingOtp:
+         safeStagingVisible
+           ? otp
+diff --git a/app/customer/forgot-password/page.tsx b/app/customer/forgot-password/page.tsx
+index cacb3a8..3f5a6e8 100644
+--- a/app/customer/forgot-password/page.tsx
++++ b/app/customer/forgot-password/page.tsx
+@@ -15,6 +15,12 @@ export default function ForgotPasswordPage() {
+   >("REQUEST");
+   const [phone, setPhone] =
+     useState("");
++  const [
++    deliveryMethod,
++    setDeliveryMethod,
++  ] = useState<
++    "PHONE" | "EMAIL"
++  >("PHONE");
+   const [code, setCode] = useState("");
+   const [password, setPassword] =
+     useState("");
+@@ -66,6 +72,7 @@ export default function ForgotPasswordPage() {
+           },
+           body: JSON.stringify({
+             phone,
++            deliveryMethod,
+           }),
+         },
+       );
+@@ -215,9 +222,53 @@ export default function ForgotPasswordPage() {
+                 color: "#64748b",
+               }}
+             >
+-              اكتب رقم الموبايل المسجل بالحساب وسنرسل لك كود استعادة.
++              اكتب رقم الموبايل المسجل بالحساب ثم اختر مكان استلام كود التحقق.
+             </p>
+ 
++            <div
++              style={{
++                display: "grid",
++                gridTemplateColumns:
++                  "1fr 1fr",
++                gap: 10,
++                marginBottom: 14,
++              }}
++            >
++              <button
++                type="button"
++                className={
++                  deliveryMethod ===
++                  "PHONE"
++                    ? "button"
++                    : "outline"
++                }
++                onClick={() =>
++                  setDeliveryMethod(
++                    "PHONE",
++                  )
++                }
++              >
++                📱 على الموبايل
++              </button>
++
++              <button
++                type="button"
++                className={
++                  deliveryMethod ===
++                  "EMAIL"
++                    ? "button"
++                    : "outline"
++                }
++                onClick={() =>
++                  setDeliveryMethod(
++                    "EMAIL",
++                  )
++                }
++              >
++                ✉️ على الإيميل
++              </button>
++            </div>
++
+             <label className="field">
+               <span>
+                 رقم الموبايل
+@@ -241,7 +292,10 @@ export default function ForgotPasswordPage() {
+             >
+               {loading
+                 ? "جاري الإرسال..."
+-                : "إرسال كود الاستعادة"}
++                : deliveryMethod ===
++                    "EMAIL"
++                  ? "إرسال الكود على الإيميل"
++                  : "إرسال الكود على الموبايل"}
+             </button>
+           </form>
+         )}
+diff --git a/lib/customer-messaging.ts b/lib/customer-messaging.ts
+index 2bd6d29..022dab8 100644
+--- a/lib/customer-messaging.ts
++++ b/lib/customer-messaging.ts
+@@ -818,12 +818,28 @@ export async function deliverCustomerPasswordResetOtp(
+     phone: string;
+     email?: string | null;
+     otp: string;
++    preferredChannel?:
++      | "PHONE"
++      | "EMAIL"
++      | "AUTO";
+   },
+ ) {
+   const message =
+     `Ventic Pro\nكود إعادة تعيين كلمة المرور: ${input.otp}\n` +
+     "الكود صالح لمدة 10 دقائق. إذا لم تطلب تغيير كلمة المرور تجاهل الرسالة.";
+ 
++  if (
++    input.preferredChannel ===
++    "EMAIL"
++  ) {
++    return sendEmail({
++      email: input.email,
++      subject:
++        "كود استعادة كلمة مرور Ventic Pro",
++      message,
++    });
++  }
++
+   const whatsappTemplate =
+     process.env
+       .WHATSAPP_PASSWORD_RESET_TEMPLATE;
+@@ -933,7 +949,11 @@ export async function deliverCustomerPasswordResetOtp(
+       message,
+     });
+ 
+-  if (primary.sent) {
++  if (
++    primary.sent ||
++    input.preferredChannel ===
++      "PHONE"
++  ) {
+     return primary;
+   }
+ 
+diff --git a/package.json b/package.json
+index 0457f99..abdc4a9 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "private": true,
+   "scripts": {
+     "dev": "next dev",
+-    "build": "node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
++    "build": "node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+     "start": "next start",
+     "create-user": "node scripts/create-user.mjs",
+     "db:generate": "prisma generate",
+@@ -16,11 +16,12 @@
+     "db:studio": "prisma studio",
+     "typecheck": "tsc --noEmit",
+     "check": "npm run typecheck && npm run build",
+-    "security:check": "node scripts/security-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
++    "security:check": "node scripts/security-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
+     "security:routes": "node scripts/security-route-guard.mjs",
+     "integrations:check": "node scripts/integrations-check.mjs",
+     "db:migrate:production": "node scripts/production-migrate.mjs",
+-    "security:customer-claim": "node scripts/security-customer-claim-check.mjs"
++    "security:customer-claim": "node scripts/security-customer-claim-check.mjs",
++    "security:dual-otp": "node scripts/security-dual-otp-check.mjs"
+   },
+   "dependencies": {
+     "next": "15.5.26",
+diff --git a/scripts/security-dual-otp-check.mjs b/scripts/security-dual-otp-check.mjs
+new file mode 100644
+index 0000000..8f4b3b9
+--- /dev/null
++++ b/scripts/security-dual-otp-check.mjs
+@@ -0,0 +1,91 @@
++import fs from "node:fs";
++
++const failures = [];
++
++function read(path) {
++  if (!fs.existsSync(path)) {
++    failures.push(`${path} is missing.`);
++    return "";
++  }
++
++  return fs.readFileSync(
++    path,
++    "utf8",
++  );
++}
++
++const messaging =
++  read(
++    "lib/customer-messaging.ts",
++  );
++const forgotApi =
++  read(
++    "app/api/customer/auth/forgot-password/route.ts",
++  );
++const forgotPage =
++  read(
++    "app/customer/forgot-password/page.tsx",
++  );
++
++for (const marker of [
++  'preferredChannel?:',
++  '"PHONE"',
++  '"EMAIL"',
++  'input.preferredChannel ===',
++]) {
++  if (!messaging.includes(marker)) {
++    failures.push(
++      `customer-messaging missing ${marker}`,
++    );
++  }
++}
++
++if (
++  !forgotApi.includes(
++    'body?.deliveryMethod ===',
++  ) ||
++  !forgotApi.includes(
++    'preferredChannel:',
++  ) ||
++  !forgotApi.includes(
++    '"EMAIL"',
++  )
++) {
++  failures.push(
++    "forgot-password API must preserve explicit PHONE/EMAIL delivery choice.",
++  );
++}
++
++if (
++  !forgotPage.includes(
++    'deliveryMethod',
++  ) ||
++  !forgotPage.includes(
++    'على الموبايل',
++  ) ||
++  !forgotPage.includes(
++    'على الإيميل',
++  )
++) {
++  failures.push(
++    "forgot-password UI must expose both OTP channels.",
++  );
++}
++
++if (failures.length) {
++  console.error(
++    "\nV20J dual OTP check FAILED:\n",
++  );
++
++  for (const failure of failures) {
++    console.error(
++      `- ${failure}`,
++    );
++  }
++
++  process.exit(1);
++}
++
++console.log(
++  "V20J dual OTP channel check passed.",
++);

@@ -15,6 +15,12 @@ export default function ForgotPasswordPage() {
   >("REQUEST");
   const [phone, setPhone] =
     useState("");
+  const [
+    deliveryMethod,
+    setDeliveryMethod,
+  ] = useState<
+    "PHONE" | "EMAIL"
+  >("PHONE");
   const [code, setCode] = useState("");
   const [password, setPassword] =
     useState("");
@@ -66,6 +72,7 @@ export default function ForgotPasswordPage() {
           },
           body: JSON.stringify({
             phone,
+            deliveryMethod,
           }),
         },
       );
@@ -215,8 +222,52 @@ export default function ForgotPasswordPage() {
                 color: "#64748b",
               }}
             >
-              اكتب رقم الموبايل المسجل بالحساب وسنرسل لك كود استعادة.
+              اكتب رقم الموبايل المسجل بالحساب ثم اختر مكان استلام كود التحقق.
             </p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "1fr 1fr",
+                gap: 10,
+                marginBottom: 14,
+              }}
+            >
+              <button
+                type="button"
+                className={
+                  deliveryMethod ===
+                  "PHONE"
+                    ? "button"
+                    : "outline"
+                }
+                onClick={() =>
+                  setDeliveryMethod(
+                    "PHONE",
+                  )
+                }
+              >
+                📱 على الموبايل
+              </button>
+
+              <button
+                type="button"
+                className={
+                  deliveryMethod ===
+                  "EMAIL"
+                    ? "button"
+                    : "outline"
+                }
+                onClick={() =>
+                  setDeliveryMethod(
+                    "EMAIL",
+                  )
+                }
+              >
+                ✉️ على الإيميل
+              </button>
+            </div>
 
             <label className="field">
               <span>
@@ -241,7 +292,10 @@ export default function ForgotPasswordPage() {
             >
               {loading
                 ? "جاري الإرسال..."
-                : "إرسال كود الاستعادة"}
+                : deliveryMethod ===
+                    "EMAIL"
+                  ? "إرسال الكود على الإيميل"
+                  : "إرسال الكود على الموبايل"}
             </button>
           </form>
         )}

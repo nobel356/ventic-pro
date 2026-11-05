@@ -818,11 +818,27 @@ export async function deliverCustomerPasswordResetOtp(
     phone: string;
     email?: string | null;
     otp: string;
+    preferredChannel?:
+      | "PHONE"
+      | "EMAIL"
+      | "AUTO";
   },
 ) {
   const message =
     `Ventic Pro\nكود إعادة تعيين كلمة المرور: ${input.otp}\n` +
     "الكود صالح لمدة 10 دقائق. إذا لم تطلب تغيير كلمة المرور تجاهل الرسالة.";
+
+  if (
+    input.preferredChannel ===
+    "EMAIL"
+  ) {
+    return sendEmail({
+      email: input.email,
+      subject:
+        "كود استعادة كلمة مرور Ventic Pro",
+      message,
+    });
+  }
 
   const whatsappTemplate =
     process.env
@@ -933,7 +949,11 @@ export async function deliverCustomerPasswordResetOtp(
       message,
     });
 
-  if (primary.sent) {
+  if (
+    primary.sent ||
+    input.preferredChannel ===
+      "PHONE"
+  ) {
     return primary;
   }
 

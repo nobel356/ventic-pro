@@ -52,6 +52,11 @@ export async function POST(req: Request) {
       normalizeCustomerPhone(
         body?.phone,
       );
+    const deliveryMethod =
+      body?.deliveryMethod ===
+      "EMAIL"
+        ? "EMAIL"
+        : "PHONE";
 
     if (!validEgyptMobile(phone)) {
       return NextResponse.json({
@@ -137,6 +142,8 @@ export async function POST(req: Request) {
         phone: customer.phone,
         email: customer.email,
         otp,
+        preferredChannel:
+          deliveryMethod,
       });
 
     const channel: NotificationChannel =
@@ -146,7 +153,10 @@ export async function POST(req: Request) {
         : delivery.channel ===
             "SMS"
           ? "SMS"
-          : "IN_APP";
+          : delivery.channel ===
+              "EMAIL"
+            ? "EMAIL"
+            : "IN_APP";
 
     await prisma.notification.create({
       data: {
@@ -201,6 +211,8 @@ export async function POST(req: Request) {
             delivery.sent,
           deliveryChannel:
             delivery.channel,
+          requestedDeliveryMethod:
+            deliveryMethod,
         },
       },
     });
@@ -219,6 +231,8 @@ export async function POST(req: Request) {
       message: GENERIC_MESSAGE,
       expiresInMinutes: 10,
       retryAfterSeconds: 60,
+      requestedDeliveryMethod:
+        deliveryMethod,
       stagingOtp:
         safeStagingVisible
           ? otp
