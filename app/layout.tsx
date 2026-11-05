@@ -1,4 +1,4 @@
-﻿import "./globals.css";
+import "./globals.css";
 import "./brand-theme.css";
 import "./brand-v14d.css";
 import "./iphone.css";
@@ -19,6 +19,7 @@ import ConversionTracker from "@/app/shared/ConversionTracker";
 import TrustBar from "@/app/shared/TrustBar";
 import CalculatorOrderSummary from "@/app/shared/CalculatorOrderSummary";
 import TrackingManager from "@/app/shared/TrackingManager";
+import RuntimeSiteGate from "@/app/shared/RuntimeSiteGate";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -182,21 +183,23 @@ export default function Layout({
           تخطي للمحتوى
         </a>
 
-        <TrackingManager />
-        <MarketingAttribution />
-        <ConversionTracker />
-        <ReferralBanner />
-        <SeoJsonLd />
-        <TrustBar />
-        <CalculatorOrderSummary />
+        <RuntimeSiteGate>
+          <TrackingManager />
+          <MarketingAttribution />
+          <ConversionTracker />
+          <ReferralBanner />
+          <SeoJsonLd />
+          <TrustBar />
+          <CalculatorOrderSummary />
 
-        <div id="main-content">{children}</div>
+          <div id="main-content">{children}</div>
 
-        <PortfolioPortal />
-        <SiteChrome />
-        <GrowthAssist />
-        <QrQuickAccess />
-        <PwaInstallPrompt />
+          <PortfolioPortal />
+          <SiteChrome />
+          <GrowthAssist />
+          <QrQuickAccess />
+          <PwaInstallPrompt />
+        </RuntimeSiteGate>
       </body>
     </html>
   );

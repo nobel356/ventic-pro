@@ -135,6 +135,66 @@ export default function ControlCenterClient() {
     );
   }
 
+  async function applyMode(
+    mode: Control["mode"],
+  ) {
+    if (!control || saving) {
+      return;
+    }
+
+    const next = {
+      ...control,
+      mode,
+    };
+
+    setControl(next);
+    setSaving(true);
+    setMessage(
+      "جاري تطبيق وضع الموقع...",
+    );
+
+    try {
+      const response = await fetch(
+        "/api/admin/runtime-controls",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body:
+            JSON.stringify(next),
+        },
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "تعذر تطبيق وضع الموقع",
+        );
+      }
+
+      setControl(data.control);
+      setMessage(
+        mode === "NORMAL"
+          ? "تم تشغيل الموقع بالكامل الآن."
+          : mode === "LEAD_ONLY"
+            ? "تم تطبيق Lead Only الآن على الموقع العام."
+            : "تم وضع الموقع العام في الصيانة الآن.",
+      );
+    } catch (error: any) {
+      setMessage(
+        error?.message ||
+          "تعذر تطبيق وضع الموقع",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function save() {
     if (!control) return;
 
@@ -277,6 +337,20 @@ export default function ControlCenterClient() {
         <h2 style={sectionTitle}>
           وضع الموقع
         </h2>
+        <div
+          style={{
+            margin: "-4px 0 14px",
+            color: "#475569",
+            fontSize: 13,
+            fontWeight: 800,
+          }}
+        >
+          الوضع الحالي المطبق فعليًا:{" "}
+          <strong>
+            {control.mode}
+          </strong>
+          {" "}— تغيير الوضع من الأزرار أدناه يطبق فورًا.
+        </div>
 
         <div
           style={{
@@ -308,11 +382,11 @@ export default function ControlCenterClient() {
                 key={value}
                 type="button"
                 onClick={() =>
-                  set(
-                    "mode",
+                  void applyMode(
                     value as Control["mode"],
                   )
                 }
+                disabled={saving}
                 style={{
                   padding: 16,
                   borderRadius: 14,
