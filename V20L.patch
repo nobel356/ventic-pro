@@ -1,0 +1,191 @@
+diff --git a/lib/technician.ts b/lib/technician.ts
+index 5a6a553..3afa4a5 100644
+--- a/lib/technician.ts
++++ b/lib/technician.ts
+@@ -1,21 +1,16 @@
+-import { cookies } from "next/headers";
+-import { prisma } from "./prisma";
+ import { currentUser } from "./auth-v7";
+ 
+-export const TECH_COOKIE = "ventic_tech";
+-
+ export async function currentTechnician() {
+-  const sessionUser = await currentUser();
+-  if (sessionUser?.role === "TECHNICIAN" && sessionUser.active) {
++  const sessionUser =
++    await currentUser();
++
++  if (
++    sessionUser?.role ===
++      "TECHNICIAN" &&
++    sessionUser.active
++  ) {
+     return sessionUser;
+   }
+ 
+-  // Backward-compatible fallback for the old demo technician cookie.
+-  const jar = await cookies();
+-  const id = jar.get(TECH_COOKIE)?.value || process.env.DEMO_TECHNICIAN_ID;
+-  if (!id) return null;
+-
+-  return prisma.user.findFirst({
+-    where: { id, role: "TECHNICIAN", active: true },
+-  });
++  return null;
+ }
+diff --git a/package.json b/package.json
+index f7139d4..588cd49 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "private": true,
+   "scripts": {
+     "dev": "next dev",
+-    "build": "node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
++    "build": "node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+     "start": "next start",
+     "create-user": "node scripts/create-user.mjs",
+     "db:generate": "prisma generate",
+@@ -16,13 +16,14 @@
+     "db:studio": "prisma studio",
+     "typecheck": "tsc --noEmit",
+     "check": "npm run typecheck && npm run build",
+-    "security:check": "node scripts/security-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
++    "security:check": "node scripts/security-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
+     "security:routes": "node scripts/security-route-guard.mjs",
+     "integrations:check": "node scripts/integrations-check.mjs",
+     "db:migrate:production": "node scripts/production-migrate.mjs",
+     "security:customer-claim": "node scripts/security-customer-claim-check.mjs",
+     "security:dual-otp": "node scripts/security-dual-otp-check.mjs",
+-    "security:abuse-protection": "node scripts/security-abuse-protection-check.mjs"
++    "security:abuse-protection": "node scripts/security-abuse-protection-check.mjs",
++    "security:technician-auth": "node scripts/security-technician-auth-check.mjs"
+   },
+   "dependencies": {
+     "next": "15.5.26",
+diff --git a/scripts/security-technician-auth-check.mjs b/scripts/security-technician-auth-check.mjs
+new file mode 100644
+index 0000000..a7095da
+--- /dev/null
++++ b/scripts/security-technician-auth-check.mjs
+@@ -0,0 +1,120 @@
++import fs from "node:fs";
++import path from "node:path";
++
++const failures = [];
++
++function read(file) {
++  if (!fs.existsSync(file)) {
++    failures.push(
++      `${file} is missing.`,
++    );
++    return "";
++  }
++
++  return fs.readFileSync(
++    file,
++    "utf8",
++  );
++}
++
++const helper =
++  read("lib/technician.ts");
++
++for (const forbidden of [
++  "ventic_tech",
++  "DEMO_TECHNICIAN_ID",
++  "cookies()",
++  "TECH_COOKIE",
++]) {
++  if (
++    helper.includes(
++      forbidden,
++    )
++  ) {
++    failures.push(
++      `Technician auth helper still contains legacy fallback: ${forbidden}`,
++    );
++  }
++}
++
++if (
++  !helper.includes(
++    "currentUser",
++  ) ||
++  !helper.includes(
++    '"TECHNICIAN"',
++  )
++) {
++  failures.push(
++    "Technician auth must rely on the authenticated staff session.",
++  );
++}
++
++const routeRoot =
++  "app/api/technician";
++
++function walk(dir) {
++  const entries =
++    fs.readdirSync(
++      dir,
++      {
++        withFileTypes:
++          true,
++      },
++    );
++
++  for (const entry of entries) {
++    const full =
++      path.join(
++        dir,
++        entry.name,
++      );
++
++    if (
++      entry.isDirectory()
++    ) {
++      walk(full);
++      continue;
++    }
++
++    if (
++      entry.name !==
++      "route.ts"
++    ) {
++      continue;
++    }
++
++    const source =
++      read(full);
++
++    if (
++      !source.includes(
++        "currentTechnician",
++      )
++    ) {
++      failures.push(
++        `${full} does not enforce technician session auth.`,
++      );
++    }
++  }
++}
++
++walk(routeRoot);
++
++if (failures.length) {
++  console.error(
++    "\nV20L technician auth check FAILED:\n",
++  );
++
++  for (const failure of failures) {
++    console.error(
++      `- ${failure}`,
++    );
++  }
++
++  process.exit(1);
++}
++
++console.log(
++  "V20L technician auth lockdown check passed.",
++);
