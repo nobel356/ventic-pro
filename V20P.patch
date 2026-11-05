@@ -1,0 +1,2725 @@
+diff --git a/app/admin/AdminSidebar.tsx b/app/admin/AdminSidebar.tsx
+index 466d295..ae6aa9f 100644
+--- a/app/admin/AdminSidebar.tsx
++++ b/app/admin/AdminSidebar.tsx
+@@ -28,6 +28,12 @@ type NavItem = {
+ 
+ const navItems: NavItem[] = [
+   { href: "/admin", label: "الرئيسية", icon: "⌂" },
++  {
++    href: "/admin/control-center",
++    label: "Control Center",
++    icon: "🎛️",
++    superAdminOnly: true,
++  },
+   {
+     href: "/admin/growth-dashboard",
+     label: "Growth Dashboard",
+diff --git a/app/admin/control-center/ControlCenterClient.tsx b/app/admin/control-center/ControlCenterClient.tsx
+new file mode 100644
+index 0000000..9c1e361
+--- /dev/null
++++ b/app/admin/control-center/ControlCenterClient.tsx
+@@ -0,0 +1,603 @@
++"use client";
++
++import {
++  useEffect,
++  useMemo,
++  useState,
++} from "react";
++
++type Control = {
++  mode:
++    | "NORMAL"
++    | "LEAD_ONLY"
++    | "MAINTENANCE";
++  leadCapture: boolean;
++  detailedOrders: boolean;
++  customerAccounts: boolean;
++  accountRegistration: boolean;
++  phoneOtp: boolean;
++  emailOtpRecovery: boolean;
++  estimates: boolean;
++  coupons: boolean;
++  referrals: boolean;
++  uploads: boolean;
++  reviews: boolean;
++  aftercare: boolean;
++  portfolio: boolean;
++  notifications: boolean;
++  marketingTracking: boolean;
++  fallbackWhatsapp: string;
++  supportPhone: string;
++  maintenanceMessage: string;
++  leadSuccessMessage: string;
++};
++
++const toggleGroups = [
++  {
++    title: "الحد الأدنى الذي لا يجب أن يتوقف",
++    items: [
++      ["leadCapture", "تسجيل الاسم + الموبايل", "المسار الأساسي لاستقبال أي عميل حتى لو باقي النظام متوقف."],
++    ],
++  },
++  {
++    title: "رحلة الطلب",
++    items: [
++      ["detailedOrders", "الطلب التفصيلي", "تشغيل/إيقاف النموذج الكامل للطلب."],
++      ["estimates", "التسعير التقديري", "إظهار وحساب التقدير التلقائي."],
++      ["coupons", "الكوبونات", "السماح بتطبيق أكواد الخصم."],
++      ["referrals", "الإحالات", "تفعيل أكواد وروابط الإحالة."],
++      ["uploads", "رفع الصور", "السماح برفع صور الطلب."],
++    ],
++  },
++  {
++    title: "حساب العميل والرسائل",
++    items: [
++      ["customerAccounts", "بوابة حساب العميل", "تشغيل الدخول والوصول لحساب العميل."],
++      ["accountRegistration", "إنشاء/تفعيل حساب جديد", "اتركه مغلقًا لحين جاهزية وسيلة تحقق موثوقة."],
++      ["phoneOtp", "OTP على الموبايل", "فعّله فقط بعد ربط مزود SMS/WhatsApp فعلي."],
++      ["emailOtpRecovery", "OTP على الإيميل للاسترجاع", "مخصص لاسترجاع حسابات موجودة ومثبتة."],
++      ["notifications", "الإشعارات", "إرسال/تسجيل الإشعارات التشغيلية."],
++    ],
++  },
++  {
++    title: "الموديولات العامة",
++    items: [
++      ["reviews", "التقييمات", "عرض واستقبال تقييمات العملاء."],
++      ["aftercare", "الصيانة والشكاوى", "تشغيل خدمات ما بعد البيع."],
++      ["portfolio", "فيديوهات الأعمال", "إظهار معرض الأعمال."],
++      ["marketingTracking", "التتبع التسويقي", "UTM/attribution والأحداث التسويقية."],
++    ],
++  },
++] as const;
++
++export default function ControlCenterClient() {
++  const [control, setControl] =
++    useState<Control | null>(null);
++  const [loading, setLoading] =
++    useState(true);
++  const [saving, setSaving] =
++    useState(false);
++  const [message, setMessage] =
++    useState("");
++  const [degraded, setDegraded] =
++    useState(false);
++
++  useEffect(() => {
++    fetch("/api/admin/runtime-controls", {
++      cache: "no-store",
++    })
++      .then(async (response) => {
++        const data =
++          await response.json();
++
++        if (!response.ok) {
++          throw new Error(
++            data?.error ||
++              "تعذر تحميل الإعدادات",
++          );
++        }
++
++        setControl(data.control);
++        setDegraded(
++          Boolean(data.degraded),
++        );
++      })
++      .catch((error) => {
++        setMessage(
++          error?.message ||
++            "تعذر تحميل الإعدادات",
++        );
++      })
++      .finally(() => {
++        setLoading(false);
++      });
++  }, []);
++
++  const leadSafety = useMemo(
++    () =>
++      Boolean(
++        control?.leadCapture,
++      ),
++    [control],
++  );
++
++  function set<K extends keyof Control>(
++    key: K,
++    value: Control[K],
++  ) {
++    setControl((current) =>
++      current
++        ? {
++            ...current,
++            [key]: value,
++          }
++        : current,
++    );
++  }
++
++  async function save() {
++    if (!control) return;
++
++    setSaving(true);
++    setMessage("");
++
++    try {
++      const response = await fetch(
++        "/api/admin/runtime-controls",
++        {
++          method: "PATCH",
++          headers: {
++            "Content-Type":
++              "application/json",
++          },
++          body: JSON.stringify(control),
++        },
++      );
++
++      const data =
++        await response.json();
++
++      if (!response.ok) {
++        throw new Error(
++          data?.error ||
++            "تعذر الحفظ",
++        );
++      }
++
++      setControl(data.control);
++      setMessage(
++        "تم حفظ وضع التشغيل بنجاح.",
++      );
++    } catch (error: any) {
++      setMessage(
++        error?.message ||
++          "تعذر حفظ الإعدادات",
++      );
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  if (loading) {
++    return (
++      <div dir="rtl">
++        جاري تحميل Control Center...
++      </div>
++    );
++  }
++
++  if (!control) {
++    return (
++      <div dir="rtl">
++        {message ||
++          "تعذر تحميل Control Center."}
++      </div>
++    );
++  }
++
++  return (
++    <main
++      dir="rtl"
++      style={{
++        maxWidth: 1100,
++        margin: "0 auto",
++      }}
++    >
++      <div
++        style={{
++          display: "flex",
++          alignItems: "center",
++          justifyContent:
++            "space-between",
++          gap: 16,
++          flexWrap: "wrap",
++          marginBottom: 20,
++        }}
++      >
++        <div>
++          <h1
++            style={{
++              margin: 0,
++              color: "#0b2f49",
++            }}
++          >
++            Control Center
++          </h1>
++          <p
++            style={{
++              margin:
++                "8px 0 0",
++              color: "#64748b",
++            }}
++          >
++            شغّل واقفل أجزاء الموقع
++            بدون تعديل كود أو Deploy.
++          </p>
++        </div>
++
++        <button
++          type="button"
++          onClick={save}
++          disabled={saving}
++          style={{
++            border: 0,
++            borderRadius: 12,
++            padding: "12px 20px",
++            fontWeight: 800,
++            cursor: "pointer",
++            background: "#0b2f49",
++            color: "white",
++          }}
++        >
++          {saving
++            ? "جاري الحفظ..."
++            : "حفظ الإعدادات"}
++        </button>
++      </div>
++
++      {degraded ? (
++        <div style={warning}>
++          تعذر قراءة إعدادات التشغيل
++          من قاعدة البيانات، والنظام
++          دخل تلقائيًا في Lead-only
++          fail-safe.
++        </div>
++      ) : null}
++
++      {!leadSafety ? (
++        <div style={danger}>
++          تحذير: أنت أوقفت تسجيل
++          الاسم والموبايل. لو حصل عطل
++          في أي جزء آخر لن يبقى عندك
++          fallback لاستقبال العميل.
++        </div>
++      ) : null}
++
++      <section style={card}>
++        <h2 style={sectionTitle}>
++          وضع الموقع
++        </h2>
++
++        <div
++          style={{
++            display: "grid",
++            gridTemplateColumns:
++              "repeat(auto-fit,minmax(220px,1fr))",
++            gap: 12,
++          }}
++        >
++          {[
++            [
++              "NORMAL",
++              "Normal",
++              "كل الموديولات حسب التoggles.",
++            ],
++            [
++              "LEAD_ONLY",
++              "Lead Only",
++              "اسم + رقم فقط، وإيقاف الرحلة الكاملة.",
++            ],
++            [
++              "MAINTENANCE",
++              "Maintenance",
++              "إظهار رسالة صيانة مع إبقاء وسيلة التواصل.",
++            ],
++          ].map(
++            ([value, label, desc]) => (
++              <button
++                key={value}
++                type="button"
++                onClick={() =>
++                  set(
++                    "mode",
++                    value as Control["mode"],
++                  )
++                }
++                style={{
++                  padding: 16,
++                  borderRadius: 14,
++                  border:
++                    control.mode ===
++                    value
++                      ? "2px solid #0b2f49"
++                      : "1px solid #dbe4ea",
++                  background:
++                    control.mode ===
++                    value
++                      ? "#eef6fb"
++                      : "white",
++                  textAlign: "right",
++                  cursor: "pointer",
++                }}
++              >
++                <strong>{label}</strong>
++                <div
++                  style={{
++                    marginTop: 6,
++                    color: "#64748b",
++                    lineHeight: 1.6,
++                    fontSize: 13,
++                  }}
++                >
++                  {desc}
++                </div>
++              </button>
++            ),
++          )}
++        </div>
++      </section>
++
++      {toggleGroups.map((group) => (
++        <section
++          key={group.title}
++          style={card}
++        >
++          <h2 style={sectionTitle}>
++            {group.title}
++          </h2>
++
++          <div
++            style={{
++              display: "grid",
++              gap: 10,
++            }}
++          >
++            {group.items.map(
++              ([key, label, desc]) => {
++                const checked =
++                  Boolean(
++                    control[
++                      key as keyof Control
++                    ],
++                  );
++
++                return (
++                  <label
++                    key={key}
++                    style={toggleRow}
++                  >
++                    <div>
++                      <strong>
++                        {label}
++                      </strong>
++                      <div
++                        style={{
++                          color:
++                            "#64748b",
++                          marginTop: 4,
++                          fontSize: 13,
++                          lineHeight:
++                            1.6,
++                        }}
++                      >
++                        {desc}
++                      </div>
++                    </div>
++
++                    <input
++                      type="checkbox"
++                      checked={checked}
++                      onChange={(event) =>
++                        set(
++                          key as keyof Control,
++                          event.target
++                            .checked as never,
++                        )
++                      }
++                      style={{
++                        width: 22,
++                        height: 22,
++                      }}
++                    />
++                  </label>
++                );
++              },
++            )}
++          </div>
++        </section>
++      ))}
++
++      <section style={card}>
++        <h2 style={sectionTitle}>
++          التواصل والرسائل البديلة
++        </h2>
++
++        <Field
++          label="رقم واتساب للطوارئ"
++          value={
++            control.fallbackWhatsapp
++          }
++          onChange={(value) =>
++            set(
++              "fallbackWhatsapp",
++              value,
++            )
++          }
++        />
++
++        <Field
++          label="رقم الدعم الظاهر"
++          value={
++            control.supportPhone
++          }
++          onChange={(value) =>
++            set(
++              "supportPhone",
++              value,
++            )
++          }
++        />
++
++        <Field
++          label="رسالة وضع الصيانة"
++          value={
++            control.maintenanceMessage
++          }
++          onChange={(value) =>
++            set(
++              "maintenanceMessage",
++              value,
++            )
++          }
++          multiline
++        />
++
++        <Field
++          label="رسالة نجاح تسجيل العميل"
++          value={
++            control.leadSuccessMessage
++          }
++          onChange={(value) =>
++            set(
++              "leadSuccessMessage",
++              value,
++            )
++          }
++          multiline
++        />
++      </section>
++
++      {message ? (
++        <div style={notice}>
++          {message}
++        </div>
++      ) : null}
++    </main>
++  );
++}
++
++function Field({
++  label,
++  value,
++  onChange,
++  multiline = false,
++}: {
++  label: string;
++  value: string;
++  onChange: (
++    value: string,
++  ) => void;
++  multiline?: boolean;
++}) {
++  return (
++    <label
++      style={{
++        display: "grid",
++        gap: 7,
++        marginBottom: 14,
++      }}
++    >
++      <strong>{label}</strong>
++      {multiline ? (
++        <textarea
++          value={value}
++          onChange={(event) =>
++            onChange(
++              event.target.value,
++            )
++          }
++          rows={3}
++          style={input}
++        />
++      ) : (
++        <input
++          value={value}
++          onChange={(event) =>
++            onChange(
++              event.target.value,
++            )
++          }
++          style={input}
++        />
++      )}
++    </label>
++  );
++}
++
++const card: React.CSSProperties = {
++  background: "white",
++  border:
++    "1px solid #e2e8f0",
++  borderRadius: 18,
++  padding: 20,
++  marginBottom: 16,
++  boxShadow:
++    "0 8px 28px rgba(15,23,42,.05)",
++};
++
++const sectionTitle: React.CSSProperties = {
++  marginTop: 0,
++  color: "#0b2f49",
++};
++
++const toggleRow: React.CSSProperties = {
++  display: "flex",
++  alignItems: "center",
++  justifyContent:
++    "space-between",
++  gap: 16,
++  padding: 14,
++  borderRadius: 14,
++  border:
++    "1px solid #e2e8f0",
++};
++
++const input: React.CSSProperties = {
++  width: "100%",
++  boxSizing: "border-box",
++  border:
++    "1px solid #cbd5e1",
++  borderRadius: 12,
++  padding: "10px 12px",
++  font: "inherit",
++};
++
++const warning: React.CSSProperties = {
++  background: "#fff7ed",
++  border:
++    "1px solid #fdba74",
++  color: "#9a3412",
++  padding: 14,
++  borderRadius: 12,
++  marginBottom: 14,
++};
++
++const danger: React.CSSProperties = {
++  background: "#fef2f2",
++  border:
++    "1px solid #fca5a5",
++  color: "#991b1b",
++  padding: 14,
++  borderRadius: 12,
++  marginBottom: 14,
++};
++
++const notice: React.CSSProperties = {
++  background: "#ecfdf5",
++  border:
++    "1px solid #86efac",
++  color: "#166534",
++  padding: 14,
++  borderRadius: 12,
++  marginBottom: 20,
++};
+diff --git a/app/admin/control-center/page.tsx b/app/admin/control-center/page.tsx
+new file mode 100644
+index 0000000..28b33e3
+--- /dev/null
++++ b/app/admin/control-center/page.tsx
+@@ -0,0 +1,17 @@
++import { redirect } from "next/navigation";
++import { currentUser } from "@/lib/auth-v7";
++import ControlCenterClient from "./ControlCenterClient";
++
++export default async function ControlCenterPage() {
++  const user = await currentUser();
++
++  if (!user) {
++    redirect("/login");
++  }
++
++  if (user.role !== "SUPER_ADMIN") {
++    redirect("/admin");
++  }
++
++  return <ControlCenterClient />;
++}
+diff --git a/app/api/admin/runtime-controls/route.ts b/app/api/admin/runtime-controls/route.ts
+new file mode 100644
+index 0000000..d6adaba
+--- /dev/null
++++ b/app/api/admin/runtime-controls/route.ts
+@@ -0,0 +1,86 @@
++import { NextResponse } from "next/server";
++import {
++  currentUser,
++} from "@/lib/auth-v7";
++import {
++  getRuntimeControl,
++  sanitizeRuntimeControl,
++  saveRuntimeControl,
++} from "@/lib/runtime-control";
++import { prisma } from "@/lib/prisma";
++
++async function superAdmin() {
++  const user = await currentUser();
++  return user?.role === "SUPER_ADMIN"
++    ? user
++    : null;
++}
++
++export async function GET() {
++  const user = await superAdmin();
++
++  if (!user) {
++    return NextResponse.json(
++      { error: "FORBIDDEN" },
++      { status: 403 },
++    );
++  }
++
++  const result =
++    await getRuntimeControl();
++
++  return NextResponse.json(result);
++}
++
++export async function PATCH(
++  req: Request,
++) {
++  const user = await superAdmin();
++
++  if (!user) {
++    return NextResponse.json(
++      { error: "FORBIDDEN" },
++      { status: 403 },
++    );
++  }
++
++  try {
++    const body = await req.json();
++    const value =
++      sanitizeRuntimeControl(
++        body,
++      );
++
++    await saveRuntimeControl(
++      value,
++      {
++        id: user.id,
++        label: user.name,
++      },
++    );
++
++    await prisma.auditLog.create({
++      data: {
++        actorId: user.id,
++        actorLabel: user.name,
++        action:
++          "RUNTIME_CONTROL_UPDATED",
++        newValue: value,
++      },
++    });
++
++    return NextResponse.json({
++      ok: true,
++      control: value,
++    });
++  } catch (error: any) {
++    return NextResponse.json(
++      {
++        error:
++          error?.message ||
++          "تعذر حفظ إعدادات التشغيل",
++      },
++      { status: 500 },
++    );
++  }
++}
+diff --git a/app/api/coupons/validate/route.ts b/app/api/coupons/validate/route.ts
+index 7c702a9..237d7b1 100644
+--- a/app/api/coupons/validate/route.ts
++++ b/app/api/coupons/validate/route.ts
+@@ -1,4 +1,5 @@
+ import { NextResponse } from "next/server";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import { prisma } from "@/lib/prisma";
+ import {
+   clientIp,
+@@ -11,6 +12,21 @@ const MAX_SUBTOTAL = 10_000_000;
+ export async function POST(
+   req: Request,
+ ) {
++  const {
++    control,
++  } = await getRuntimeControl();
++
++  if (!control.coupons) {
++    return NextResponse.json(
++      {
++        valid: false,
++        discount: 0,
++        disabled: true,
++      },
++      { status: 503 },
++    );
++  }
++
+   const limited =
+     await durableRateLimit(
+       `coupon-validate:${clientIp(req)}`,
+diff --git a/app/api/customer/aftercare/route.ts b/app/api/customer/aftercare/route.ts
+index 77fc92a..344e9a7 100644
+--- a/app/api/customer/aftercare/route.ts
++++ b/app/api/customer/aftercare/route.ts
+@@ -1,10 +1,25 @@
+ import { AdminNotificationType } from "@prisma/client";
+ import { NextResponse } from "next/server";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import { prisma } from "@/lib/prisma";
+ import { currentCustomer } from "@/lib/customer-auth";
+ import { notifyAdmins } from "@/lib/admin-notifications";
+ 
+ export async function GET() {
++  const {
++    control,
++  } = await getRuntimeControl();
++
++  if (!control.aftercare) {
++    return NextResponse.json(
++      {
++        error:
++          "خدمات ما بعد البيع متوقفة مؤقتًا.",
++      },
++      { status: 503 },
++    );
++  }
++
+   const customer = await currentCustomer();
+ 
+   if (!customer) {
+diff --git a/app/api/customer/auth/forgot-password/route.ts b/app/api/customer/auth/forgot-password/route.ts
+index 9e2f684..084d0c7 100644
+--- a/app/api/customer/auth/forgot-password/route.ts
++++ b/app/api/customer/auth/forgot-password/route.ts
+@@ -1,6 +1,7 @@
+ import { NotificationChannel } from "@prisma/client";
+ import { NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import {
+   normalizeCustomerPhone,
+   validEgyptMobile,
+@@ -25,6 +26,21 @@ const GENERIC_MESSAGE =
+ 
+ export async function POST(req: Request) {
+   try {
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (!control.customerAccounts) {
++      return NextResponse.json(
++        {
++          ok: false,
++          error:
++            "استعادة حساب العميل متوقفة مؤقتًا.",
++        },
++        { status: 503 },
++      );
++    }
++
+     const limited =
+       await durableRateLimit(
+       `password-forgot:${clientIp(req)}`,
+@@ -59,6 +75,34 @@ export async function POST(req: Request) {
+         ? "EMAIL"
+         : "PHONE";
+ 
++    if (
++      deliveryMethod === "PHONE" &&
++      !control.phoneOtp
++    ) {
++      return NextResponse.json(
++        {
++          code: "CHANNEL_DISABLED",
++          error:
++            "التحقق على الموبايل غير مُفعّل حاليًا.",
++        },
++        { status: 503 },
++      );
++    }
++
++    if (
++      deliveryMethod === "EMAIL" &&
++      !control.emailOtpRecovery
++    ) {
++      return NextResponse.json(
++        {
++          code: "CHANNEL_DISABLED",
++          error:
++            "استعادة الحساب عبر الإيميل غير مُفعلة حاليًا.",
++        },
++        { status: 503 },
++      );
++    }
++
+     if (!validEgyptMobile(phone)) {
+       return NextResponse.json({
+         ok: true,
+@@ -101,7 +145,10 @@ export async function POST(req: Request) {
+     // created by an earlier order and do not have a password yet.
+     if (
+       !customer ||
+-      !customer.active
++      !customer.active ||
++      Boolean(
++        customer.archivedAt,
++      )
+     ) {
+       return NextResponse.json({
+         ok: true,
+@@ -109,6 +156,21 @@ export async function POST(req: Request) {
+       });
+     }
+ 
++    if (
++      !customer.passwordHash &&
++      deliveryMethod === "EMAIL"
++    ) {
++      return NextResponse.json(
++        {
++          code:
++            "FIRST_ACTIVATION_PHONE_REQUIRED",
++          error:
++            "أول تفعيل للحساب يتطلب تحقق على رقم الموبايل.",
++        },
++        { status: 409 },
++      );
++    }
++
+     const recent =
+       await prisma.customerPasswordReset.findFirst({
+         where: {
+diff --git a/app/api/customer/auth/login/route.ts b/app/api/customer/auth/login/route.ts
+index bf8e3b0..c7d39f5 100644
+--- a/app/api/customer/auth/login/route.ts
++++ b/app/api/customer/auth/login/route.ts
+@@ -1,6 +1,7 @@
+ import { NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
+ import { verifyPassword } from "@/lib/password";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import {
+   createCustomerSession,
+   CUSTOMER_SESSION_COOKIE,
+@@ -16,6 +17,20 @@ import {
+ 
+ export async function POST(req: Request) {
+   try {
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (!control.customerAccounts) {
++      return NextResponse.json(
++        {
++          error:
++            "دخول حساب العميل متوقف مؤقتًا.",
++        },
++        { status: 503 },
++      );
++    }
++
+     const ip = clientIp(req);
+     const ipKey =
+       `customer-login-ip:${ip}`;
+@@ -92,6 +107,9 @@ export async function POST(req: Request) {
+     if (
+       !customer ||
+       !customer.active ||
++      Boolean(
++        customer.archivedAt,
++      ) ||
+       !customer.passwordHash ||
+       !verifyPassword(
+         password,
+diff --git a/app/api/customer/auth/register/route.ts b/app/api/customer/auth/register/route.ts
+index 89f3cc1..33d7b7d 100644
+--- a/app/api/customer/auth/register/route.ts
++++ b/app/api/customer/auth/register/route.ts
+@@ -13,9 +13,41 @@ import {
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ import { notifyCustomer } from "@/lib/customer-notifications";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ 
+ export async function POST(req: Request) {
+   try {
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (
++      !control.customerAccounts ||
++      !control.accountRegistration
++    ) {
++      return NextResponse.json(
++        {
++          code:
++            "ACCOUNT_REGISTRATION_DISABLED",
++          error:
++            "إنشاء حسابات جديدة متوقف مؤقتًا. يمكنك تسجيل اسمك ورقمك وسيقوم فريق Ventic Pro بالتواصل معك.",
++        },
++        { status: 503 },
++      );
++    }
++
++    if (!control.phoneOtp) {
++      return NextResponse.json(
++        {
++          code:
++            "PHONE_VERIFICATION_REQUIRED",
++          error:
++            "تفعيل الحسابات الجديدة متوقف لحين تشغيل التحقق على رقم الموبايل.",
++        },
++        { status: 503 },
++      );
++    }
++
+     const limited = rateLimit(
+       `customer-register:${clientIp(req)}`,
+       {
+@@ -89,7 +121,12 @@ export async function POST(req: Request) {
+ 
+     if (
+       customer &&
+-      !customer.active
++      (
++        !customer.active ||
++        Boolean(
++          customer.archivedAt,
++        )
++      )
+     ) {
+       return NextResponse.json(
+         {
+@@ -130,95 +167,15 @@ export async function POST(req: Request) {
+       );
+     }
+ 
+-    const passwordHash =
+-      hashPassword(password);
+-
+-    if (customer) {
+-      customer =
+-        await prisma.customer.update({
+-          where: {
+-            id: customer.id,
+-          },
+-          data: {
+-            name,
+-            email,
+-            passwordHash,
+-            active: true,
+-          },
+-        });
+-    } else {
+-      customer =
+-        await prisma.customer.create({
+-          data: {
+-            name,
+-            phone,
+-            email,
+-            passwordHash,
+-            active: true,
+-          },
+-        });
+-    }
+-
+-    const session =
+-      await createCustomerSession(
+-        customer.id,
+-      );
+-
+-    await prisma.auditLog.create({
+-      data: {
+-        actorLabel: `العميل: ${customer.name}`,
+-        action:
+-          "CUSTOMER_ACCOUNT_CREATED",
+-        newValue: {
+-          customerId:
+-            customer.id,
+-          phoneMasked: `${phone.slice(
+-            0,
+-            3,
+-          )}******${phone.slice(-2)}`,
+-        },
+-      },
+-    });
+-
+-    await notifyCustomer({
+-      customerId: customer.id,
+-      phone: customer.phone,
+-      email: customer.email,
+-      templateKey: "CUSTOMER_ACCOUNT_CREATED",
+-      subject: "تم إنشاء حسابك في Ventic Pro",
+-      message:
+-        `مرحبًا ${customer.name}\nتم إنشاء حسابك في Ventic Pro بنجاح. ` +
+-        "يمكنك من حسابك متابعة الطلبات والفواتير والضمان والصيانة والتقييمات.",
+-      payload: {
+-        accountCreated: true,
+-      },
+-    });
+-
+-    const response =
+-      NextResponse.json({
+-        ok: true,
+-        customer: {
+-          id: customer.id,
+-          name: customer.name,
+-        },
+-      });
+-
+-    response.cookies.set(
+-      CUSTOMER_SESSION_COOKIE,
+-      session.raw,
++    return NextResponse.json(
+       {
+-        httpOnly: true,
+-        sameSite: "lax",
+-        secure:
+-          process.env.NODE_ENV ===
+-          "production",
+-        path: "/",
+-        maxAge:
+-          60 * 60 * 24 * 30,
++        code:
++          "DIRECT_REGISTRATION_BLOCKED",
++        error:
++          "تفعيل الحساب الجديد يتطلب كود تحقق على رقم الموبايل. استخدم مسار التفعيل بعد ربط مزود الرسائل.",
+       },
++      { status: 409 },
+     );
+-
+-    return response;
+   } catch (error: any) {
+     return NextResponse.json(
+       {
+diff --git a/app/api/customer/auth/reset-password/route.ts b/app/api/customer/auth/reset-password/route.ts
+index 25298c9..0ed6e9c 100644
+--- a/app/api/customer/auth/reset-password/route.ts
++++ b/app/api/customer/auth/reset-password/route.ts
+@@ -85,7 +85,10 @@ export async function POST(req: Request) {
+     // the first password for a Customer that already owns order data.
+     if (
+       !customer ||
+-      !customer.active
++      !customer.active ||
++      Boolean(
++        customer.archivedAt,
++      )
+     ) {
+       return NextResponse.json(
+         {
+@@ -150,6 +153,8 @@ export async function POST(req: Request) {
+       );
+     }
+ 
++    const firstActivation =
++      !customer.passwordHash;
+     const now = new Date();
+     const passwordHash =
+       hashPassword(password);
+@@ -162,6 +167,10 @@ export async function POST(req: Request) {
+           },
+           data: {
+             passwordHash,
++            email:
++              firstActivation
++                ? null
++                : customer.email,
+           },
+         });
+ 
+diff --git a/app/api/leads/route.ts b/app/api/leads/route.ts
+index 13e8f90..0053957 100644
+--- a/app/api/leads/route.ts
++++ b/app/api/leads/route.ts
+@@ -3,9 +3,10 @@ import { NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
+ import { notifyAdmins } from "@/lib/admin-notifications";
+ import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import {
+   clientIp,
+-  rateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+@@ -73,13 +74,35 @@ async function notifyLeadStarted(input: {
+ 
+ export async function POST(req: Request) {
+   try {
+-    const limited = rateLimit(
+-      `public-lead:${clientIp(req)}`,
+-      {
+-        limit: 60,
+-        windowMs: 60 * 60 * 1000,
+-      },
+-    );
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (!control.leadCapture) {
++      return NextResponse.json(
++        {
++          code:
++            "LEAD_CAPTURE_DISABLED",
++          error:
++            "استقبال بيانات التواصل متوقف مؤقتًا.",
++          fallbackWhatsapp:
++            control.fallbackWhatsapp,
++          supportPhone:
++            control.supportPhone,
++        },
++        { status: 503 },
++      );
++    }
++
++    const limited =
++      await durableRateLimit(
++        `public-lead:${clientIp(req)}`,
++        {
++          limit: 60,
++          windowMs:
++            60 * 60 * 1000,
++        },
++      );
+ 
+     if (!limited.allowed) {
+       return NextResponse.json(
+@@ -102,10 +125,14 @@ export async function POST(req: Request) {
+ 
+     const name = clean(body?.name) || null;
+ 
+-    const source = acquisitionSourceFromRequest(
+-      req,
+-      body?.source,
+-    );
++    const source =
++      control.marketingTracking
++        ? acquisitionSourceFromRequest(
++            req,
++            body?.source,
++          )
++        : clean(body?.source) ||
++          null;
+ 
+     const currentStep = Math.min(
+       4,
+@@ -194,15 +221,24 @@ export async function POST(req: Request) {
+           data,
+         });
+ 
+-        await notifyLeadStarted({
+-          leadId: replacement.id,
+-          requestType,
+-          intent,
+-          name,
+-          phone,
+-          source,
+-          currentStep,
+-        });
++        if (control.notifications) {
++          try {
++            await notifyLeadStarted({
++              leadId: replacement.id,
++              requestType,
++              intent,
++              name,
++              phone,
++              source,
++              currentStep,
++            });
++          } catch (error) {
++            console.error(
++              "LEAD_NOTIFICATION_FAILED",
++              error,
++            );
++          }
++        }
+ 
+         return NextResponse.json(
+           {
+diff --git a/app/api/marketing/events/route.ts b/app/api/marketing/events/route.ts
+index fa842a0..4602ced 100644
+--- a/app/api/marketing/events/route.ts
++++ b/app/api/marketing/events/route.ts
+@@ -1,9 +1,10 @@
+ import { NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
+ import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import {
+   clientIp,
+-  rateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+@@ -59,13 +60,26 @@ function cleanDetail(value: unknown) {
+ 
+ export async function POST(req: Request) {
+   try {
+-    const limited = rateLimit(
+-      `marketing-event:${clientIp(req)}`,
+-      {
+-        limit: 240,
+-        windowMs: 60 * 60 * 1000,
+-      },
+-    );
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (!control.marketingTracking) {
++      return NextResponse.json({
++        ok: true,
++        disabled: true,
++      });
++    }
++
++    const limited =
++      await durableRateLimit(
++        `marketing-event:${clientIp(req)}`,
++        {
++          limit: 240,
++          windowMs:
++            60 * 60 * 1000,
++        },
++      );
+ 
+     if (!limited.allowed) {
+       return NextResponse.json(
+diff --git a/app/api/orders/[id]/customer-attachments/route.ts b/app/api/orders/[id]/customer-attachments/route.ts
+index bdef524..9793000 100644
+--- a/app/api/orders/[id]/customer-attachments/route.ts
++++ b/app/api/orders/[id]/customer-attachments/route.ts
+@@ -1,4 +1,5 @@
+ import { NextResponse } from "next/server";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import { prisma } from "@/lib/prisma";
+ import {
+   clientIp,
+@@ -27,6 +28,20 @@ export async function POST(
+   },
+ ) {
+   try {
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (!control.uploads) {
++      return NextResponse.json(
++        {
++          error:
++            "رفع الصور متوقف مؤقتًا.",
++        },
++        { status: 503 },
++      );
++    }
++
+     const { id } =
+       await params;
+     const token =
+diff --git a/app/api/orders/route.ts b/app/api/orders/route.ts
+index 968dfae..122db0e 100644
+--- a/app/api/orders/route.ts
++++ b/app/api/orders/route.ts
+@@ -6,6 +6,7 @@ import { calculateOrderOffer } from "@/lib/promotions";
+ import { notifyCustomer } from "@/lib/customer-notifications";
+ import { createOrderUploadToken } from "@/lib/customer-order-upload";
+ import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import {
+   findActiveReferral,
+   referralCodeFromRequest,
+@@ -14,7 +15,7 @@ import {
+ } from "@/lib/referrals";
+ import {
+   clientIp,
+-  rateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+@@ -30,13 +31,37 @@ function clean(value: unknown) {
+ 
+ export async function POST(req: Request) {
+   try {
+-    const limited = rateLimit(
+-      `public-order:${clientIp(req)}`,
+-      {
+-        limit: 20,
+-        windowMs: 60 * 60 * 1000,
+-      },
+-    );
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (
++      control.mode !== "NORMAL" ||
++      !control.detailedOrders
++    ) {
++      return NextResponse.json(
++        {
++          error:
++            control.maintenanceMessage,
++          leadOnly: true,
++          fallbackWhatsapp:
++            control.fallbackWhatsapp,
++          supportPhone:
++            control.supportPhone,
++        },
++        { status: 503 },
++      );
++    }
++
++    const limited =
++      await durableRateLimit(
++        `public-order:${clientIp(req)}`,
++        {
++          limit: 20,
++          windowMs:
++            60 * 60 * 1000,
++        },
++      );
+ 
+     if (!limited.allowed) {
+       return NextResponse.json(
+@@ -70,6 +95,32 @@ export async function POST(req: Request) {
+       );
+     }
+ 
++    const phoneLimited =
++      await durableRateLimit(
++        `public-order-phone:${customerPhone}`,
++        {
++          limit: 5,
++          windowMs:
++            60 * 60 * 1000,
++        },
++      );
++
++    if (!phoneLimited.allowed) {
++      return NextResponse.json(
++        {
++          error:
++            "تم تجاوز عدد الطلبات المسموح به لهذا الرقم مؤقتًا.",
++        },
++        {
++          status: 429,
++          headers:
++            rateLimitHeaders(
++              phoneLimited,
++            ),
++        },
++      );
++    }
++
+     const rawEmail = clean(c.email).toLowerCase();
+ 
+     if (
+@@ -94,24 +145,42 @@ export async function POST(req: Request) {
+     );
+ 
+     const email = rawEmail || null;
+-    const acquisitionSource = acquisitionSourceFromRequest(
+-      req,
+-      b?.source,
+-    );
++    const acquisitionSource =
++      control.marketingTracking
++        ? acquisitionSourceFromRequest(
++            req,
++            b?.source,
++          )
++        : null;
+ 
+-    const customer = await prisma.customer.upsert({
+-      where: { phone: customerPhone },
+-      update: {
+-        name: customerName,
+-        email,
+-        active: true,
+-      },
+-      create: {
+-        name: customerName,
+-        phone: customerPhone,
+-        email,
+-      },
+-    });
++    const existingCustomer =
++      await prisma.customer.findUnique({
++        where: {
++          phone: customerPhone,
++        },
++      });
++
++    if (
++      existingCustomer?.archivedAt
++    ) {
++      return NextResponse.json(
++        {
++          error:
++            "هذا الرقم مرتبط بسجل مؤرشف. تواصل مع Ventic Pro.",
++        },
++        { status: 409 },
++      );
++    }
++
++    const customer =
++      existingCustomer ||
++      (await prisma.customer.create({
++        data: {
++          name: customerName,
++          phone: customerPhone,
++          email,
++        },
++      }));
+ 
+     const governorate = clean(c.governorate) || "غير محدد";
+     const area = clean(c.area) || "غير محدد";
+@@ -227,13 +296,31 @@ export async function POST(req: Request) {
+       });
+     });
+ 
+-    const offer = await calculateOrderOffer(prisma, {
+-      governorate,
+-      area,
+-      couponCode: b?.couponCode,
+-      subtotal,
+-      serviceCodes,
+-    });
++    const offer =
++      control.estimates
++        ? await calculateOrderOffer(
++            prisma,
++            {
++              governorate,
++              area,
++              couponCode:
++                control.coupons
++                  ? b?.couponCode
++                  : undefined,
++              subtotal,
++              serviceCodes,
++            },
++          )
++        : {
++            subtotal,
++            travelFee: 0,
++            discount: 0,
++            total: subtotal,
++            coupon: null,
++            couponValid: false,
++            couponReason: null,
++            serviceArea: null,
++          };
+ 
+     if (offer.serviceArea && !offer.serviceArea.active) {
+       return NextResponse.json(
+diff --git a/app/api/portfolio-videos/route.ts b/app/api/portfolio-videos/route.ts
+index a97fa3a..a20fcd9 100644
+--- a/app/api/portfolio-videos/route.ts
++++ b/app/api/portfolio-videos/route.ts
+@@ -1,4 +1,5 @@
+ import { prisma } from "@/lib/prisma";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ 
+ type Row = {
+   id: string;
+@@ -13,6 +14,17 @@ type Row = {
+ 
+ export async function GET() {
+   try {
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (!control.portfolio) {
++      return Response.json({
++        items: [],
++        disabled: true,
++      });
++    }
++
+     const items = await prisma.$queryRaw<Row[]>`
+       SELECT
+         "id",
+diff --git a/app/api/public/order-estimate/route.ts b/app/api/public/order-estimate/route.ts
+index f290aad..2a0f3bd 100644
+--- a/app/api/public/order-estimate/route.ts
++++ b/app/api/public/order-estimate/route.ts
+@@ -1,4 +1,5 @@
+ import { NextResponse } from "next/server";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import { prisma } from "@/lib/prisma";
+ import { calculateOrderOffer } from "@/lib/promotions";
+ import {
+@@ -18,6 +19,23 @@ const fallbackPrices: Record<string, number> = {
+ };
+ 
+ export async function POST(req: Request) {
++  const {
++    control,
++  } = await getRuntimeControl();
++
++  if (
++    control.mode !== "NORMAL" ||
++    !control.estimates
++  ) {
++    return NextResponse.json(
++      {
++        error:
++          "التسعير التقديري متوقف مؤقتًا.",
++      },
++      { status: 503 },
++    );
++  }
++
+   const limited =
+     await durableRateLimit(
+       `public-order-estimate:${clientIp(req)}`,
+diff --git a/app/api/reviews/route.ts b/app/api/reviews/route.ts
+index 7d2ecd7..5212216 100644
+--- a/app/api/reviews/route.ts
++++ b/app/api/reviews/route.ts
+@@ -1,4 +1,5 @@
+ import { NextResponse } from "next/server";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import { prisma } from "@/lib/prisma";
+ import { currentCustomer } from "@/lib/customer-auth";
+ 
+@@ -13,6 +14,20 @@ const fields = [
+ ] as const;
+ 
+ export async function POST(req: Request) {
++  const {
++    control,
++  } = await getRuntimeControl();
++
++  if (!control.reviews) {
++    return NextResponse.json(
++      {
++        error:
++          "التقييمات متوقفة مؤقتًا.",
++      },
++      { status: 503 },
++    );
++  }
++
+   const customer = await currentCustomer();
+ 
+   if (!customer) {
+diff --git a/app/api/runtime/route.ts b/app/api/runtime/route.ts
+new file mode 100644
+index 0000000..02e645a
+--- /dev/null
++++ b/app/api/runtime/route.ts
+@@ -0,0 +1,26 @@
++import { NextResponse } from "next/server";
++import {
++  getRuntimeControl,
++} from "@/lib/runtime-control";
++
++export const dynamic = "force-dynamic";
++
++export async function GET() {
++  const {
++    control,
++    degraded,
++  } = await getRuntimeControl();
++
++  return NextResponse.json(
++    {
++      ...control,
++      degraded,
++    },
++    {
++      headers: {
++        "Cache-Control":
++          "no-store, max-age=0",
++      },
++    },
++  );
++}
+diff --git a/app/order/OrderEntryGate.tsx b/app/order/OrderEntryGate.tsx
+index 90a3c51..0f53ed7 100644
+--- a/app/order/OrderEntryGate.tsx
++++ b/app/order/OrderEntryGate.tsx
+@@ -14,8 +14,21 @@ type ContactDraft = {
+   leadId?: string;
+ };
+ 
++type PublicRuntimeControl = {
++  mode: "NORMAL" | "LEAD_ONLY" | "MAINTENANCE";
++  leadCapture: boolean;
++  detailedOrders: boolean;
++  fallbackWhatsapp: string;
++  supportPhone: string;
++  maintenanceMessage: string;
++  leadSuccessMessage: string;
++  degraded?: boolean;
++};
++
+ const CONTACT_STORAGE_KEY =
+   "ventic_order_contact";
++const PENDING_LEADS_KEY =
++  "ventic_pending_leads_v1";
+ 
+ function normalizePhone(value: string) {
+   return value.replace(/\D/g, "");
+@@ -29,6 +42,23 @@ export default function OrderEntryGate({
+   const router = useRouter();
+   const [mode, setMode] = useState("");
+   const [mounted, setMounted] = useState(false);
++  const [runtime, setRuntime] =
++    useState<PublicRuntimeControl>({
++      mode: "LEAD_ONLY",
++      leadCapture: true,
++      detailedOrders: false,
++      fallbackWhatsapp:
++        "201044226423",
++      supportPhone:
++        "01044226423",
++      maintenanceMessage:
++        "الخدمة الكاملة متوقفة مؤقتًا، لكن سيب اسمك ورقمك وفريق Ventic Pro هيتواصل معاك.",
++      leadSuccessMessage:
++        "تم تسجيل بياناتك، وفريق Ventic Pro هيتواصل معاك.",
++      degraded: true,
++    });
++  const [localFallback, setLocalFallback] =
++    useState(false);
+ 
+   const [choice, setChoice] = useState<
+     "" | "quick" | "detailed"
+@@ -54,6 +84,86 @@ export default function OrderEntryGate({
+ 
+     setMode(nextMode);
+ 
++    async function loadRuntime() {
++      try {
++        const response =
++          await fetch(
++            "/api/runtime",
++            {
++              cache: "no-store",
++            },
++          );
++        const data =
++          await response.json();
++
++        if (response.ok) {
++          setRuntime(data);
++        }
++      } catch {
++        // Fail-safe stays Lead-only.
++      }
++    }
++
++    async function syncPendingLeads() {
++      try {
++        const raw =
++          window.localStorage.getItem(
++            PENDING_LEADS_KEY,
++          );
++        const pending = raw
++          ? JSON.parse(raw)
++          : [];
++
++        if (!Array.isArray(pending)) return;
++
++        const remaining = [];
++
++        for (const item of pending) {
++          try {
++            const response =
++              await fetch(
++                "/api/leads",
++                {
++                  method: "POST",
++                  headers: {
++                    "Content-Type":
++                      "application/json",
++                  },
++                  body:
++                    JSON.stringify(
++                      item,
++                    ),
++                },
++              );
++
++            if (!response.ok) {
++              remaining.push(item);
++            }
++          } catch {
++            remaining.push(item);
++          }
++        }
++
++        if (remaining.length) {
++          window.localStorage.setItem(
++            PENDING_LEADS_KEY,
++            JSON.stringify(
++              remaining,
++            ),
++          );
++        } else {
++          window.localStorage.removeItem(
++            PENDING_LEADS_KEY,
++          );
++        }
++      } catch {
++        // Never block the page.
++      }
++    }
++
++    void loadRuntime();
++    void syncPendingLeads();
++
+     if (
+       nextMode === "full" ||
+       nextMode === "quick"
+@@ -141,6 +251,22 @@ export default function OrderEntryGate({
+         await response.json();
+ 
+       if (!response.ok) {
++        if (
++          data?.code ===
++          "LEAD_CAPTURE_DISABLED"
++        ) {
++          setError(
++            data?.error ||
++              "استقبال بيانات التواصل متوقف مؤقتًا.",
++          );
++          setLocalFallback(true);
++          return {
++            name: name.trim(),
++            phone:
++              normalizedPhone,
++          };
++        }
++
+         throw new Error(
+           data?.error ||
+             "تعذر إرسال الطلب.",
+@@ -163,11 +289,64 @@ export default function OrderEntryGate({
+ 
+       return draft;
+     } catch (err: any) {
++      const fallbackPayload = {
++        name: name.trim(),
++        phone:
++          normalizedPhone,
++        currentStep: 1,
++        consentToFollowUp:
++          true,
++        payload: {
++          requestType,
++          entryPoint:
++            "ORDER_GATE_LOCAL_FALLBACK",
++          capturedAt:
++            new Date().toISOString(),
++        },
++      };
++
++      try {
++        const raw =
++          window.localStorage.getItem(
++            PENDING_LEADS_KEY,
++          );
++        const pending = raw
++          ? JSON.parse(raw)
++          : [];
++        const list =
++          Array.isArray(pending)
++            ? pending
++            : [];
++
++        list.push(
++          fallbackPayload,
++        );
++
++        window.localStorage.setItem(
++          PENDING_LEADS_KEY,
++          JSON.stringify(
++            list.slice(-20),
++          ),
++        );
++      } catch {}
++
++      const draft: ContactDraft = {
++        name: name.trim(),
++        phone:
++          normalizedPhone,
++      };
++
++      window.sessionStorage.setItem(
++        CONTACT_STORAGE_KEY,
++        JSON.stringify(draft),
++      );
++
++      setLocalFallback(true);
+       setError(
+-        err?.message ||
+-          "تعذر إرسال الطلب.",
++        "تعذر الحفظ على السيرفر مؤقتًا. احتفظنا ببياناتك على الجهاز ويمكنك التواصل معنا مباشرة.",
+       );
+-      return null;
++
++      return draft;
+     } finally {
+       setSaving(false);
+     }
+@@ -184,6 +363,17 @@ export default function OrderEntryGate({
+   }
+ 
+   async function startDetailed() {
++    if (
++      runtime.mode !== "NORMAL" ||
++      !runtime.detailedOrders
++    ) {
++      setChoice("quick");
++      setError(
++        runtime.maintenanceMessage,
++      );
++      return;
++    }
++
+     const draft =
+       await capture(
+         "DETAILED_ENTRY",
+@@ -210,7 +400,11 @@ export default function OrderEntryGate({
+     );
+   }
+ 
+-  if (mode === "full") {
++  if (
++    mode === "full" &&
++    runtime.mode === "NORMAL" &&
++    runtime.detailedOrders
++  ) {
+     return <>{children}</>;
+   }
+ 
+@@ -260,12 +454,9 @@ export default function OrderEntryGate({
+               lineHeight: 1.9,
+             }}
+           >
+-            سجلنا اسمك ورقم
+-            الموبايل فقط، وفريق
+-            Ventic Pro هيتواصل
+-            معاك عشان يعرف
+-            التفاصيل ويحدد
+-            الخدمة المناسبة.
++            {localFallback
++              ? "حفظنا بياناتك مؤقتًا على جهازك لأن السيرفر غير متاح. تواصل معنا مباشرة الآن لضمان وصول طلبك."
++              : runtime.leadSuccessMessage}
+           </p>
+ 
+           <button
+@@ -287,6 +478,23 @@ export default function OrderEntryGate({
+             بنفسي
+           </button>
+ 
++          <a
++            href={`https://wa.me/${runtime.fallbackWhatsapp}?text=${encodeURIComponent(
++              `مرحبًا Ventic Pro، اسمي ${name.trim()} ورقمي ${normalizedPhone} وأريد طلب خدمة.`,
++            )}`}
++            target="_blank"
++            rel="noreferrer"
++            className="button full"
++            style={{
++              display: "block",
++              marginTop: 12,
++              textDecoration: "none",
++              textAlign: "center",
++            }}
++          >
++            تواصل واتساب مباشرة
++          </a>
++
+           <a
+             href="/"
+             style={{
+diff --git a/lib/admin-notifications.ts b/lib/admin-notifications.ts
+index 544ef8f..c0cd523 100644
+--- a/lib/admin-notifications.ts
++++ b/lib/admin-notifications.ts
+@@ -1,5 +1,6 @@
+ import { AdminNotificationType, UserRole } from "@prisma/client";
+ import { prisma } from "@/lib/prisma";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import {
+   safeDiagnostic,
+   safeDiagnosticError,
+@@ -23,6 +24,21 @@ type NotifyAdminsInput = {
+ 
+ export async function notifyAdmins(input: NotifyAdminsInput) {
+   try {
++    const {
++      control,
++    } = await getRuntimeControl();
++
++    if (!control.notifications) {
++      safeDiagnostic(
++        "NOTIFICATIONS_RUNTIME_DISABLED",
++        {
++          channel: "ADMIN",
++          type: input.type,
++        },
++      );
++      return;
++    }
++
+     const recipients = await prisma.user.findMany({
+       where: {
+         active: true,
+diff --git a/lib/customer-auth.ts b/lib/customer-auth.ts
+index 4afc177..1efe865 100644
+--- a/lib/customer-auth.ts
++++ b/lib/customer-auth.ts
+@@ -1,6 +1,7 @@
+ import crypto from "crypto";
+ import { cookies } from "next/headers";
+ import { prisma } from "@/lib/prisma";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ 
+ export const CUSTOMER_SESSION_COOKIE =
+   "ventic_customer_session";
+@@ -92,6 +93,14 @@ export async function createCustomerSession(
+ }
+ 
+ export async function currentCustomer() {
++  const {
++    control,
++  } = await getRuntimeControl();
++
++  if (!control.customerAccounts) {
++    return null;
++  }
++
+   const jar = await cookies();
+   const raw =
+     jar.get(
+@@ -114,7 +123,10 @@ export async function currentCustomer() {
+   if (
+     !session ||
+     session.expiresAt < new Date() ||
+-    !session.customer.active
++    !session.customer.active ||
++    Boolean(
++      session.customer.archivedAt,
++    )
+   ) {
+     return null;
+   }
+diff --git a/lib/customer-notifications.ts b/lib/customer-notifications.ts
+index a4b7545..9899ceb 100644
+--- a/lib/customer-notifications.ts
++++ b/lib/customer-notifications.ts
+@@ -1,5 +1,6 @@
+ import { NotificationChannel } from "@prisma/client";
+ import { prisma } from "@/lib/prisma";
++import { getRuntimeControl } from "@/lib/runtime-control";
+ import {
+   deliverCustomerMessage,
+ } from "@/lib/customer-messaging";
+@@ -97,6 +98,24 @@ export async function notifyCustomer(input: {
+   templateVariables?: string[];
+   payload?: Record<string, unknown>;
+ }) {
++  const {
++    control,
++  } = await getRuntimeControl();
++
++  if (!control.notifications) {
++    safeDiagnostic(
++      "NOTIFICATIONS_RUNTIME_DISABLED",
++      {
++        channel: "CUSTOMER",
++        customerId:
++          input.customerId,
++        templateKey:
++          input.templateKey,
++      },
++    );
++    return;
++  }
++
+   safeDiagnostic(
+     "notification.customer.start",
+     {
+diff --git a/lib/runtime-control.ts b/lib/runtime-control.ts
+new file mode 100644
+index 0000000..56c5325
+--- /dev/null
++++ b/lib/runtime-control.ts
+@@ -0,0 +1,262 @@
++import { prisma } from "@/lib/prisma";
++
++export type SiteMode =
++  | "NORMAL"
++  | "LEAD_ONLY"
++  | "MAINTENANCE";
++
++export type RuntimeControl = {
++  mode: SiteMode;
++  leadCapture: boolean;
++  detailedOrders: boolean;
++  customerAccounts: boolean;
++  accountRegistration: boolean;
++  phoneOtp: boolean;
++  emailOtpRecovery: boolean;
++  estimates: boolean;
++  coupons: boolean;
++  referrals: boolean;
++  uploads: boolean;
++  reviews: boolean;
++  aftercare: boolean;
++  portfolio: boolean;
++  notifications: boolean;
++  marketingTracking: boolean;
++  fallbackWhatsapp: string;
++  supportPhone: string;
++  maintenanceMessage: string;
++  leadSuccessMessage: string;
++};
++
++export const RUNTIME_CONTROL_KEY =
++  "SITE_CONTROL";
++
++export const DEFAULT_RUNTIME_CONTROL: RuntimeControl = {
++  mode: "NORMAL",
++  leadCapture: true,
++  detailedOrders: true,
++  customerAccounts: true,
++  accountRegistration: false,
++  phoneOtp: false,
++  emailOtpRecovery: true,
++  estimates: true,
++  coupons: true,
++  referrals: true,
++  uploads: true,
++  reviews: true,
++  aftercare: true,
++  portfolio: true,
++  notifications: true,
++  marketingTracking: true,
++  fallbackWhatsapp: "201044226423",
++  supportPhone: "01044226423",
++  maintenanceMessage:
++    "الخدمة الكاملة متوقفة مؤقتًا، لكن سيب اسمك ورقمك وفريق Ventic Pro هيتواصل معاك.",
++  leadSuccessMessage:
++    "تم تسجيل بياناتك، وفريق Ventic Pro هيتواصل معاك.",
++};
++
++export const DEGRADED_RUNTIME_CONTROL: RuntimeControl = {
++  ...DEFAULT_RUNTIME_CONTROL,
++  mode: "LEAD_ONLY",
++  detailedOrders: false,
++  customerAccounts: false,
++  accountRegistration: false,
++  phoneOtp: false,
++  emailOtpRecovery: false,
++  estimates: false,
++  coupons: false,
++  referrals: false,
++  uploads: false,
++  reviews: false,
++  aftercare: false,
++  portfolio: false,
++  notifications: false,
++  marketingTracking: false,
++};
++
++function bool(
++  value: unknown,
++  fallback: boolean,
++) {
++  return typeof value === "boolean"
++    ? value
++    : fallback;
++}
++
++function text(
++  value: unknown,
++  fallback: string,
++  max = 300,
++) {
++  const v = String(value ?? "").trim();
++  return v
++    ? v.slice(0, max)
++    : fallback;
++}
++
++export function sanitizeRuntimeControl(
++  input: unknown,
++): RuntimeControl {
++  const raw =
++    input &&
++    typeof input === "object" &&
++    !Array.isArray(input)
++      ? (input as Record<string, unknown>)
++      : {};
++
++  const mode: SiteMode =
++    raw.mode === "LEAD_ONLY" ||
++    raw.mode === "MAINTENANCE"
++      ? raw.mode
++      : "NORMAL";
++
++  return {
++    mode,
++    leadCapture: bool(
++      raw.leadCapture,
++      DEFAULT_RUNTIME_CONTROL.leadCapture,
++    ),
++    detailedOrders: bool(
++      raw.detailedOrders,
++      DEFAULT_RUNTIME_CONTROL.detailedOrders,
++    ),
++    customerAccounts: bool(
++      raw.customerAccounts,
++      DEFAULT_RUNTIME_CONTROL.customerAccounts,
++    ),
++    accountRegistration: bool(
++      raw.accountRegistration,
++      DEFAULT_RUNTIME_CONTROL.accountRegistration,
++    ),
++    phoneOtp: bool(
++      raw.phoneOtp,
++      DEFAULT_RUNTIME_CONTROL.phoneOtp,
++    ),
++    emailOtpRecovery: bool(
++      raw.emailOtpRecovery,
++      DEFAULT_RUNTIME_CONTROL.emailOtpRecovery,
++    ),
++    estimates: bool(
++      raw.estimates,
++      DEFAULT_RUNTIME_CONTROL.estimates,
++    ),
++    coupons: bool(
++      raw.coupons,
++      DEFAULT_RUNTIME_CONTROL.coupons,
++    ),
++    referrals: bool(
++      raw.referrals,
++      DEFAULT_RUNTIME_CONTROL.referrals,
++    ),
++    uploads: bool(
++      raw.uploads,
++      DEFAULT_RUNTIME_CONTROL.uploads,
++    ),
++    reviews: bool(
++      raw.reviews,
++      DEFAULT_RUNTIME_CONTROL.reviews,
++    ),
++    aftercare: bool(
++      raw.aftercare,
++      DEFAULT_RUNTIME_CONTROL.aftercare,
++    ),
++    portfolio: bool(
++      raw.portfolio,
++      DEFAULT_RUNTIME_CONTROL.portfolio,
++    ),
++    notifications: bool(
++      raw.notifications,
++      DEFAULT_RUNTIME_CONTROL.notifications,
++    ),
++    marketingTracking: bool(
++      raw.marketingTracking,
++      DEFAULT_RUNTIME_CONTROL.marketingTracking,
++    ),
++    fallbackWhatsapp: text(
++      raw.fallbackWhatsapp,
++      DEFAULT_RUNTIME_CONTROL.fallbackWhatsapp,
++      20,
++    ).replace(/\D/g, ""),
++    supportPhone: text(
++      raw.supportPhone,
++      DEFAULT_RUNTIME_CONTROL.supportPhone,
++      20,
++    ),
++    maintenanceMessage: text(
++      raw.maintenanceMessage,
++      DEFAULT_RUNTIME_CONTROL.maintenanceMessage,
++    ),
++    leadSuccessMessage: text(
++      raw.leadSuccessMessage,
++      DEFAULT_RUNTIME_CONTROL.leadSuccessMessage,
++    ),
++  };
++}
++
++export async function getRuntimeControl() {
++  try {
++    const setting =
++      await prisma.runtimeSetting.findUnique({
++        where: {
++          key: RUNTIME_CONTROL_KEY,
++        },
++      });
++
++    if (!setting) {
++      return {
++        control:
++          DEFAULT_RUNTIME_CONTROL,
++        degraded: false,
++      };
++    }
++
++    return {
++      control:
++        sanitizeRuntimeControl(
++          setting.value,
++        ),
++      degraded: false,
++    };
++  } catch (error) {
++    console.error(
++      "RUNTIME_CONTROL_DEGRADED",
++      error,
++    );
++
++    return {
++      control:
++        DEGRADED_RUNTIME_CONTROL,
++      degraded: true,
++    };
++  }
++}
++
++export async function saveRuntimeControl(
++  value: RuntimeControl,
++  actor: {
++    id?: string | null;
++    label?: string | null;
++  },
++) {
++  return prisma.runtimeSetting.upsert({
++    where: {
++      key: RUNTIME_CONTROL_KEY,
++    },
++    update: {
++      value,
++      updatedById:
++        actor.id || null,
++      updatedByLabel:
++        actor.label || null,
++    },
++    create: {
++      key: RUNTIME_CONTROL_KEY,
++      value,
++      updatedById:
++        actor.id || null,
++      updatedByLabel:
++        actor.label || null,
++    },
++  });
++}
+diff --git a/package.json b/package.json
+index 86a129d..4c3606c 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "private": true,
+   "scripts": {
+     "dev": "next dev",
+-    "build": "node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
++    "build": "node scripts/security-runtime-control-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+     "start": "next start",
+     "create-user": "node scripts/create-user.mjs",
+     "db:generate": "prisma generate",
+@@ -16,7 +16,7 @@
+     "db:studio": "prisma studio",
+     "typecheck": "tsc --noEmit",
+     "check": "npm run typecheck && npm run build",
+-    "security:check": "node scripts/security-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
++    "security:check": "node scripts/security-check.mjs && node scripts/security-runtime-control-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
+     "security:routes": "node scripts/security-route-guard.mjs",
+     "integrations:check": "node scripts/integrations-check.mjs",
+     "db:migrate:production": "node scripts/production-migrate.mjs",
+@@ -25,7 +25,8 @@
+     "security:abuse-protection": "node scripts/security-abuse-protection-check.mjs",
+     "security:technician-auth": "node scripts/security-technician-auth-check.mjs",
+     "security:execution-integrity": "node scripts/security-execution-integrity-check.mjs",
+-    "security:archive-vault": "node scripts/security-archive-vault-check.mjs"
++    "security:archive-vault": "node scripts/security-archive-vault-check.mjs",
++    "security:runtime-control": "node scripts/security-runtime-control-check.mjs"
+   },
+   "dependencies": {
+     "next": "15.5.26",
+diff --git a/prisma/migrations/20261105235100_runtime_control_center/migration.sql b/prisma/migrations/20261105235100_runtime_control_center/migration.sql
+new file mode 100644
+index 0000000..55955db
+--- /dev/null
++++ b/prisma/migrations/20261105235100_runtime_control_center/migration.sql
+@@ -0,0 +1,9 @@
++CREATE TABLE IF NOT EXISTS "RuntimeSetting" (
++    "key" TEXT NOT NULL,
++    "value" JSONB NOT NULL,
++    "updatedById" TEXT,
++    "updatedByLabel" TEXT,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    CONSTRAINT "RuntimeSetting_pkey" PRIMARY KEY ("key")
++);
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 0ac7b9c..7929ca6 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -208,6 +208,17 @@ model AuditLog {
+   createdAt  DateTime @default(now())
+ }
+ 
++
++
++model RuntimeSetting {
++  key              String   @id
++  value            Json
++  updatedById      String?
++  updatedByLabel   String?
++  createdAt        DateTime @default(now())
++  updatedAt        DateTime @updatedAt
++}
++
+ model ArchiveVaultSetting {
+   id                  String    @id
+   passwordHash        String
+diff --git a/scripts/security-customer-claim-check.mjs b/scripts/security-customer-claim-check.mjs
+index 3c42d1d..ebddf7d 100644
+--- a/scripts/security-customer-claim-check.mjs
++++ b/scripts/security-customer-claim-check.mjs
+@@ -4,32 +4,109 @@ const failures = [];
+ 
+ function read(path) {
+   if (!fs.existsSync(path)) {
+-    failures.push(`${path} is missing.`);
++    failures.push(
++      `${path} is missing.`,
++    );
+     return "";
+   }
+-  return fs.readFileSync(path, "utf8");
++  return fs.readFileSync(
++    path,
++    "utf8",
++  );
+ }
+ 
+-const register = read("app/api/customer/auth/register/route.ts");
+-const forgot = read("app/api/customer/auth/forgot-password/route.ts");
+-const reset = read("app/api/customer/auth/reset-password/route.ts");
++const register =
++  read(
++    "app/api/customer/auth/register/route.ts",
++  );
++const forgot =
++  read(
++    "app/api/customer/auth/forgot-password/route.ts",
++  );
++const reset =
++  read(
++    "app/api/customer/auth/reset-password/route.ts",
++  );
++const order =
++  read("app/api/orders/route.ts");
+ 
+-if (!register.includes("ACCOUNT_ACTIVATION_REQUIRED")) {
+-  failures.push("Registration must block direct claiming of an existing Customer record.");
++if (
++  !register.includes(
++    "ACCOUNT_ACTIVATION_REQUIRED",
++  )
++) {
++  failures.push(
++    "Registration must block direct claiming of an existing Customer record.",
++  );
+ }
+ 
+-if (forgot.includes("!customer.passwordHash")) {
+-  failures.push("OTP request must allow an existing Customer without a password.");
++if (
++  !register.includes(
++    "DIRECT_REGISTRATION_BLOCKED",
++  ) ||
++  !register.includes(
++    "PHONE_VERIFICATION_REQUIRED",
++  )
++) {
++  failures.push(
++    "Direct password registration must remain blocked before verified phone activation.",
++  );
+ }
+ 
+-if (reset.includes("!customer.passwordHash")) {
+-  failures.push("OTP verification must allow creation of the first password.");
++if (
++  !forgot.includes(
++    "FIRST_ACTIVATION_PHONE_REQUIRED",
++  ) ||
++  !forgot.includes(
++    'deliveryMethod === "EMAIL"',
++  )
++) {
++  failures.push(
++    "Passwordless customer activation must not accept EMAIL as the first proof of identity.",
++  );
++}
++
++if (
++  !reset.includes(
++    "firstActivation",
++  ) ||
++  !reset.includes(
++    "passwordHash",
++  ) ||
++  !reset.includes(
++    "? null",
++  )
++) {
++  failures.push(
++    "Phone-verified first activation must create the first password and clear untrusted email.",
++  );
++}
++
++if (
++  order.includes(
++    "prisma.customer.upsert",
++  ) ||
++  !order.includes(
++    "existingCustomer?.archivedAt",
++  )
++) {
++  failures.push(
++    "Public order must not overwrite or reactivate an existing customer identity.",
++  );
+ }
+ 
+ if (failures.length) {
+-  console.error("\nV20I4 customer claim check FAILED:\n");
+-  for (const failure of failures) console.error(`- ${failure}`);
++  console.error(
++    "\nV20I/V20P customer claim check FAILED:\n",
++  );
++  for (const failure of failures) {
++    console.error(
++      `- ${failure}`,
++    );
++  }
+   process.exit(1);
+ }
+ 
+-console.log("V20I4 customer account claim check passed.");
++console.log(
++  "V20I/V20P customer account claim check passed.",
++);
+diff --git a/scripts/security-runtime-control-check.mjs b/scripts/security-runtime-control-check.mjs
+new file mode 100644
+index 0000000..35964e4
+--- /dev/null
++++ b/scripts/security-runtime-control-check.mjs
+@@ -0,0 +1,184 @@
++import fs from "node:fs";
++
++const failures = [];
++
++function read(path) {
++  if (!fs.existsSync(path)) {
++    failures.push(
++      `${path} is missing.`,
++    );
++    return "";
++  }
++
++  return fs.readFileSync(
++    path,
++    "utf8",
++  );
++}
++
++const checks = [
++  [
++    "runtime helper",
++    read("lib/runtime-control.ts"),
++    [
++      "DEGRADED_RUNTIME_CONTROL",
++      'mode: "LEAD_ONLY"',
++      "leadCapture: true",
++      "sanitizeRuntimeControl",
++    ],
++  ],
++  [
++    "public runtime endpoint",
++    read("app/api/runtime/route.ts"),
++    [
++      "getRuntimeControl",
++      "no-store",
++    ],
++  ],
++  [
++    "admin runtime endpoint",
++    read("app/api/admin/runtime-controls/route.ts"),
++    [
++      'user?.role === "SUPER_ADMIN"',
++      "saveRuntimeControl",
++      "RUNTIME_CONTROL_UPDATED",
++    ],
++  ],
++  [
++    "lead capture",
++    read("app/api/leads/route.ts"),
++    [
++      "control.leadCapture",
++      "LEAD_CAPTURE_DISABLED",
++      "durableRateLimit",
++      "LEAD_NOTIFICATION_FAILED",
++    ],
++  ],
++  [
++    "public order",
++    read("app/api/orders/route.ts"),
++    [
++      "control.detailedOrders",
++      "existingCustomer?.archivedAt",
++      "public-order-phone:",
++    ],
++  ],
++  [
++    "order entry gate",
++    read("app/order/OrderEntryGate.tsx"),
++    [
++      "ventic_pending_leads_v1",
++      "/api/runtime",
++      "syncPendingLeads",
++      "LEAD_CAPTURE_DISABLED",
++      "wa.me",
++    ],
++  ],
++  [
++    "estimate",
++    read("app/api/public/order-estimate/route.ts"),
++    ["control.estimates"],
++  ],
++  [
++    "coupon",
++    read("app/api/coupons/validate/route.ts"),
++    ["control.coupons"],
++  ],
++  [
++    "uploads",
++    read("app/api/orders/[id]/customer-attachments/route.ts"),
++    ["control.uploads"],
++  ],
++  [
++    "reviews",
++    read("app/api/reviews/route.ts"),
++    ["control.reviews"],
++  ],
++  [
++    "aftercare",
++    read("app/api/customer/aftercare/route.ts"),
++    ["control.aftercare"],
++  ],
++  [
++    "portfolio",
++    read("app/api/portfolio-videos/route.ts"),
++    ["control.portfolio"],
++  ],
++  [
++    "marketing tracking",
++    read("app/api/marketing/events/route.ts"),
++    [
++      "control.marketingTracking",
++      "durableRateLimit",
++    ],
++  ],
++  [
++    "customer session gate",
++    read("lib/customer-auth.ts"),
++    [
++      "getRuntimeControl",
++      "control.customerAccounts",
++    ],
++  ],
++  [
++    "admin notifications",
++    read("lib/admin-notifications.ts"),
++    [
++      "NOTIFICATIONS_RUNTIME_DISABLED",
++      "control.notifications",
++    ],
++  ],
++  [
++    "customer notifications",
++    read("lib/customer-notifications.ts"),
++    [
++      "NOTIFICATIONS_RUNTIME_DISABLED",
++      "control.notifications",
++    ],
++  ],
++];
++
++for (const [
++  label,
++  source,
++  markers,
++] of checks) {
++  for (const marker of markers) {
++    if (!source.includes(marker)) {
++      failures.push(
++        `${label} missing ${marker}`,
++      );
++    }
++  }
++}
++
++const schema =
++  read("prisma/schema.prisma");
++
++if (
++  !schema.includes(
++    "model RuntimeSetting",
++  )
++) {
++  failures.push(
++    "RuntimeSetting model missing.",
++  );
++}
++
++if (failures.length) {
++  console.error(
++    "\nV20P runtime control check FAILED:\n",
++  );
++
++  for (const failure of failures) {
++    console.error(
++      `- ${failure}`,
++    );
++  }
++
++  process.exit(1);
++}
++
++console.log(
++  "V20P runtime control and resilience check passed.",
++);
