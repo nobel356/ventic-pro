@@ -7,6 +7,13 @@ import { notifyAdmins } from "@/lib/admin-notifications";
 import { notifyCustomer } from "@/lib/customer-notifications";
 
 const allowed = ["ON_THE_WAY", "ARRIVED", "IN_PROGRESS"];
+
+const nextStatusByCurrent:
+  Record<string, string> = {
+    ASSIGNED: "ON_THE_WAY",
+    ON_THE_WAY: "ARRIVED",
+    ARRIVED: "IN_PROGRESS",
+  };
 const labels: Record<string, string> = {
   ASSIGNED: "تم التعيين",
   ON_THE_WAY: "في الطريق",
@@ -41,6 +48,32 @@ export async function PATCH(
     return NextResponse.json(
       { error: "الطلب غير مسند لهذا الفني" },
       { status: 403 },
+    );
+  }
+
+  if (old.status === status) {
+    return NextResponse.json(old);
+  }
+
+  const expectedNext =
+    nextStatusByCurrent[
+      old.status
+    ];
+
+  if (
+    !expectedNext ||
+    expectedNext !== status
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "لا يمكن تخطي مراحل التنفيذ أو الرجوع لحالة سابقة.",
+        currentStatus:
+          old.status,
+        expectedNext:
+          expectedNext || null,
+      },
+      { status: 409 },
     );
   }
 

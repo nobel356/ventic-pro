@@ -25,6 +25,10 @@ import {
   uploadOrderImage,
 } from "@/lib/storage";
 import { absoluteAppUrl, notifyCustomer } from "@/lib/customer-notifications";
+import {
+  clearDurableRateLimit,
+  durableRateLimit,
+} from "@/lib/request-security";
 
 export const OTP_TTL_MINUTES = 15;
 export const OTP_RESEND_SECONDS = 60;
@@ -462,6 +466,28 @@ export async function issueExecutionOtp(
 
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
+  if (order.status !== "IN_PROGRESS") {
+    throw new Error(
+      "ORDER_NOT_IN_PROGRESS",
+    );
+  }
+
+  const issueLimited =
+    await durableRateLimit(
+      `completion-otp-issue:${input.orderId}`,
+      {
+        limit: 10,
+        windowMs:
+          60 * 60 * 1000,
+      },
+    );
+
+  if (!issueLimited.allowed) {
+    throw new Error(
+      `OTP_ISSUE_LIMIT:${issueLimited.retryAfterSeconds}`,
+    );
+  }
+
   const [
     before,
     after,
@@ -688,6 +714,51 @@ export async function completeExecution(
 
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
+  if (order.status !== "IN_PROGRESS") {
+    throw new Error(
+      "ORDER_NOT_IN_PROGRESS",
+    );
+  }
+
+  const orderAttemptKey =
+    `completion-otp-order:${input.orderId}`;
+  const actorAttemptKey =
+    `completion-otp-actor:${input.orderId}:${input.actor.id}`;
+
+  const [
+    orderAttemptLimit,
+    actorAttemptLimit,
+  ] = await Promise.all([
+    durableRateLimit(
+      orderAttemptKey,
+      {
+        limit: 12,
+        windowMs:
+          15 * 60 * 1000,
+      },
+    ),
+    durableRateLimit(
+      actorAttemptKey,
+      {
+        limit: 8,
+        windowMs:
+          15 * 60 * 1000,
+      },
+    ),
+  ]);
+
+  if (
+    !orderAttemptLimit.allowed ||
+    !actorAttemptLimit.allowed
+  ) {
+    throw new Error(
+      `OTP_ATTEMPTS_EXCEEDED:${Math.max(
+        orderAttemptLimit.retryAfterSeconds,
+        actorAttemptLimit.retryAfterSeconds,
+      )}`,
+    );
+  }
+
   if (order.status === "COMPLETED") {
     throw new Error("ALREADY_COMPLETED");
   }
@@ -770,6 +841,15 @@ export async function completeExecution(
 
     throw new Error("OTP_INVALID");
   }
+
+  await Promise.all([
+    clearDurableRateLimit(
+      orderAttemptKey,
+    ),
+    clearDurableRateLimit(
+      actorAttemptKey,
+    ),
+  ]);
 
   const completedAt = new Date();
   const warrantyEndsAt =
@@ -1034,6 +1114,11 @@ export function executionErrorResponse(
       error:
         "لا يمكن إتمام الطلب قبل اعتماد مقايسة Ventic Pro من العميل",
     },
+    ORDER_NOT_IN_PROGRESS: {
+      status: 409,
+      error:
+        "لا يمكن إصدار كود الإتمام أو إغلاق الطلب قبل وصول الحالة إلى جاري التنفيذ",
+    },
     OTP_INVALID: {
       status: 400,
       error:
@@ -1045,6 +1130,28 @@ export function executionErrorResponse(
         "الطلب مكتمل بالفعل",
     },
   };
+
+  if (
+    message.startsWith(
+      "OTP_ATTEMPTS_EXCEEDED:",
+    ) ||
+    message.startsWith(
+      "OTP_ISSUE_LIMIT:",
+    )
+  ) {
+    const seconds = Number(
+      message.split(":")[1] || 0,
+    );
+
+    return {
+      status: 429,
+      body: {
+        error:
+          "تم تجاوز الحد الآمن لمحاولات كود الإتمام. حاول مرة أخرى لاحقًا.",
+        retryAfterSeconds: seconds,
+      },
+    };
+  }
 
   if (message.startsWith("OTP_COOLDOWN:")) {
     const seconds = Number(
