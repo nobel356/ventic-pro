@@ -65,10 +65,11 @@ export async function POST(req: Request) {
         where: { phone },
       });
 
+    // V20I4: this OTP flow also activates customers that were
+    // created by an earlier order and do not have a password yet.
     if (
       !customer ||
-      !customer.active ||
-      !customer.passwordHash
+      !customer.active
     ) {
       return NextResponse.json({
         ok: true,

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+    "build": "node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
     "start": "next start",
     "create-user": "node scripts/create-user.mjs",
     "db:generate": "prisma generate",
@@ -16,10 +16,11 @@
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run build",
-    "security:check": "node scripts/security-check.mjs && node scripts/security-route-guard.mjs",
+    "security:check": "node scripts/security-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
     "security:routes": "node scripts/security-route-guard.mjs",
     "integrations:check": "node scripts/integrations-check.mjs",
-    "db:migrate:production": "node scripts/production-migrate.mjs"
+    "db:migrate:production": "node scripts/production-migrate.mjs",
+    "security:customer-claim": "node scripts/security-customer-claim-check.mjs"
   },
   "dependencies": {
     "next": "15.5.26",

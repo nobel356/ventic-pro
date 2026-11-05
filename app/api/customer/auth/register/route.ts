@@ -87,9 +87,42 @@ export async function POST(req: Request) {
         where: { phone },
       });
 
+    if (
+      customer &&
+      !customer.active
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "هذا الحساب غير نشط. تواصل مع Ventic Pro للمراجعة.",
+        },
+        { status: 403 },
+      );
+    }
+
+    // V20I4: an existing Customer may already own private orders,
+    // addresses, invoices and warranties. Never attach the first
+    // password without OTP verification of the registered phone.
+    if (
+      customer &&
+      !customer.passwordHash
+    ) {
+      return NextResponse.json(
+        {
+          code:
+            "ACCOUNT_ACTIVATION_REQUIRED",
+          error:
+            "رقم الموبايل مرتبط بطلب سابق. استخدم «نسيت كلمة المرور» لاستلام كود التحقق وتفعيل الحساب.",
+        },
+        { status: 409 },
+      );
+    }
+
     if (customer?.passwordHash) {
       return NextResponse.json(
         {
+          code:
+            "ACCOUNT_ALREADY_EXISTS",
           error:
             "يوجد حساب بالفعل بهذا الرقم. استخدم تسجيل الدخول.",
         },

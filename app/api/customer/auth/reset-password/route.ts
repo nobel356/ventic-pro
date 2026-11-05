@@ -81,10 +81,11 @@ export async function POST(req: Request) {
         where: { phone },
       });
 
+    // V20I4: OTP verification is the only supported way to create
+    // the first password for a Customer that already owns order data.
     if (
       !customer ||
-      !customer.active ||
-      !customer.passwordHash
+      !customer.active
     ) {
       return NextResponse.json(
         {

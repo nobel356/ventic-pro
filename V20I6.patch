@@ -1,0 +1,110 @@
+diff --git a/app/api/customer/auth/forgot-password/route.ts b/app/api/customer/auth/forgot-password/route.ts
+index b96be58..ad9c681 100644
+--- a/app/api/customer/auth/forgot-password/route.ts
++++ b/app/api/customer/auth/forgot-password/route.ts
+@@ -65,10 +65,11 @@ export async function POST(req: Request) {
+         where: { phone },
+       });
+ 
++    // V20I4: this OTP flow also activates customers that were
++    // created by an earlier order and do not have a password yet.
+     if (
+       !customer ||
+-      !customer.active ||
+-      !customer.passwordHash
++      !customer.active
+     ) {
+       return NextResponse.json({
+         ok: true,
+diff --git a/app/api/customer/auth/register/route.ts b/app/api/customer/auth/register/route.ts
+index 4ad7fa4..89f3cc1 100644
+--- a/app/api/customer/auth/register/route.ts
++++ b/app/api/customer/auth/register/route.ts
+@@ -87,9 +87,42 @@ export async function POST(req: Request) {
+         where: { phone },
+       });
+ 
++    if (
++      customer &&
++      !customer.active
++    ) {
++      return NextResponse.json(
++        {
++          error:
++            "هذا الحساب غير نشط. تواصل مع Ventic Pro للمراجعة.",
++        },
++        { status: 403 },
++      );
++    }
++
++    // V20I4: an existing Customer may already own private orders,
++    // addresses, invoices and warranties. Never attach the first
++    // password without OTP verification of the registered phone.
++    if (
++      customer &&
++      !customer.passwordHash
++    ) {
++      return NextResponse.json(
++        {
++          code:
++            "ACCOUNT_ACTIVATION_REQUIRED",
++          error:
++            "رقم الموبايل مرتبط بطلب سابق. استخدم «نسيت كلمة المرور» لاستلام كود التحقق وتفعيل الحساب.",
++        },
++        { status: 409 },
++      );
++    }
++
+     if (customer?.passwordHash) {
+       return NextResponse.json(
+         {
++          code:
++            "ACCOUNT_ALREADY_EXISTS",
+           error:
+             "يوجد حساب بالفعل بهذا الرقم. استخدم تسجيل الدخول.",
+         },
+diff --git a/app/api/customer/auth/reset-password/route.ts b/app/api/customer/auth/reset-password/route.ts
+index ccce5f7..25298c9 100644
+--- a/app/api/customer/auth/reset-password/route.ts
++++ b/app/api/customer/auth/reset-password/route.ts
+@@ -81,10 +81,11 @@ export async function POST(req: Request) {
+         where: { phone },
+       });
+ 
++    // V20I4: OTP verification is the only supported way to create
++    // the first password for a Customer that already owns order data.
+     if (
+       !customer ||
+-      !customer.active ||
+-      !customer.passwordHash
++      !customer.active
+     ) {
+       return NextResponse.json(
+         {
+diff --git a/package.json b/package.json
+index 66a081c..0457f99 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "private": true,
+   "scripts": {
+     "dev": "next dev",
+-    "build": "node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
++    "build": "node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+     "start": "next start",
+     "create-user": "node scripts/create-user.mjs",
+     "db:generate": "prisma generate",
+@@ -16,10 +16,11 @@
+     "db:studio": "prisma studio",
+     "typecheck": "tsc --noEmit",
+     "check": "npm run typecheck && npm run build",
+-    "security:check": "node scripts/security-check.mjs && node scripts/security-route-guard.mjs",
++    "security:check": "node scripts/security-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
+     "security:routes": "node scripts/security-route-guard.mjs",
+     "integrations:check": "node scripts/integrations-check.mjs",
+-    "db:migrate:production": "node scripts/production-migrate.mjs"
++    "db:migrate:production": "node scripts/production-migrate.mjs",
++    "security:customer-claim": "node scripts/security-customer-claim-check.mjs"
+   },
+   "dependencies": {
+     "next": "15.5.26",
