@@ -14,8 +14,8 @@ import {
 } from "@/lib/password";
 import {
   clientIp,
-  clearRateLimit,
-  rateLimit,
+  clearDurableRateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
@@ -45,11 +45,14 @@ export async function POST(
     const key =
       `archive-unlock:${actor.id}:${ip}`;
     const limit =
-      rateLimit(key, {
-        limit: 5,
-        windowMs:
-          15 * 60 * 1000,
-      });
+      await durableRateLimit(
+        key,
+        {
+          limit: 5,
+          windowMs:
+            15 * 60 * 1000,
+        },
+      );
 
     if (!limit.allowed) {
       await logArchiveEvent(
@@ -109,7 +112,9 @@ export async function POST(
       );
     }
 
-    clearRateLimit(key);
+    await clearDurableRateLimit(
+      key,
+    );
 
     const token =
       createVaultToken(

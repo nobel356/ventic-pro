@@ -36,6 +36,11 @@ export async function DELETE(
       await requireArchiveActor(
         PERMISSIONS.ARCHIVE_MANAGE,
       );
+
+    await requireVaultUnlocked(
+      actor.id,
+    );
+
     const { id } =
       await params;
     const body =

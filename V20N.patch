@@ -1,0 +1,337 @@
+diff --git a/app/api/admin/archive/forgot-password/route.ts b/app/api/admin/archive/forgot-password/route.ts
+index 8e6e458..c13a72b 100644
+--- a/app/api/admin/archive/forgot-password/route.ts
++++ b/app/api/admin/archive/forgot-password/route.ts
+@@ -9,7 +9,7 @@ import { rawPrisma } from "@/lib/prisma";
+ import { sendBrandedEmail } from "@/lib/branded-email";
+ import {
+   clientIp,
+-  rateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+@@ -72,7 +72,7 @@ export async function POST(
+     }
+ 
+     const limited =
+-      rateLimit(
++      await durableRateLimit(
+         `archive-reset:${actor.id}:${clientIp(req)}`,
+         {
+           limit: 3,
+diff --git a/app/api/admin/archive/orders/[id]/route.ts b/app/api/admin/archive/orders/[id]/route.ts
+index a160b73..2d2169c 100644
+--- a/app/api/admin/archive/orders/[id]/route.ts
++++ b/app/api/admin/archive/orders/[id]/route.ts
+@@ -36,6 +36,11 @@ export async function DELETE(
+       await requireArchiveActor(
+         PERMISSIONS.ARCHIVE_MANAGE,
+       );
++
++    await requireVaultUnlocked(
++      actor.id,
++    );
++
+     const { id } =
+       await params;
+     const body =
+diff --git a/app/api/admin/archive/reset-password/route.ts b/app/api/admin/archive/reset-password/route.ts
+index afff655..bdb8aed 100644
+--- a/app/api/admin/archive/reset-password/route.ts
++++ b/app/api/admin/archive/reset-password/route.ts
+@@ -8,6 +8,11 @@ import {
+ } from "@/lib/archive-vault";
+ import { hashPassword } from "@/lib/password";
+ import { rawPrisma } from "@/lib/prisma";
++import {
++  clientIp,
++  durableRateLimit,
++  rateLimitHeaders,
++} from "@/lib/request-security";
+ 
+ function hashToken(
+   token: string,
+@@ -70,6 +75,32 @@ export async function POST(
+       );
+     }
+ 
++    const limited =
++      await durableRateLimit(
++        `archive-reset-submit:${actor.id}:${clientIp(req)}`,
++        {
++          limit: 10,
++          windowMs:
++            60 * 60 * 1000,
++        },
++      );
++
++    if (!limited.allowed) {
++      return NextResponse.json(
++        {
++          error:
++            "تم تجاوز الحد الآمن لمحاولات الاستعادة. حاول لاحقًا.",
++        },
++        {
++          status: 429,
++          headers:
++            rateLimitHeaders(
++              limited,
++            ),
++        },
++      );
++    }
++
+     const body =
+       await req.json();
+     const token =
+diff --git a/app/api/admin/archive/unlock/route.ts b/app/api/admin/archive/unlock/route.ts
+index af64e0f..bd4a217 100644
+--- a/app/api/admin/archive/unlock/route.ts
++++ b/app/api/admin/archive/unlock/route.ts
+@@ -14,8 +14,8 @@ import {
+ } from "@/lib/password";
+ import {
+   clientIp,
+-  clearRateLimit,
+-  rateLimit,
++  clearDurableRateLimit,
++  durableRateLimit,
+   rateLimitHeaders,
+ } from "@/lib/request-security";
+ 
+@@ -45,11 +45,14 @@ export async function POST(
+     const key =
+       `archive-unlock:${actor.id}:${ip}`;
+     const limit =
+-      rateLimit(key, {
+-        limit: 5,
+-        windowMs:
+-          15 * 60 * 1000,
+-      });
++      await durableRateLimit(
++        key,
++        {
++          limit: 5,
++          windowMs:
++            15 * 60 * 1000,
++        },
++      );
+ 
+     if (!limit.allowed) {
+       await logArchiveEvent(
+@@ -109,7 +112,9 @@ export async function POST(
+       );
+     }
+ 
+-    clearRateLimit(key);
++    await clearDurableRateLimit(
++      key,
++    );
+ 
+     const token =
+       createVaultToken(
+diff --git a/app/api/admin/archive/users/[id]/route.ts b/app/api/admin/archive/users/[id]/route.ts
+index de2c2b1..52e072d 100644
+--- a/app/api/admin/archive/users/[id]/route.ts
++++ b/app/api/admin/archive/users/[id]/route.ts
+@@ -36,6 +36,11 @@ export async function DELETE(
+       await requireArchiveActor(
+         PERMISSIONS.ARCHIVE_MANAGE,
+       );
++
++    await requireVaultUnlocked(
++      actor.id,
++    );
++
+     const { id } =
+       await params;
+     const body =
+diff --git a/package.json b/package.json
+index acb93fc..86a129d 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "private": true,
+   "scripts": {
+     "dev": "next dev",
+-    "build": "node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
++    "build": "node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+     "start": "next start",
+     "create-user": "node scripts/create-user.mjs",
+     "db:generate": "prisma generate",
+@@ -16,7 +16,7 @@
+     "db:studio": "prisma studio",
+     "typecheck": "tsc --noEmit",
+     "check": "npm run typecheck && npm run build",
+-    "security:check": "node scripts/security-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
++    "security:check": "node scripts/security-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
+     "security:routes": "node scripts/security-route-guard.mjs",
+     "integrations:check": "node scripts/integrations-check.mjs",
+     "db:migrate:production": "node scripts/production-migrate.mjs",
+@@ -24,7 +24,8 @@
+     "security:dual-otp": "node scripts/security-dual-otp-check.mjs",
+     "security:abuse-protection": "node scripts/security-abuse-protection-check.mjs",
+     "security:technician-auth": "node scripts/security-technician-auth-check.mjs",
+-    "security:execution-integrity": "node scripts/security-execution-integrity-check.mjs"
++    "security:execution-integrity": "node scripts/security-execution-integrity-check.mjs",
++    "security:archive-vault": "node scripts/security-archive-vault-check.mjs"
+   },
+   "dependencies": {
+     "next": "15.5.26",
+diff --git a/scripts/security-archive-vault-check.mjs b/scripts/security-archive-vault-check.mjs
+new file mode 100644
+index 0000000..3e63d12
+--- /dev/null
++++ b/scripts/security-archive-vault-check.mjs
+@@ -0,0 +1,150 @@
++import fs from "node:fs";
++
++const failures = [];
++
++function read(path) {
++  if (!fs.existsSync(path)) {
++    failures.push(
++      `${path} is missing.`,
++    );
++    return "";
++  }
++
++  return fs.readFileSync(
++    path,
++    "utf8",
++  );
++}
++
++function count(source, token) {
++  return source.split(token).length - 1;
++}
++
++const entityRoutes = [
++  "orders",
++  "users",
++  "customers",
++  "inventory",
++  "leads",
++  "suppliers",
++];
++
++for (const entity of entityRoutes) {
++  const source = read(
++    `app/api/admin/archive/${entity}/[id]/route.ts`,
++  );
++
++  for (const marker of [
++    "PERMISSIONS.ARCHIVE_MANAGE",
++    "PERMISSIONS.ARCHIVE_RESTORE",
++  ]) {
++    if (!source.includes(marker)) {
++      failures.push(
++        `${entity} archive route missing ${marker}`,
++      );
++    }
++  }
++
++  if (
++    count(
++      source,
++      "requireVaultUnlocked(",
++    ) < 2
++  ) {
++    failures.push(
++      `${entity} archive + restore must both require an unlocked vault.`,
++    );
++  }
++}
++
++const unlock =
++  read(
++    "app/api/admin/archive/unlock/route.ts",
++  );
++const forgot =
++  read(
++    "app/api/admin/archive/forgot-password/route.ts",
++  );
++const reset =
++  read(
++    "app/api/admin/archive/reset-password/route.ts",
++  );
++const purge =
++  read(
++    "app/api/admin/archive/purge/[type]/[id]/route.ts",
++  );
++
++for (const [
++  label,
++  source,
++  markers,
++] of [
++  [
++    "vault unlock",
++    unlock,
++    [
++      "durableRateLimit",
++      "clearDurableRateLimit",
++      "archive-unlock:",
++    ],
++  ],
++  [
++    "vault recovery request",
++    forgot,
++    [
++      "durableRateLimit",
++      "archive-reset:",
++    ],
++  ],
++  [
++    "vault recovery submit",
++    reset,
++    [
++      "durableRateLimit",
++      "archive-reset-submit:",
++      "rateLimitHeaders",
++    ],
++  ],
++]) {
++  for (const marker of markers) {
++    if (!source.includes(marker)) {
++      failures.push(
++        `${label} missing ${marker}`,
++      );
++    }
++  }
++}
++
++if (
++  !purge.includes(
++    'actor.role !==',
++  ) ||
++  !purge.includes(
++    '"SUPER_ADMIN"',
++  ) ||
++  !purge.includes(
++    "requireVaultUnlocked(",
++  )
++) {
++  failures.push(
++    "Permanent purge must remain Super Admin + unlocked-vault only.",
++  );
++}
++
++if (failures.length) {
++  console.error(
++    "\nV20N archive vault integrity check FAILED:\n",
++  );
++
++  for (const failure of failures) {
++    console.error(
++      `- ${failure}`,
++    );
++  }
++
++  process.exit(1);
++}
++
++console.log(
++  "V20N archive vault integrity check passed.",
++);

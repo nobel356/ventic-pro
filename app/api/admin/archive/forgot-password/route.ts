@@ -9,7 +9,7 @@ import { rawPrisma } from "@/lib/prisma";
 import { sendBrandedEmail } from "@/lib/branded-email";
 import {
   clientIp,
-  rateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
@@ -72,7 +72,7 @@ export async function POST(
     }
 
     const limited =
-      rateLimit(
+      await durableRateLimit(
         `archive-reset:${actor.id}:${clientIp(req)}`,
         {
           limit: 3,

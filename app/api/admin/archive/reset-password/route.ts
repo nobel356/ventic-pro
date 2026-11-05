@@ -8,6 +8,11 @@ import {
 } from "@/lib/archive-vault";
 import { hashPassword } from "@/lib/password";
 import { rawPrisma } from "@/lib/prisma";
+import {
+  clientIp,
+  durableRateLimit,
+  rateLimitHeaders,
+} from "@/lib/request-security";
 
 function hashToken(
   token: string,
@@ -67,6 +72,32 @@ export async function POST(
             "استعادة كلمة سر الأرشيف متاحة لـ Super Admin فقط.",
         },
         { status: 403 },
+      );
+    }
+
+    const limited =
+      await durableRateLimit(
+        `archive-reset-submit:${actor.id}:${clientIp(req)}`,
+        {
+          limit: 10,
+          windowMs:
+            60 * 60 * 1000,
+        },
+      );
+
+    if (!limited.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "تم تجاوز الحد الآمن لمحاولات الاستعادة. حاول لاحقًا.",
+        },
+        {
+          status: 429,
+          headers:
+            rateLimitHeaders(
+              limited,
+            ),
+        },
       );
     }
 
