@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import { prisma } from "@/lib/prisma";
 import {
   clientIp,
@@ -27,6 +28,20 @@ export async function POST(
   },
 ) {
   try {
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (!control.uploads) {
+      return NextResponse.json(
+        {
+          error:
+            "رفع الصور متوقف مؤقتًا.",
+        },
+        { status: 503 },
+      );
+    }
+
     const { id } =
       await params;
     const token =

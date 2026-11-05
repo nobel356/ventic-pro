@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   clientIp,
-  rateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
@@ -59,13 +60,26 @@ function cleanDetail(value: unknown) {
 
 export async function POST(req: Request) {
   try {
-    const limited = rateLimit(
-      `marketing-event:${clientIp(req)}`,
-      {
-        limit: 240,
-        windowMs: 60 * 60 * 1000,
-      },
-    );
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (!control.marketingTracking) {
+      return NextResponse.json({
+        ok: true,
+        disabled: true,
+      });
+    }
+
+    const limited =
+      await durableRateLimit(
+        `marketing-event:${clientIp(req)}`,
+        {
+          limit: 240,
+          windowMs:
+            60 * 60 * 1000,
+        },
+      );
 
     if (!limited.allowed) {
       return NextResponse.json(

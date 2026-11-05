@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import { prisma } from "@/lib/prisma";
 import { currentCustomer } from "@/lib/customer-auth";
 
@@ -13,6 +14,20 @@ const fields = [
 ] as const;
 
 export async function POST(req: Request) {
+  const {
+    control,
+  } = await getRuntimeControl();
+
+  if (!control.reviews) {
+    return NextResponse.json(
+      {
+        error:
+          "التقييمات متوقفة مؤقتًا.",
+      },
+      { status: 503 },
+    );
+  }
+
   const customer = await currentCustomer();
 
   if (!customer) {

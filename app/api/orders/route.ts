@@ -6,6 +6,7 @@ import { calculateOrderOffer } from "@/lib/promotions";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { createOrderUploadToken } from "@/lib/customer-order-upload";
 import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   findActiveReferral,
   referralCodeFromRequest,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/referrals";
 import {
   clientIp,
-  rateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
@@ -30,13 +31,37 @@ function clean(value: unknown) {
 
 export async function POST(req: Request) {
   try {
-    const limited = rateLimit(
-      `public-order:${clientIp(req)}`,
-      {
-        limit: 20,
-        windowMs: 60 * 60 * 1000,
-      },
-    );
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (
+      control.mode !== "NORMAL" ||
+      !control.detailedOrders
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            control.maintenanceMessage,
+          leadOnly: true,
+          fallbackWhatsapp:
+            control.fallbackWhatsapp,
+          supportPhone:
+            control.supportPhone,
+        },
+        { status: 503 },
+      );
+    }
+
+    const limited =
+      await durableRateLimit(
+        `public-order:${clientIp(req)}`,
+        {
+          limit: 20,
+          windowMs:
+            60 * 60 * 1000,
+        },
+      );
 
     if (!limited.allowed) {
       return NextResponse.json(
@@ -70,6 +95,32 @@ export async function POST(req: Request) {
       );
     }
 
+    const phoneLimited =
+      await durableRateLimit(
+        `public-order-phone:${customerPhone}`,
+        {
+          limit: 5,
+          windowMs:
+            60 * 60 * 1000,
+        },
+      );
+
+    if (!phoneLimited.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "تم تجاوز عدد الطلبات المسموح به لهذا الرقم مؤقتًا.",
+        },
+        {
+          status: 429,
+          headers:
+            rateLimitHeaders(
+              phoneLimited,
+            ),
+        },
+      );
+    }
+
     const rawEmail = clean(c.email).toLowerCase();
 
     if (
@@ -94,24 +145,42 @@ export async function POST(req: Request) {
     );
 
     const email = rawEmail || null;
-    const acquisitionSource = acquisitionSourceFromRequest(
-      req,
-      b?.source,
-    );
+    const acquisitionSource =
+      control.marketingTracking
+        ? acquisitionSourceFromRequest(
+            req,
+            b?.source,
+          )
+        : null;
 
-    const customer = await prisma.customer.upsert({
-      where: { phone: customerPhone },
-      update: {
-        name: customerName,
-        email,
-        active: true,
-      },
-      create: {
-        name: customerName,
-        phone: customerPhone,
-        email,
-      },
-    });
+    const existingCustomer =
+      await prisma.customer.findUnique({
+        where: {
+          phone: customerPhone,
+        },
+      });
+
+    if (
+      existingCustomer?.archivedAt
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "هذا الرقم مرتبط بسجل مؤرشف. تواصل مع Ventic Pro.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const customer =
+      existingCustomer ||
+      (await prisma.customer.create({
+        data: {
+          name: customerName,
+          phone: customerPhone,
+          email,
+        },
+      }));
 
     const governorate = clean(c.governorate) || "غير محدد";
     const area = clean(c.area) || "غير محدد";
@@ -227,13 +296,31 @@ export async function POST(req: Request) {
       });
     });
 
-    const offer = await calculateOrderOffer(prisma, {
-      governorate,
-      area,
-      couponCode: b?.couponCode,
-      subtotal,
-      serviceCodes,
-    });
+    const offer =
+      control.estimates
+        ? await calculateOrderOffer(
+            prisma,
+            {
+              governorate,
+              area,
+              couponCode:
+                control.coupons
+                  ? b?.couponCode
+                  : undefined,
+              subtotal,
+              serviceCodes,
+            },
+          )
+        : {
+            subtotal,
+            travelFee: 0,
+            discount: 0,
+            total: subtotal,
+            coupon: null,
+            couponValid: false,
+            couponReason: null,
+            serviceArea: null,
+          };
 
     if (offer.serviceArea && !offer.serviceArea.active) {
       return NextResponse.json(

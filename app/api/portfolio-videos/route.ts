@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getRuntimeControl } from "@/lib/runtime-control";
 
 type Row = {
   id: string;
@@ -13,6 +14,17 @@ type Row = {
 
 export async function GET() {
   try {
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (!control.portfolio) {
+      return Response.json({
+        items: [],
+        disabled: true,
+      });
+    }
+
     const items = await prisma.$queryRaw<Row[]>`
       SELECT
         "id",

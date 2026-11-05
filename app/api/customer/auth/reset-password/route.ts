@@ -85,7 +85,10 @@ export async function POST(req: Request) {
     // the first password for a Customer that already owns order data.
     if (
       !customer ||
-      !customer.active
+      !customer.active ||
+      Boolean(
+        customer.archivedAt,
+      )
     ) {
       return NextResponse.json(
         {
@@ -150,6 +153,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const firstActivation =
+      !customer.passwordHash;
     const now = new Date();
     const passwordHash =
       hashPassword(password);
@@ -162,6 +167,10 @@ export async function POST(req: Request) {
           },
           data: {
             passwordHash,
+            email:
+              firstActivation
+                ? null
+                : customer.email,
           },
         });
 

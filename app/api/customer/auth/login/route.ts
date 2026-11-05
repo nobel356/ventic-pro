@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   createCustomerSession,
   CUSTOMER_SESSION_COOKIE,
@@ -16,6 +17,20 @@ import {
 
 export async function POST(req: Request) {
   try {
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (!control.customerAccounts) {
+      return NextResponse.json(
+        {
+          error:
+            "دخول حساب العميل متوقف مؤقتًا.",
+        },
+        { status: 503 },
+      );
+    }
+
     const ip = clientIp(req);
     const ipKey =
       `customer-login-ip:${ip}`;
@@ -92,6 +107,9 @@ export async function POST(req: Request) {
     if (
       !customer ||
       !customer.active ||
+      Boolean(
+        customer.archivedAt,
+      ) ||
       !customer.passwordHash ||
       !verifyPassword(
         password,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import { prisma } from "@/lib/prisma";
 import {
   clientIp,
@@ -11,6 +12,21 @@ const MAX_SUBTOTAL = 10_000_000;
 export async function POST(
   req: Request,
 ) {
+  const {
+    control,
+  } = await getRuntimeControl();
+
+  if (!control.coupons) {
+    return NextResponse.json(
+      {
+        valid: false,
+        discount: 0,
+        disabled: true,
+      },
+      { status: 503 },
+    );
+  }
+
   const limited =
     await durableRateLimit(
       `coupon-validate:${clientIp(req)}`,

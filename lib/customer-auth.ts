@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { getRuntimeControl } from "@/lib/runtime-control";
 
 export const CUSTOMER_SESSION_COOKIE =
   "ventic_customer_session";
@@ -92,6 +93,14 @@ export async function createCustomerSession(
 }
 
 export async function currentCustomer() {
+  const {
+    control,
+  } = await getRuntimeControl();
+
+  if (!control.customerAccounts) {
+    return null;
+  }
+
   const jar = await cookies();
   const raw =
     jar.get(
@@ -114,7 +123,10 @@ export async function currentCustomer() {
   if (
     !session ||
     session.expiresAt < new Date() ||
-    !session.customer.active
+    !session.customer.active ||
+    Boolean(
+      session.customer.archivedAt,
+    )
   ) {
     return null;
   }

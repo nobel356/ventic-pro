@@ -14,8 +14,21 @@ type ContactDraft = {
   leadId?: string;
 };
 
+type PublicRuntimeControl = {
+  mode: "NORMAL" | "LEAD_ONLY" | "MAINTENANCE";
+  leadCapture: boolean;
+  detailedOrders: boolean;
+  fallbackWhatsapp: string;
+  supportPhone: string;
+  maintenanceMessage: string;
+  leadSuccessMessage: string;
+  degraded?: boolean;
+};
+
 const CONTACT_STORAGE_KEY =
   "ventic_order_contact";
+const PENDING_LEADS_KEY =
+  "ventic_pending_leads_v1";
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "");
@@ -29,6 +42,23 @@ export default function OrderEntryGate({
   const router = useRouter();
   const [mode, setMode] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [runtime, setRuntime] =
+    useState<PublicRuntimeControl>({
+      mode: "LEAD_ONLY",
+      leadCapture: true,
+      detailedOrders: false,
+      fallbackWhatsapp:
+        "201044226423",
+      supportPhone:
+        "01044226423",
+      maintenanceMessage:
+        "الخدمة الكاملة متوقفة مؤقتًا، لكن سيب اسمك ورقمك وفريق Ventic Pro هيتواصل معاك.",
+      leadSuccessMessage:
+        "تم تسجيل بياناتك، وفريق Ventic Pro هيتواصل معاك.",
+      degraded: true,
+    });
+  const [localFallback, setLocalFallback] =
+    useState(false);
 
   const [choice, setChoice] = useState<
     "" | "quick" | "detailed"
@@ -53,6 +83,86 @@ export default function OrderEntryGate({
       params.get("mode") || "";
 
     setMode(nextMode);
+
+    async function loadRuntime() {
+      try {
+        const response =
+          await fetch(
+            "/api/runtime",
+            {
+              cache: "no-store",
+            },
+          );
+        const data =
+          await response.json();
+
+        if (response.ok) {
+          setRuntime(data);
+        }
+      } catch {
+        // Fail-safe stays Lead-only.
+      }
+    }
+
+    async function syncPendingLeads() {
+      try {
+        const raw =
+          window.localStorage.getItem(
+            PENDING_LEADS_KEY,
+          );
+        const pending = raw
+          ? JSON.parse(raw)
+          : [];
+
+        if (!Array.isArray(pending)) return;
+
+        const remaining = [];
+
+        for (const item of pending) {
+          try {
+            const response =
+              await fetch(
+                "/api/leads",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type":
+                      "application/json",
+                  },
+                  body:
+                    JSON.stringify(
+                      item,
+                    ),
+                },
+              );
+
+            if (!response.ok) {
+              remaining.push(item);
+            }
+          } catch {
+            remaining.push(item);
+          }
+        }
+
+        if (remaining.length) {
+          window.localStorage.setItem(
+            PENDING_LEADS_KEY,
+            JSON.stringify(
+              remaining,
+            ),
+          );
+        } else {
+          window.localStorage.removeItem(
+            PENDING_LEADS_KEY,
+          );
+        }
+      } catch {
+        // Never block the page.
+      }
+    }
+
+    void loadRuntime();
+    void syncPendingLeads();
 
     if (
       nextMode === "full" ||
@@ -141,6 +251,22 @@ export default function OrderEntryGate({
         await response.json();
 
       if (!response.ok) {
+        if (
+          data?.code ===
+          "LEAD_CAPTURE_DISABLED"
+        ) {
+          setError(
+            data?.error ||
+              "استقبال بيانات التواصل متوقف مؤقتًا.",
+          );
+          setLocalFallback(true);
+          return {
+            name: name.trim(),
+            phone:
+              normalizedPhone,
+          };
+        }
+
         throw new Error(
           data?.error ||
             "تعذر إرسال الطلب.",
@@ -163,11 +289,64 @@ export default function OrderEntryGate({
 
       return draft;
     } catch (err: any) {
-      setError(
-        err?.message ||
-          "تعذر إرسال الطلب.",
+      const fallbackPayload = {
+        name: name.trim(),
+        phone:
+          normalizedPhone,
+        currentStep: 1,
+        consentToFollowUp:
+          true,
+        payload: {
+          requestType,
+          entryPoint:
+            "ORDER_GATE_LOCAL_FALLBACK",
+          capturedAt:
+            new Date().toISOString(),
+        },
+      };
+
+      try {
+        const raw =
+          window.localStorage.getItem(
+            PENDING_LEADS_KEY,
+          );
+        const pending = raw
+          ? JSON.parse(raw)
+          : [];
+        const list =
+          Array.isArray(pending)
+            ? pending
+            : [];
+
+        list.push(
+          fallbackPayload,
+        );
+
+        window.localStorage.setItem(
+          PENDING_LEADS_KEY,
+          JSON.stringify(
+            list.slice(-20),
+          ),
+        );
+      } catch {}
+
+      const draft: ContactDraft = {
+        name: name.trim(),
+        phone:
+          normalizedPhone,
+      };
+
+      window.sessionStorage.setItem(
+        CONTACT_STORAGE_KEY,
+        JSON.stringify(draft),
       );
-      return null;
+
+      setLocalFallback(true);
+      setError(
+        "تعذر الحفظ على السيرفر مؤقتًا. احتفظنا ببياناتك على الجهاز ويمكنك التواصل معنا مباشرة.",
+      );
+
+      return draft;
     } finally {
       setSaving(false);
     }
@@ -184,6 +363,17 @@ export default function OrderEntryGate({
   }
 
   async function startDetailed() {
+    if (
+      runtime.mode !== "NORMAL" ||
+      !runtime.detailedOrders
+    ) {
+      setChoice("quick");
+      setError(
+        runtime.maintenanceMessage,
+      );
+      return;
+    }
+
     const draft =
       await capture(
         "DETAILED_ENTRY",
@@ -210,7 +400,11 @@ export default function OrderEntryGate({
     );
   }
 
-  if (mode === "full") {
+  if (
+    mode === "full" &&
+    runtime.mode === "NORMAL" &&
+    runtime.detailedOrders
+  ) {
     return <>{children}</>;
   }
 
@@ -260,12 +454,9 @@ export default function OrderEntryGate({
               lineHeight: 1.9,
             }}
           >
-            سجلنا اسمك ورقم
-            الموبايل فقط، وفريق
-            Ventic Pro هيتواصل
-            معاك عشان يعرف
-            التفاصيل ويحدد
-            الخدمة المناسبة.
+            {localFallback
+              ? "حفظنا بياناتك مؤقتًا على جهازك لأن السيرفر غير متاح. تواصل معنا مباشرة الآن لضمان وصول طلبك."
+              : runtime.leadSuccessMessage}
           </p>
 
           <button
@@ -286,6 +477,23 @@ export default function OrderEntryGate({
             أحب أضيف التفاصيل
             بنفسي
           </button>
+
+          <a
+            href={`https://wa.me/${runtime.fallbackWhatsapp}?text=${encodeURIComponent(
+              `مرحبًا Ventic Pro، اسمي ${name.trim()} ورقمي ${normalizedPhone} وأريد طلب خدمة.`,
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            className="button full"
+            style={{
+              display: "block",
+              marginTop: 12,
+              textDecoration: "none",
+              textAlign: "center",
+            }}
+          >
+            تواصل واتساب مباشرة
+          </a>
 
           <a
             href="/"

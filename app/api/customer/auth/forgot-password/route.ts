@@ -1,6 +1,7 @@
 import { NotificationChannel } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   normalizeCustomerPhone,
   validEgyptMobile,
@@ -25,6 +26,21 @@ const GENERIC_MESSAGE =
 
 export async function POST(req: Request) {
   try {
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (!control.customerAccounts) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "استعادة حساب العميل متوقفة مؤقتًا.",
+        },
+        { status: 503 },
+      );
+    }
+
     const limited =
       await durableRateLimit(
       `password-forgot:${clientIp(req)}`,
@@ -58,6 +74,34 @@ export async function POST(req: Request) {
       "EMAIL"
         ? "EMAIL"
         : "PHONE";
+
+    if (
+      deliveryMethod === "PHONE" &&
+      !control.phoneOtp
+    ) {
+      return NextResponse.json(
+        {
+          code: "CHANNEL_DISABLED",
+          error:
+            "التحقق على الموبايل غير مُفعّل حاليًا.",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (
+      deliveryMethod === "EMAIL" &&
+      !control.emailOtpRecovery
+    ) {
+      return NextResponse.json(
+        {
+          code: "CHANNEL_DISABLED",
+          error:
+            "استعادة الحساب عبر الإيميل غير مُفعلة حاليًا.",
+        },
+        { status: 503 },
+      );
+    }
 
     if (!validEgyptMobile(phone)) {
       return NextResponse.json({
@@ -101,12 +145,30 @@ export async function POST(req: Request) {
     // created by an earlier order and do not have a password yet.
     if (
       !customer ||
-      !customer.active
+      !customer.active ||
+      Boolean(
+        customer.archivedAt,
+      )
     ) {
       return NextResponse.json({
         ok: true,
         message: GENERIC_MESSAGE,
       });
+    }
+
+    if (
+      !customer.passwordHash &&
+      deliveryMethod === "EMAIL"
+    ) {
+      return NextResponse.json(
+        {
+          code:
+            "FIRST_ACTIVATION_PHONE_REQUIRED",
+          error:
+            "أول تفعيل للحساب يتطلب تحقق على رقم الموبايل.",
+        },
+        { status: 409 },
+      );
     }
 
     const recent =

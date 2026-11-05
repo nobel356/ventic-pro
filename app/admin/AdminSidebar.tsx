@@ -29,6 +29,12 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/admin", label: "الرئيسية", icon: "⌂" },
   {
+    href: "/admin/control-center",
+    label: "Control Center",
+    icon: "🎛️",
+    superAdminOnly: true,
+  },
+  {
     href: "/admin/growth-dashboard",
     label: "Growth Dashboard",
     icon: "🚀",

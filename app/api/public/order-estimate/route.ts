@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import { prisma } from "@/lib/prisma";
 import { calculateOrderOffer } from "@/lib/promotions";
 import {
@@ -18,6 +19,23 @@ const fallbackPrices: Record<string, number> = {
 };
 
 export async function POST(req: Request) {
+  const {
+    control,
+  } = await getRuntimeControl();
+
+  if (
+    control.mode !== "NORMAL" ||
+    !control.estimates
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "التسعير التقديري متوقف مؤقتًا.",
+      },
+      { status: 503 },
+    );
+  }
+
   const limited =
     await durableRateLimit(
       `public-order-estimate:${clientIp(req)}`,

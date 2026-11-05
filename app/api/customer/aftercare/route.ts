@@ -1,10 +1,25 @@
 import { AdminNotificationType } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import { prisma } from "@/lib/prisma";
 import { currentCustomer } from "@/lib/customer-auth";
 import { notifyAdmins } from "@/lib/admin-notifications";
 
 export async function GET() {
+  const {
+    control,
+  } = await getRuntimeControl();
+
+  if (!control.aftercare) {
+    return NextResponse.json(
+      {
+        error:
+          "خدمات ما بعد البيع متوقفة مؤقتًا.",
+      },
+      { status: 503 },
+    );
+  }
+
   const customer = await currentCustomer();
 
   if (!customer) {

@@ -1,5 +1,6 @@
 import { NotificationChannel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   deliverCustomerMessage,
 } from "@/lib/customer-messaging";
@@ -97,6 +98,24 @@ export async function notifyCustomer(input: {
   templateVariables?: string[];
   payload?: Record<string, unknown>;
 }) {
+  const {
+    control,
+  } = await getRuntimeControl();
+
+  if (!control.notifications) {
+    safeDiagnostic(
+      "NOTIFICATIONS_RUNTIME_DISABLED",
+      {
+        channel: "CUSTOMER",
+        customerId:
+          input.customerId,
+        templateKey:
+          input.templateKey,
+      },
+    );
+    return;
+  }
+
   safeDiagnostic(
     "notification.customer.start",
     {

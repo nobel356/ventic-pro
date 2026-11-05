@@ -13,9 +13,41 @@ import {
   rateLimitHeaders,
 } from "@/lib/request-security";
 import { notifyCustomer } from "@/lib/customer-notifications";
+import { getRuntimeControl } from "@/lib/runtime-control";
 
 export async function POST(req: Request) {
   try {
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (
+      !control.customerAccounts ||
+      !control.accountRegistration
+    ) {
+      return NextResponse.json(
+        {
+          code:
+            "ACCOUNT_REGISTRATION_DISABLED",
+          error:
+            "إنشاء حسابات جديدة متوقف مؤقتًا. يمكنك تسجيل اسمك ورقمك وسيقوم فريق Ventic Pro بالتواصل معك.",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (!control.phoneOtp) {
+      return NextResponse.json(
+        {
+          code:
+            "PHONE_VERIFICATION_REQUIRED",
+          error:
+            "تفعيل الحسابات الجديدة متوقف لحين تشغيل التحقق على رقم الموبايل.",
+        },
+        { status: 503 },
+      );
+    }
+
     const limited = rateLimit(
       `customer-register:${clientIp(req)}`,
       {
@@ -89,7 +121,12 @@ export async function POST(req: Request) {
 
     if (
       customer &&
-      !customer.active
+      (
+        !customer.active ||
+        Boolean(
+          customer.archivedAt,
+        )
+      )
     ) {
       return NextResponse.json(
         {
@@ -130,95 +167,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const passwordHash =
-      hashPassword(password);
-
-    if (customer) {
-      customer =
-        await prisma.customer.update({
-          where: {
-            id: customer.id,
-          },
-          data: {
-            name,
-            email,
-            passwordHash,
-            active: true,
-          },
-        });
-    } else {
-      customer =
-        await prisma.customer.create({
-          data: {
-            name,
-            phone,
-            email,
-            passwordHash,
-            active: true,
-          },
-        });
-    }
-
-    const session =
-      await createCustomerSession(
-        customer.id,
-      );
-
-    await prisma.auditLog.create({
-      data: {
-        actorLabel: `العميل: ${customer.name}`,
-        action:
-          "CUSTOMER_ACCOUNT_CREATED",
-        newValue: {
-          customerId:
-            customer.id,
-          phoneMasked: `${phone.slice(
-            0,
-            3,
-          )}******${phone.slice(-2)}`,
-        },
-      },
-    });
-
-    await notifyCustomer({
-      customerId: customer.id,
-      phone: customer.phone,
-      email: customer.email,
-      templateKey: "CUSTOMER_ACCOUNT_CREATED",
-      subject: "تم إنشاء حسابك في Ventic Pro",
-      message:
-        `مرحبًا ${customer.name}\nتم إنشاء حسابك في Ventic Pro بنجاح. ` +
-        "يمكنك من حسابك متابعة الطلبات والفواتير والضمان والصيانة والتقييمات.",
-      payload: {
-        accountCreated: true,
-      },
-    });
-
-    const response =
-      NextResponse.json({
-        ok: true,
-        customer: {
-          id: customer.id,
-          name: customer.name,
-        },
-      });
-
-    response.cookies.set(
-      CUSTOMER_SESSION_COOKIE,
-      session.raw,
+    return NextResponse.json(
       {
-        httpOnly: true,
-        sameSite: "lax",
-        secure:
-          process.env.NODE_ENV ===
-          "production",
-        path: "/",
-        maxAge:
-          60 * 60 * 24 * 30,
+        code:
+          "DIRECT_REGISTRATION_BLOCKED",
+        error:
+          "تفعيل الحساب الجديد يتطلب كود تحقق على رقم الموبايل. استخدم مسار التفعيل بعد ربط مزود الرسائل.",
       },
+      { status: 409 },
     );
-
-    return response;
   } catch (error: any) {
     return NextResponse.json(
       {

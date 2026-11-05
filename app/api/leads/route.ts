@@ -3,9 +3,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   clientIp,
-  rateLimit,
+  durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
 
@@ -73,13 +74,35 @@ async function notifyLeadStarted(input: {
 
 export async function POST(req: Request) {
   try {
-    const limited = rateLimit(
-      `public-lead:${clientIp(req)}`,
-      {
-        limit: 60,
-        windowMs: 60 * 60 * 1000,
-      },
-    );
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (!control.leadCapture) {
+      return NextResponse.json(
+        {
+          code:
+            "LEAD_CAPTURE_DISABLED",
+          error:
+            "استقبال بيانات التواصل متوقف مؤقتًا.",
+          fallbackWhatsapp:
+            control.fallbackWhatsapp,
+          supportPhone:
+            control.supportPhone,
+        },
+        { status: 503 },
+      );
+    }
+
+    const limited =
+      await durableRateLimit(
+        `public-lead:${clientIp(req)}`,
+        {
+          limit: 60,
+          windowMs:
+            60 * 60 * 1000,
+        },
+      );
 
     if (!limited.allowed) {
       return NextResponse.json(
@@ -102,10 +125,14 @@ export async function POST(req: Request) {
 
     const name = clean(body?.name) || null;
 
-    const source = acquisitionSourceFromRequest(
-      req,
-      body?.source,
-    );
+    const source =
+      control.marketingTracking
+        ? acquisitionSourceFromRequest(
+            req,
+            body?.source,
+          )
+        : clean(body?.source) ||
+          null;
 
     const currentStep = Math.min(
       4,
@@ -194,15 +221,24 @@ export async function POST(req: Request) {
           data,
         });
 
-        await notifyLeadStarted({
-          leadId: replacement.id,
-          requestType,
-          intent,
-          name,
-          phone,
-          source,
-          currentStep,
-        });
+        if (control.notifications) {
+          try {
+            await notifyLeadStarted({
+              leadId: replacement.id,
+              requestType,
+              intent,
+              name,
+              phone,
+              source,
+              currentStep,
+            });
+          } catch (error) {
+            console.error(
+              "LEAD_NOTIFICATION_FAILED",
+              error,
+            );
+          }
+        }
 
         return NextResponse.json(
           {

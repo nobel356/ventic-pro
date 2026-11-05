@@ -1,5 +1,6 @@
 import { AdminNotificationType, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   safeDiagnostic,
   safeDiagnosticError,
@@ -23,6 +24,21 @@ type NotifyAdminsInput = {
 
 export async function notifyAdmins(input: NotifyAdminsInput) {
   try {
+    const {
+      control,
+    } = await getRuntimeControl();
+
+    if (!control.notifications) {
+      safeDiagnostic(
+        "NOTIFICATIONS_RUNTIME_DISABLED",
+        {
+          channel: "ADMIN",
+          type: input.type,
+        },
+      );
+      return;
+    }
+
     const recipients = await prisma.user.findMany({
       where: {
         active: true,
