@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { safeDiagnosticError } from "@/lib/safe-diagnostics";
 
 export const revalidate = 300;
 
@@ -47,29 +48,37 @@ const faq = [
 ];
 
 export default async function Home() {
-  const reviews = await prisma.review.findMany({
-    where: {
-      isPublished: true,
-      publicConsent: true,
-      overall: { gte: 4 },
-      comment: { not: null },
-    },
-    include: {
-      order: {
-        select: {
-          customer: {
-            select: { name: true },
+  const reviews = await prisma.review
+    .findMany({
+      where: {
+        isPublished: true,
+        publicConsent: true,
+        overall: { gte: 4 },
+        comment: { not: null },
+      },
+      include: {
+        order: {
+          select: {
+            customer: {
+              select: { name: true },
+            },
           },
         },
       },
-    },
-    orderBy: [
-      { overall: "desc" },
-      { publishedAt: "desc" },
-      { createdAt: "desc" },
-    ],
-    take: 6,
-  });
+      orderBy: [
+        { overall: "desc" },
+        { publishedAt: "desc" },
+        { createdAt: "desc" },
+      ],
+      take: 6,
+    })
+    .catch((error) => {
+      safeDiagnosticError(
+        "home.public_reviews",
+        error,
+      );
+      return [];
+    });
 
   const avg =
     reviews.length > 0
