@@ -3,3 +3,8 @@ V20*.patch
 APPLY-V20*.cmd
 README-V20*.txt
 APPLY-V20R.ps1
+node_modules/
+.next/
+*.tsbuildinfo
+V20*.mjs
+APPLY-V20*.ps1

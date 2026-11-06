@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/security-upload-integrity-check.mjs && node scripts/security-idempotency-check.mjs && node scripts/security-operational-journey-check.mjs && node scripts/security-customer-journey-check.mjs && node scripts/security-resilience-check.mjs && node scripts/security-lead-capture-check.mjs && node scripts/security-routing-hard-lock-check.mjs && node scripts/security-server-hard-lock-check.mjs && node scripts/security-runtime-control-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
+    "build": "node scripts/security-v20z-cleanup-check.mjs && node scripts/security-upload-integrity-check.mjs && node scripts/security-idempotency-check.mjs && node scripts/security-operational-journey-check.mjs && node scripts/security-customer-journey-check.mjs && node scripts/security-resilience-check.mjs && node scripts/security-lead-capture-check.mjs && node scripts/security-routing-hard-lock-check.mjs && node scripts/security-server-hard-lock-check.mjs && node scripts/security-runtime-control-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs && prisma generate && node scripts/production-migrate.mjs && next build",
     "start": "next start",
     "create-user": "node scripts/create-user.mjs",
     "db:generate": "prisma generate",
@@ -16,7 +16,7 @@
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run build",
-    "security:check": "node scripts/security-upload-integrity-check.mjs && node scripts/security-idempotency-check.mjs && node scripts/security-check.mjs && node scripts/security-operational-journey-check.mjs && node scripts/security-customer-journey-check.mjs && node scripts/security-resilience-check.mjs && node scripts/security-lead-capture-check.mjs && node scripts/security-routing-hard-lock-check.mjs && node scripts/security-server-hard-lock-check.mjs && node scripts/security-runtime-control-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
+    "security:check": "node scripts/security-v20z-cleanup-check.mjs && node scripts/security-upload-integrity-check.mjs && node scripts/security-idempotency-check.mjs && node scripts/security-check.mjs && node scripts/security-operational-journey-check.mjs && node scripts/security-customer-journey-check.mjs && node scripts/security-resilience-check.mjs && node scripts/security-lead-capture-check.mjs && node scripts/security-routing-hard-lock-check.mjs && node scripts/security-server-hard-lock-check.mjs && node scripts/security-runtime-control-check.mjs && node scripts/security-archive-vault-check.mjs && node scripts/security-execution-integrity-check.mjs && node scripts/security-technician-auth-check.mjs && node scripts/security-abuse-protection-check.mjs && node scripts/security-dual-otp-check.mjs && node scripts/security-customer-claim-check.mjs && node scripts/security-route-guard.mjs",
     "security:routes": "node scripts/security-route-guard.mjs",
     "integrations:check": "node scripts/integrations-check.mjs",
     "db:migrate:production": "node scripts/production-migrate.mjs",
@@ -34,7 +34,8 @@
     "security:customer-journey": "node scripts/security-customer-journey-check.mjs",
     "security:operational-journey": "node scripts/security-operational-journey-check.mjs",
     "security:idempotency": "node scripts/security-idempotency-check.mjs",
-    "security:upload-integrity": "node scripts/security-upload-integrity-check.mjs"
+    "security:upload-integrity": "node scripts/security-upload-integrity-check.mjs",
+    "security:v20z-cleanup": "node scripts/security-v20z-cleanup-check.mjs"
   },
   "dependencies": {
     "next": "15.5.26",

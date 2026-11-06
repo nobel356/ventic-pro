@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { currentUser } from "@/lib/auth-v7";
 import EmailTestPanel from "./EmailTestPanel";
+import QaSuitePanel from "./QaSuitePanel";
 
 function configured(
   value: string | undefined,
@@ -451,6 +452,8 @@ export default async function SystemHealthPage() {
           ),
         )}
       </div>
+
+      <QaSuitePanel />
 
       <EmailTestPanel />
 
