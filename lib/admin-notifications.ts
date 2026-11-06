@@ -107,6 +107,7 @@ export async function notifyAdmins(input: NotifyAdminsInput) {
         href: input.href,
         dedupeKey: input.dedupeKey,
       })),
+      skipDuplicates: true,
     });
 
     safeDiagnostic(

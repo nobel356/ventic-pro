@@ -858,7 +858,7 @@ model AdminNotification {
   readAt      DateTime?
   createdAt   DateTime              @default(now())
 
-  @@index([recipientId, dedupeKey])
+  @@unique([recipientId, dedupeKey])
   @@index([recipientId, isRead, createdAt])
   @@index([orderId])
 }
