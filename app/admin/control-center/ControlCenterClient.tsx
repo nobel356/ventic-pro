@@ -81,6 +81,19 @@ export default function ControlCenterClient() {
     useState("");
   const [degraded, setDegraded] =
     useState(false);
+  const [leadHealthRunning, setLeadHealthRunning] =
+    useState(false);
+  const [leadHealth, setLeadHealth] =
+    useState<{
+      ok: boolean;
+      write?: boolean;
+      read?: boolean;
+      adminVisible?: boolean;
+      cleanup?: boolean;
+      legacyQuickContactAlias?: string;
+      durationMs?: number;
+      error?: string;
+    } | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/runtime-controls", {
@@ -192,6 +205,50 @@ export default function ControlCenterClient() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runLeadHealth() {
+    if (leadHealthRunning) {
+      return;
+    }
+
+    setLeadHealthRunning(true);
+    setLeadHealth(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/admin/lead-health",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+          },
+        );
+
+      const data =
+        await response.json();
+
+      setLeadHealth(data);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "فشل اختبار Lead Capture",
+        );
+      }
+    } catch (error: any) {
+      setLeadHealth({
+        ok: false,
+        error:
+          error?.message ||
+          "فشل اختبار Lead Capture",
+      });
+    } finally {
+      setLeadHealthRunning(false);
     }
   }
 
@@ -332,6 +389,95 @@ export default function ControlCenterClient() {
           fallback لاستقبال العميل.
         </div>
       ) : null}
+
+      <section style={card}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent:
+              "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={sectionTitle}>
+              Lead Capture Health
+            </h2>
+            <div
+              style={{
+                color: "#64748b",
+                fontSize: 13,
+                lineHeight: 1.7,
+              }}
+            >
+              اختبار آمن: كتابة Lead تجريبي في قاعدة البيانات، قراءته، التأكد أنه يطابق شروط لوحة Leads، ثم حذفه فورًا.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runLeadHealth()
+            }
+            disabled={
+              leadHealthRunning
+            }
+            style={{
+              border: 0,
+              borderRadius: 12,
+              padding:
+                "11px 16px",
+              background:
+                "#0b2f49",
+              color: "white",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            {leadHealthRunning
+              ? "جاري الاختبار..."
+              : "اختبار Lead Capture"}
+          </button>
+        </div>
+
+        {leadHealth ? (
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 12,
+              border: leadHealth.ok
+                ? "1px solid #86efac"
+                : "1px solid #fca5a5",
+              background:
+                leadHealth.ok
+                  ? "#f0fdf4"
+                  : "#fef2f2",
+              color:
+                leadHealth.ok
+                  ? "#166534"
+                  : "#991b1b",
+              lineHeight: 1.8,
+              fontWeight: 800,
+            }}
+          >
+            {leadHealth.ok ? (
+              <>
+                PASS ✓ — DB Write ✓ / Read ✓ / Admin Visibility ✓ / Cleanup ✓ / Legacy QUICK_CONTACT → {leadHealth.legacyQuickContactAlias} ✓
+                {typeof leadHealth.durationMs === "number"
+                  ? ` — ${leadHealth.durationMs} ms`
+                  : ""}
+              </>
+            ) : (
+              <>
+                FAIL — {leadHealth.error || "Unknown error"}
+              </>
+            )}
+          </div>
+        ) : null}
+      </section>
 
       <section style={card}>
         <h2 style={sectionTitle}>

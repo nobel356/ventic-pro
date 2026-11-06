@@ -271,7 +271,7 @@ export default function RuntimeSiteGate({
       source: "RUNTIME_FALLBACK",
       payload: {
         requestType:
-          "QUICK_CONTACT",
+          "QUICK_REQUEST",
         intent:
           runtime?.mode ===
           "MAINTENANCE"

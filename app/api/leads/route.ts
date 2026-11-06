@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
 import { getRuntimeControl } from "@/lib/runtime-control";
+import { leadRequestTypeFromPayload } from "@/lib/lead-capture";
 import {
   clientIp,
   durableRateLimit,
@@ -12,17 +13,6 @@ import {
 
 function clean(value: unknown) {
   return String(value || "").trim();
-}
-
-function requestTypeFromPayload(
-  payload: Record<string, unknown>,
-) {
-  const value = clean(payload?.requestType);
-
-  return value === "QUICK_REQUEST" ||
-    value === "DETAILED_ENTRY"
-    ? value
-    : "";
 }
 
 async function notifyLeadStarted(input: {
@@ -154,7 +144,7 @@ export async function POST(req: Request) {
         : {};
 
     const requestType =
-      requestTypeFromPayload(payload);
+      leadRequestTypeFromPayload(payload);
 
     const intent = clean(payload?.intent);
 
