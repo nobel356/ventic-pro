@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -83,6 +84,11 @@ export default function Order() {
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [created, setCreated] = useState("");
   const [saving, setSaving] = useState(false);
+  const idempotencyRef =
+    useRef<{
+      key: string;
+      payload: string;
+    } | null>(null);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [photoGroups, setPhotoGroups] = useState<Record<string, File[]>>({});
   const [photoUploadMessage, setPhotoUploadMessage] = useState("");
@@ -960,30 +966,73 @@ export default function Order() {
               <button
                 className="button"
                 disabled={
+                  saving ||
                   !legalAccepted ||
                   !customer.name.trim() ||
                   !/^01\d{9}$/.test(customer.phone.replace(/\D/g, "")) ||
                   Boolean(created)
                 }
                 onClick={async () => {
+                  if (saving) return;
+
                   setSaving(true);
+
+                  const orderPayload = {
+                    customer,
+                    baths,
+                    kitchens,
+                    couponCode:
+                      couponCode ||
+                      null,
+                    source:
+                      source ||
+                      null,
+                    leadId:
+                      leadId ||
+                      null,
+                    legalAccepted,
+                    policyVersion:
+                      "2026-10-07",
+                  };
+                  const payloadJson =
+                    JSON.stringify(
+                      orderPayload,
+                    );
+
+                  if (
+                    !idempotencyRef.current ||
+                    idempotencyRef.current
+                      .payload !==
+                      payloadJson
+                  ) {
+                    const key =
+                      typeof crypto !==
+                        "undefined" &&
+                      "randomUUID" in
+                        crypto
+                        ? crypto.randomUUID()
+                        : `vp-${Date.now()}-${Math.random()
+                            .toString(36)
+                            .slice(2)}`;
+
+                    idempotencyRef.current =
+                      {
+                        key,
+                        payload:
+                          payloadJson,
+                      };
+                  }
 
                   try {
                     const response = await fetch("/api/orders", {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
+                        "Idempotency-Key":
+                          idempotencyRef.current.key,
                       },
-                      body: JSON.stringify({
-                        customer,
-                        baths,
-                        kitchens,
-                        couponCode: couponCode || null,
-                        source: source || null,
-                        leadId: leadId || null,
-                        legalAccepted,
-                        policyVersion: "2026-10-07",
-                      }),
+                      body:
+                        payloadJson,
                     });
                     const data = await response.json();
 

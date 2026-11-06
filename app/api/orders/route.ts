@@ -18,6 +18,12 @@ import {
   durableRateLimit,
   rateLimitHeaders,
 } from "@/lib/request-security";
+import {
+  claimIdempotency,
+  failIdempotency,
+  hashIdempotencyPayload,
+  normalizeIdempotencyKey,
+} from "@/lib/request-idempotency";
 
 const bp: Record<string, number> = {
   new: 350,
@@ -30,6 +36,10 @@ function clean(value: unknown) {
 }
 
 export async function POST(req: Request) {
+  let idempotencyClaimId:
+    | string
+    | null = null;
+
   try {
     const {
       control,
@@ -77,6 +87,40 @@ export async function POST(req: Request) {
     }
 
     const b = await req.json();
+
+    const rawIdempotencyKey =
+      req.headers.get(
+        "idempotency-key",
+      );
+    const idempotencyKey =
+      rawIdempotencyKey
+        ? normalizeIdempotencyKey(
+            rawIdempotencyKey,
+          )
+        : null;
+
+    if (
+      rawIdempotencyKey &&
+      !idempotencyKey
+    ) {
+      return NextResponse.json(
+        {
+          code:
+            "INVALID_IDEMPOTENCY_KEY",
+          error:
+            "تعذر تأكيد محاولة إنشاء الطلب. أعد تحميل الصفحة وحاول مرة أخرى.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const requestHash =
+      idempotencyKey
+        ? hashIdempotencyPayload(
+            b,
+          )
+        : null;
+
     const c = b.customer || {};
     const customerName = clean(c.name);
     const customerPhone = clean(c.phone).replace(/\D/g, "");
@@ -172,52 +216,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const customer =
-      existingCustomer ||
-      (await prisma.customer.create({
-        data: {
-          name: customerName,
-          phone: customerPhone,
-          email,
-        },
-      }));
-
-    const governorate = clean(c.governorate) || "غير محدد";
-    const area = clean(c.area) || "غير محدد";
-    const address = clean(c.address) || "غير محدد";
-
-    let property = await prisma.property.findFirst({
-      where: {
-        customerId: customer.id,
-        governorate,
-        area,
-        address,
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    if (!property) {
-      const propertyCount = await prisma.property.count({
-        where: { customerId: customer.id },
-      });
-
-      property = await prisma.property.create({
-        data: {
-          customerId: customer.id,
-          label:
-            clean(c.propertyLabel) ||
-            (propertyCount === 0
-              ? "العنوان الرئيسي"
-              : `عقار ${propertyCount + 1}`),
-          governorate,
-          area,
-          address,
-          building: clean(c.building) || null,
-          floor: clean(c.floor) || null,
-          apartment: clean(c.apartment) || null,
-        },
-      });
-    }
+    const governorate =
+      clean(c.governorate) ||
+      "غير محدد";
+    const area =
+      clean(c.area) ||
+      "غير محدد";
+    const address =
+      clean(c.address) ||
+      "غير محدد";
 
     const spaces: any[] = [];
     const serviceCodes: string[] = [];
@@ -352,11 +359,174 @@ export async function POST(req: Request) {
       Math.round((Number(offer.total) - referralDiscount) * 100) / 100,
     );
 
+    if (
+      idempotencyKey &&
+      requestHash
+    ) {
+      const claim =
+        await claimIdempotency({
+          scope:
+            "PUBLIC_ORDER",
+          key:
+            idempotencyKey,
+          requestHash,
+        });
+
+      if (
+        claim.kind ===
+        "CONFLICT"
+      ) {
+        return NextResponse.json(
+          {
+            code:
+              "IDEMPOTENCY_CONFLICT",
+            error:
+              "تم استخدام محاولة الإرسال الحالية مع بيانات مختلفة. أعد المحاولة من النموذج.",
+          },
+          { status: 409 },
+        );
+      }
+
+      if (
+        claim.kind ===
+        "IN_PROGRESS"
+      ) {
+        return NextResponse.json(
+          {
+            code:
+              "IDEMPOTENCY_IN_PROGRESS",
+            error:
+              "الطلب قيد الحفظ بالفعل. حاول مرة أخرى بعد لحظات.",
+            retryAfterSeconds: 1,
+          },
+          {
+            status: 409,
+            headers: {
+              "Retry-After":
+                "1",
+            },
+          },
+        );
+      }
+
+      if (
+        claim.kind ===
+        "REPLAY"
+      ) {
+        const replay =
+          claim.response as {
+            orderId: string;
+            orderNo: string;
+            estimatedTotal: number;
+            referralApplied:
+              | string
+              | null;
+            referralDiscount: number;
+          };
+
+        return NextResponse.json({
+          ...replay,
+          uploadToken:
+            createOrderUploadToken(
+              replay.orderId,
+            ),
+          idempotentReplay:
+            true,
+        });
+      }
+
+      idempotencyClaimId =
+        claim.id;
+    }
+
     const orderNo = `VP-${new Date().getFullYear()}-${Date.now()
       .toString()
       .slice(-7)}`;
 
     const result = await prisma.$transaction(async (tx) => {
+      const customer =
+        await tx.customer.upsert({
+          where: {
+            phone:
+              customerPhone,
+          },
+          update: {},
+          create: {
+            name:
+              customerName,
+            phone:
+              customerPhone,
+            email,
+          },
+        });
+
+      if (
+        customer.archivedAt
+      ) {
+        throw new Error(
+          "CUSTOMER_ARCHIVED",
+        );
+      }
+
+      let property =
+        await tx.property.findFirst({
+          where: {
+            customerId:
+              customer.id,
+            governorate,
+            area,
+            address,
+          },
+          orderBy: {
+            createdAt:
+              "asc",
+          },
+        });
+
+      if (!property) {
+        const propertyCount =
+          await tx.property.count({
+            where: {
+              customerId:
+                customer.id,
+            },
+          });
+
+        property =
+          await tx.property.create({
+            data: {
+              customerId:
+                customer.id,
+              label:
+                clean(
+                  c.propertyLabel,
+                ) ||
+                (propertyCount ===
+                0
+                  ? "العنوان الرئيسي"
+                  : `عقار ${propertyCount + 1}`),
+              governorate,
+              area,
+              address,
+              building:
+                clean(
+                  c.building,
+                ) ||
+                null,
+              floor:
+                clean(
+                  c.floor,
+                ) ||
+                null,
+              apartment:
+                clean(
+                  c.apartment,
+                ) ||
+                null,
+            },
+          });
+      }
+
       const order = await tx.order.create({
         data: {
           orderNo,
@@ -453,8 +623,58 @@ export async function POST(req: Request) {
         },
       });
 
-      return order;
+      const responsePayload = {
+        orderId:
+          order.id,
+        orderNo:
+          order.orderNo,
+        estimatedTotal:
+          Number(
+            order.estimatedTotal ||
+              0,
+          ),
+        referralApplied:
+          referral?.code ||
+          null,
+        referralDiscount,
+      };
+
+      if (
+        idempotencyClaimId
+      ) {
+        await tx.idempotencyRequest.update({
+          where: {
+            id:
+              idempotencyClaimId,
+          },
+          data: {
+            status:
+              "COMPLETED",
+            resourceId:
+              order.id,
+            response:
+              responsePayload,
+            expiresAt:
+              new Date(
+                Date.now() +
+                  24 *
+                    60 *
+                    60 *
+                    1000,
+              ),
+          },
+        });
+      }
+
+      return {
+        ...order,
+        customer,
+        responsePayload,
+      };
     });
+
+    const customer =
+      result.customer;
 
     await notifyAdmins({
       type: AdminNotificationType.NEW_ORDER,
@@ -462,6 +682,8 @@ export async function POST(req: Request) {
       message: `${result.orderNo} — ${customer.name}${area ? ` — ${area}` : ""}`,
       orderId: result.id,
       href: `/admin/orders/${result.id}`,
+      dedupeKey:
+        `new-order:${result.id}`,
     });
 
     await notifyCustomer({
@@ -490,15 +712,38 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
-      orderId: result.id,
-      orderNo: result.orderNo,
-      estimatedTotal: Number(result.estimatedTotal || 0),
-      referralApplied: referral?.code || null,
-      referralDiscount,
-      uploadToken: createOrderUploadToken(result.id),
+      ...result.responsePayload,
+      uploadToken:
+        createOrderUploadToken(
+          result.id,
+        ),
+      idempotentReplay:
+        false,
     });
   } catch (error) {
+    if (
+      idempotencyClaimId
+    ) {
+      await failIdempotency(
+        idempotencyClaimId,
+      );
+    }
+
     console.error(error);
+
+    if (
+      error instanceof Error &&
+      error.message ===
+        "CUSTOMER_ARCHIVED"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "هذا الرقم مرتبط بسجل مؤرشف. تواصل مع Ventic Pro.",
+        },
+        { status: 409 },
+      );
+    }
 
     return NextResponse.json(
       { error: "تعذر إنشاء الطلب" },

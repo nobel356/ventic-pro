@@ -359,6 +359,22 @@ model SecurityRateLimit {
   @@index([resetAt])
 }
 
+model IdempotencyRequest {
+  id          String   @id @default(cuid())
+  scope       String
+  key         String
+  requestHash String
+  status      String   @default("PROCESSING")
+  resourceId  String?
+  response    Json?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([scope, key])
+  @@index([expiresAt])
+}
+
 enum PaymentMethod {
   CASH
   CARD
