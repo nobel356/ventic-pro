@@ -15,6 +15,7 @@ export type ConversionEvent =
   | "order_submitted"
   | "callback_intent"
   | "callback_submitted"
+  | "lead_submitted"
   | "whatsapp_click"
   | "calculator_view"
   | "calculator_estimate"
@@ -78,6 +79,8 @@ function tiktokEventFor(
   if (
     event ===
       "callback_submitted" ||
+    event ===
+      "lead_submitted" ||
     event ===
       "order_submitted"
   ) {

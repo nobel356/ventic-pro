@@ -7,6 +7,9 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import {
+  trackConversion,
+} from "@/lib/client-conversion";
 
 type ContactDraft = {
   name: string;
@@ -287,6 +290,15 @@ export default function OrderEntryGate({
         JSON.stringify(draft),
       );
 
+      trackConversion(
+        "lead_submitted",
+        {
+          source:
+            "order_gate",
+          requestType,
+        },
+      );
+
       return draft;
     } catch (err: any) {
       const fallbackPayload = {
@@ -484,6 +496,15 @@ export default function OrderEntryGate({
             )}`}
             target="_blank"
             rel="noreferrer"
+            onClick={() =>
+              trackConversion(
+                "whatsapp_click",
+                {
+                  source:
+                    "order_gate",
+                },
+              )
+            }
             className="button full"
             style={{
               display: "block",

@@ -25,6 +25,16 @@ const order =
     "app/order/page.tsx",
     "utf8",
   );
+const orderGate =
+  fs.readFileSync(
+    "app/order/OrderEntryGate.tsx",
+    "utf8",
+  );
+const runtimeGate =
+  fs.readFileSync(
+    "app/shared/RuntimeSiteGate.tsx",
+    "utf8",
+  );
 
 const checks = [
   [
@@ -85,6 +95,27 @@ const checks = [
     "lead and order funnel events",
   ],
   [
+    conversion.includes(
+      '"lead_submitted"',
+    ) &&
+      orderGate.includes(
+        '"lead_submitted"',
+      ) &&
+      runtimeGate.includes(
+        '"lead_submitted"',
+      ),
+    "all lead capture paths tracked",
+  ],
+  [
+    orderGate.includes(
+      '"whatsapp_click"',
+    ) &&
+      runtimeGate.includes(
+        '"whatsapp_click"',
+      ),
+    "fallback WhatsApp paths tracked",
+  ],
+  [
     !conversion.includes(
       "customerPhone",
     ) &&
@@ -121,5 +152,5 @@ if (failed.length) {
 }
 
 console.log(
-  "PASS ✓ — Direct Pixel ✓ / Marketing Consent ✓ / ViewContent ✓ / InitiateCheckout ✓ / Contact ✓ / Lead ✓ / GTM Bridge OFF ✓ / No PII ✓",
+  "PASS ✓ — Direct Pixel ✓ / Marketing Consent ✓ / ViewContent ✓ / InitiateCheckout ✓ / Contact ✓ / Lead ✓ / All Lead Paths ✓ / All WhatsApp Paths ✓ / No PII ✓",
 );

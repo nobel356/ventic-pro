@@ -13,6 +13,9 @@ import {
   readRuntimePendingLeads,
   writeRuntimePendingLeads,
 } from "@/lib/runtime-lead-queue";
+import {
+  trackConversion,
+} from "@/lib/client-conversion";
 
 type RuntimeControl = {
   mode: "NORMAL" | "LEAD_ONLY" | "MAINTENANCE";
@@ -303,6 +306,18 @@ export default function RuntimeSiteGate({
       }
 
       setSaved(true);
+
+      trackConversion(
+        "lead_submitted",
+        {
+          source:
+            "runtime_gate",
+          mode:
+            runtime?.mode ||
+            "LEAD_ONLY",
+        },
+      );
+
       setMessage(
         runtime?.leadSuccessMessage ||
           FAIL_SAFE.leadSuccessMessage,
@@ -455,6 +470,15 @@ export default function RuntimeSiteGate({
             href={whatsappHref}
             target="_blank"
             rel="noreferrer"
+            onClick={() =>
+              trackConversion(
+                "whatsapp_click",
+                {
+                  source:
+                    "runtime_gate",
+                },
+              )
+            }
             style={secondary}
           >
             واتساب مباشر
