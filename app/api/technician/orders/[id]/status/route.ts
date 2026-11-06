@@ -5,15 +5,10 @@ import { currentTechnician } from "@/lib/technician";
 import { audit } from "@/lib/audit";
 import { notifyAdmins } from "@/lib/admin-notifications";
 import { notifyCustomer } from "@/lib/customer-notifications";
+import { technicianNextStatus } from "@/lib/order-lifecycle";
 
 const allowed = ["ON_THE_WAY", "ARRIVED", "IN_PROGRESS"];
 
-const nextStatusByCurrent:
-  Record<string, string> = {
-    ASSIGNED: "ON_THE_WAY",
-    ON_THE_WAY: "ARRIVED",
-    ARRIVED: "IN_PROGRESS",
-  };
 const labels: Record<string, string> = {
   ASSIGNED: "تم التعيين",
   ON_THE_WAY: "في الطريق",
@@ -60,9 +55,9 @@ export async function PATCH(
   }
 
   const expectedNext =
-    nextStatusByCurrent[
-      old.status
-    ];
+    technicianNextStatus(
+      old.status,
+    );
 
   if (
     !expectedNext ||

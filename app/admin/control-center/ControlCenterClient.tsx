@@ -88,6 +88,24 @@ export default function ControlCenterClient() {
     useState(false);
   const [leadHealthRunning, setLeadHealthRunning] =
     useState(false);
+  const [operationalRunning, setOperationalRunning] =
+    useState(false);
+  const [operationalHealth, setOperationalHealth] =
+    useState<{
+      ok: boolean;
+      stateMachine?: boolean;
+      assignmentLock?: boolean;
+      executionSequencing?: boolean;
+      otpCompletion?: boolean;
+      invoiceGenerated?: boolean;
+      warrantyGenerated?: boolean;
+      deviceGenerated?: boolean;
+      aftercareReady?: boolean;
+      cleanup?: boolean;
+      durationMs?: number;
+      error?: string;
+    } | null>(null);
+
   const [journeyRunning, setJourneyRunning] =
     useState(false);
   const [journeyHealth, setJourneyHealth] =
@@ -249,6 +267,50 @@ export default function ControlCenterClient() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runOperationalHealth() {
+    if (operationalRunning) {
+      return;
+    }
+
+    setOperationalRunning(true);
+    setOperationalHealth(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/admin/operational-journey-health",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+          },
+        );
+
+      const data =
+        await response.json();
+
+      setOperationalHealth(data);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "فشل اختبار Operational Journey",
+        );
+      }
+    } catch (error: any) {
+      setOperationalHealth({
+        ok: false,
+        error:
+          error?.message ||
+          "فشل اختبار Operational Journey",
+      });
+    } finally {
+      setOperationalRunning(false);
     }
   }
 
@@ -657,6 +719,96 @@ export default function ControlCenterClient() {
             ) : (
               <>
                 FAIL — {leadHealth.error || "Unknown error"}
+              </>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section style={card}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent:
+              "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={sectionTitle}>
+              Operational Journey E2E
+            </h2>
+            <div
+              style={{
+                color: "#64748b",
+                fontSize: 13,
+                lineHeight: 1.7,
+              }}
+            >
+              اختبار تشغيلي صناعي يمر فعليًا من NEW إلى COMPLETED ويشغّل OTP وInvoice وWarranty وDevice creation، بدون إرسال إشعارات للعميل ثم Cleanup كامل.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runOperationalHealth()
+            }
+            disabled={
+              operationalRunning
+            }
+            style={{
+              border: 0,
+              borderRadius: 12,
+              padding:
+                "11px 16px",
+              background:
+                "#047857",
+              color: "white",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            {operationalRunning
+              ? "جاري تشغيل E2E..."
+              : "تشغيل Operational E2E"}
+          </button>
+        </div>
+
+        {operationalHealth ? (
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 12,
+              border:
+                operationalHealth.ok
+                  ? "1px solid #86efac"
+                  : "1px solid #fca5a5",
+              background:
+                operationalHealth.ok
+                  ? "#f0fdf4"
+                  : "#fef2f2",
+              color:
+                operationalHealth.ok
+                  ? "#166534"
+                  : "#991b1b",
+              lineHeight: 1.8,
+              fontWeight: 800,
+            }}
+          >
+            {operationalHealth.ok ? (
+              <>
+                PASS ✓ — State Machine ✓ / Assignment Lock ✓ / Execution Sequencing ✓ / OTP Completion ✓ / Invoice ✓ / Warranty ✓ / Device Creation ✓ / Aftercare Ready ✓ / Cleanup ✓
+                {typeof operationalHealth.durationMs === "number"
+                  ? " — " + operationalHealth.durationMs + " ms"
+                  : ""}
+              </>
+            ) : (
+              <>
+                FAIL — {operationalHealth.error || "Unknown error"}
               </>
             )}
           </div>

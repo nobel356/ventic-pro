@@ -6,6 +6,10 @@ import { notifyAdmins } from "@/lib/admin-notifications";
 import { PERMISSIONS, requirePermission } from "@/lib/auth-v7";
 import { parsePreferredAppointment } from "@/lib/order-appointment";
 import { notifyCustomer } from "@/lib/customer-notifications";
+import {
+  canAdminStatusTransition,
+  canEditAppointment,
+} from "@/lib/order-lifecycle";
 
 const allowed = [
   "NEW",
@@ -42,8 +46,11 @@ export async function PATCH(
       return NextResponse.json({ error: "حالة غير صالحة" }, { status: 400 });
     }
 
-    const old = await prisma.order.findUnique({
-      where: { id },
+    const old = await prisma.order.findFirst({
+      where: {
+        id,
+        archivedAt: null,
+      },
       include: { customer: true, technician: true },
     });
 
@@ -61,9 +68,33 @@ export async function PATCH(
       );
     }
 
-    if (old.status === "COMPLETED") {
+    if (
+      old.status === "COMPLETED" ||
+      old.status === "CANCELLED"
+    ) {
       return NextResponse.json(
-        { error: "الطلب مكتمل ومغلق تشغيليًا ولا يتم تغيير حالته أو موعده مباشرة." },
+        {
+          error:
+            "الطلب في حالة نهائية ومغلق تشغيليًا ولا يتم تغيير حالته أو موعده مباشرة.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (
+      body.status &&
+      body.status !== old.status &&
+      !canAdminStatusTransition(
+        old.status,
+        body.status,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "لا يمكن تخطي تسلسل التنفيذ من لوحة الإدارة. التأكيد أو الإلغاء فقط هنا، وحالات التنفيذ يحركها الفني.",
+          currentStatus: old.status,
+        },
         { status: 409 },
       );
     }
@@ -86,6 +117,20 @@ export async function PATCH(
 
     const appointmentChanged =
       nextDate !== old.preferredDate || nextTime !== old.preferredTime;
+
+    if (
+      appointmentChanged &&
+      !canEditAppointment(old.status)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "لا يمكن تغيير الموعد بعد بدء رحلة الفني أو التنفيذ.",
+          currentStatus: old.status,
+        },
+        { status: 409 },
+      );
+    }
     const nextStatus = body.status || old.status;
     const terminal = nextStatus === "CANCELLED" || nextStatus === "COMPLETED";
 

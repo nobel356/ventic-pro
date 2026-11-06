@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth-v7";
 import { parsePreferredAppointment } from "@/lib/order-appointment";
 import { notifyCustomer } from "@/lib/customer-notifications";
+import { canAssignTechnician } from "@/lib/order-lifecycle";
 
 export async function PATCH(
   req: Request,
@@ -34,8 +35,11 @@ export async function PATCH(
       );
     }
 
-    const old = await prisma.order.findUnique({
-      where: { id },
+    const old = await prisma.order.findFirst({
+      where: {
+        id,
+        archivedAt: null,
+      },
       include: {
         technician: true,
         customer: true,
@@ -49,10 +53,14 @@ export async function PATCH(
       );
     }
 
-    if (old.status === "COMPLETED" || old.status === "CANCELLED") {
+    if (!canAssignTechnician(old.status)) {
       return NextResponse.json(
-        { error: "لا يمكن تعيين فني لطلب مكتمل أو ملغي" },
-        { status: 400 },
+        {
+          error:
+            "لا يمكن تعيين أو تغيير الفني بعد بدء رحلة التنفيذ.",
+          currentStatus: old.status,
+        },
+        { status: 409 },
       );
     }
 

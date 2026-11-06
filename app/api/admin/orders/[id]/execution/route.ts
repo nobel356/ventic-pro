@@ -19,8 +19,11 @@ async function context(id: string) {
     PERMISSIONS.ORDERS_EDIT,
   );
 
-  const order = await prisma.order.findUnique({
-    where: { id },
+  const order = await prisma.order.findFirst({
+    where: {
+      id,
+      archivedAt: null,
+    },
     include: {
       technician: {
         select: {

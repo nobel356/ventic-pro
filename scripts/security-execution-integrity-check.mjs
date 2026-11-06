@@ -21,6 +21,10 @@ const statusRoute =
   read(
     "app/api/technician/orders/[id]/status/route.ts",
   );
+const lifecycle =
+  read(
+    "lib/order-lifecycle.ts",
+  );
 
 for (const marker of [
   "ORDER_NOT_IN_PROGRESS",
@@ -39,15 +43,25 @@ for (const marker of [
 }
 
 for (const marker of [
-  "nextStatusByCurrent",
-  'ASSIGNED: "ON_THE_WAY"',
-  'ON_THE_WAY: "ARRIVED"',
-  'ARRIVED: "IN_PROGRESS"',
+  "technicianNextStatus",
   "expectedNext !== status",
 ]) {
   if (!statusRoute.includes(marker)) {
     failures.push(
       `technician status route missing ${marker}`,
+    );
+  }
+}
+
+for (const marker of [
+  "const technicianNext",
+  'ASSIGNED: "ON_THE_WAY"',
+  'ON_THE_WAY: "ARRIVED"',
+  'ARRIVED: "IN_PROGRESS"',
+]) {
+  if (!lifecycle.includes(marker)) {
+    failures.push(
+      `order lifecycle missing ${marker}`,
     );
   }
 }

@@ -25,8 +25,11 @@ export async function POST(
       await params;
 
     const order =
-      await prisma.order.findUnique({
-        where: { id: orderId },
+      await prisma.order.findFirst({
+        where: {
+          id: orderId,
+          archivedAt: null,
+        },
         select: {
           id: true,
           orderNo: true,

@@ -29,6 +29,9 @@ import {
   clearDurableRateLimit,
   durableRateLimit,
 } from "@/lib/request-security";
+import {
+  assertExecutionMutation,
+} from "@/lib/order-lifecycle";
 
 export const OTP_TTL_MINUTES = 15;
 export const OTP_RESEND_SECONDS = 60;
@@ -59,8 +62,11 @@ function warrantyDays() {
 }
 
 async function getOrder(client: any, orderId: string) {
-  return client.order.findUnique({
-    where: { id: orderId },
+  return client.order.findFirst({
+    where: {
+      id: orderId,
+      archivedAt: null,
+    },
     include: {
       customer: {
         select: {
@@ -81,6 +87,21 @@ async function getOrder(client: any, orderId: string) {
   });
 }
 
+function assertAssignedTechnician(
+  order: any,
+  assignedTechnicianId: string,
+) {
+  if (
+    !order.technicianId ||
+    order.technicianId !==
+      assignedTechnicianId
+  ) {
+    throw new Error(
+      "TECHNICIAN_MISMATCH",
+    );
+  }
+}
+
 export async function getExecutionSnapshot(
   client: any,
   orderId: string,
@@ -89,6 +110,11 @@ export async function getExecutionSnapshot(
   const order = await getOrder(client, orderId);
 
   if (!order) throw new Error("ORDER_NOT_FOUND");
+
+  assertAssignedTechnician(
+    order,
+    assignedTechnicianId,
+  );
 
   const [
     beforeFiles,
@@ -255,6 +281,31 @@ export async function addExecutionAttachment(
     file: File;
   },
 ) {
+  const order = await getOrder(
+    client,
+    input.orderId,
+  );
+
+  if (!order) {
+    throw new Error("ORDER_NOT_FOUND");
+  }
+
+  if (
+    input.actor.mode === "TECHNICIAN"
+  ) {
+    assertAssignedTechnician(
+      order,
+      input.actor.id,
+    );
+  }
+
+  assertExecutionMutation(
+    order.status,
+    input.kind === "BEFORE"
+      ? "BEFORE_PHOTO"
+      : "AFTER_PHOTO",
+  );
+
   const stored = await uploadOrderImage({
     orderId: input.orderId,
     kind: input.kind,
@@ -308,6 +359,24 @@ export async function confirmNoExecutionMaterials(
     actor: ExecutionActor;
   },
 ) {
+  const order = await getOrder(
+    client,
+    input.orderId,
+  );
+
+  if (!order) {
+    throw new Error("ORDER_NOT_FOUND");
+  }
+
+  assertAssignedTechnician(
+    order,
+    input.assignedTechnicianId,
+  );
+  assertExecutionMutation(
+    order.status,
+    "MATERIALS",
+  );
+
   const state = await getOrderMaterialState(
     client,
     input.orderId,
@@ -371,6 +440,26 @@ export async function useExecutionMaterial(
 
   return client.$transaction(
     async (tx: any) => {
+      const order = await getOrder(
+        tx,
+        input.orderId,
+      );
+
+      if (!order) {
+        throw new Error(
+          "ORDER_NOT_FOUND",
+        );
+      }
+
+      assertAssignedTechnician(
+        order,
+        input.assignedTechnicianId,
+      );
+      assertExecutionMutation(
+        order.status,
+        "MATERIALS",
+      );
+
       const item =
         await tx.inventoryItem.findFirst({
           where: {
@@ -466,11 +555,14 @@ export async function issueExecutionOtp(
 
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
-  if (order.status !== "IN_PROGRESS") {
-    throw new Error(
-      "ORDER_NOT_IN_PROGRESS",
-    );
-  }
+  assertAssignedTechnician(
+    order,
+    input.assignedTechnicianId,
+  );
+  assertExecutionMutation(
+    order.status,
+    "OTP",
+  );
 
   const issueLimited =
     await durableRateLimit(
@@ -705,6 +797,10 @@ export async function completeExecution(
     assignedTechnicianId: string;
     actor: ExecutionActor;
     otp: string;
+    diagnostic?: {
+      bypassRateLimits?: boolean;
+      suppressNotifications?: boolean;
+    };
   },
 ) {
   const order = await getOrder(
@@ -714,49 +810,57 @@ export async function completeExecution(
 
   if (!order) throw new Error("ORDER_NOT_FOUND");
 
-  if (order.status !== "IN_PROGRESS") {
-    throw new Error(
-      "ORDER_NOT_IN_PROGRESS",
-    );
-  }
+  assertAssignedTechnician(
+    order,
+    input.assignedTechnicianId,
+  );
+  assertExecutionMutation(
+    order.status,
+    "COMPLETE",
+  );
 
   const orderAttemptKey =
     `completion-otp-order:${input.orderId}`;
   const actorAttemptKey =
     `completion-otp-actor:${input.orderId}:${input.actor.id}`;
+  const bypassRateLimits =
+    input.diagnostic?.bypassRateLimits ===
+    true;
 
-  const [
-    orderAttemptLimit,
-    actorAttemptLimit,
-  ] = await Promise.all([
-    durableRateLimit(
-      orderAttemptKey,
-      {
-        limit: 12,
-        windowMs:
-          15 * 60 * 1000,
-      },
-    ),
-    durableRateLimit(
-      actorAttemptKey,
-      {
-        limit: 8,
-        windowMs:
-          15 * 60 * 1000,
-      },
-    ),
-  ]);
+  if (!bypassRateLimits) {
+    const [
+      orderAttemptLimit,
+      actorAttemptLimit,
+    ] = await Promise.all([
+      durableRateLimit(
+        orderAttemptKey,
+        {
+          limit: 12,
+          windowMs:
+            15 * 60 * 1000,
+        },
+      ),
+      durableRateLimit(
+        actorAttemptKey,
+        {
+          limit: 8,
+          windowMs:
+            15 * 60 * 1000,
+        },
+      ),
+    ]);
 
-  if (
-    !orderAttemptLimit.allowed ||
-    !actorAttemptLimit.allowed
-  ) {
-    throw new Error(
-      `OTP_ATTEMPTS_EXCEEDED:${Math.max(
-        orderAttemptLimit.retryAfterSeconds,
-        actorAttemptLimit.retryAfterSeconds,
-      )}`,
-    );
+    if (
+      !orderAttemptLimit.allowed ||
+      !actorAttemptLimit.allowed
+    ) {
+      throw new Error(
+        `OTP_ATTEMPTS_EXCEEDED:${Math.max(
+          orderAttemptLimit.retryAfterSeconds,
+          actorAttemptLimit.retryAfterSeconds,
+        )}`,
+      );
+    }
   }
 
   if (order.status === "COMPLETED") {
@@ -842,14 +946,16 @@ export async function completeExecution(
     throw new Error("OTP_INVALID");
   }
 
-  await Promise.all([
-    clearDurableRateLimit(
-      orderAttemptKey,
-    ),
-    clearDurableRateLimit(
-      actorAttemptKey,
-    ),
-  ]);
+  if (!bypassRateLimits) {
+    await Promise.all([
+      clearDurableRateLimit(
+        orderAttemptKey,
+      ),
+      clearDurableRateLimit(
+        actorAttemptKey,
+      ),
+    ]);
+  }
 
   const completedAt = new Date();
   const warrantyEndsAt =
@@ -1005,40 +1111,46 @@ export async function completeExecution(
     },
   );
 
-  await notifyAdmins({
-    type:
-      AdminNotificationType.ORDER_COMPLETED,
-    title: `تم إكمال الطلب ${order.orderNo}`,
-    message: `${input.actor.name} أنهى التركيب بكود العميل. تم تحديث الفاتورة وتفعيل الضمان تلقائيًا.`,
-    orderId: input.orderId,
-    href: `/admin/orders/${input.orderId}`,
-    dedupeKey: `order-completed:${input.orderId}`,
-  });
+  if (
+    !input.diagnostic
+      ?.suppressNotifications
+  ) {
+    await notifyAdmins({
+      type:
+        AdminNotificationType.ORDER_COMPLETED,
+      title: `تم إكمال الطلب ${order.orderNo}`,
+      message: `${input.actor.name} أنهى التركيب بكود العميل. تم تحديث الفاتورة وتفعيل الضمان تلقائيًا.`,
+      orderId: input.orderId,
+      href: `/admin/orders/${input.orderId}`,
+      dedupeKey: `order-completed:${input.orderId}`,
+    });
 
-  await notifyCustomer({
-    orderId: input.orderId,
-    customerId: order.customer.id,
-    phone: order.customer.phone,
-    email: order.customer.email,
-    templateKey: "ORDER_COMPLETED",
-    templateVariables: [
-      order.orderNo,
-      result.warranty.endsAt.toLocaleDateString("ar-EG"),
-      result.finance.financials.total.toLocaleString("ar-EG"),
-    ],
-    subject: `تم إكمال طلب ${order.orderNo}`,
-    message:
-      `Ventic Pro
-تم إكمال الطلب ${order.orderNo} بنجاح. ` +
-      `الضمان ساري حتى ${result.warranty.endsAt.toLocaleDateString("ar-EG")}. ` +
-      `إجمالي الفاتورة ${result.finance.financials.total.toLocaleString("ar-EG")} ج. ` +
-      `يمكنك تقييم الخدمة من: ${absoluteAppUrl(`/customer/review/${order.id}`)}`,
-    payload: {
-      warrantyEndsAt: result.warranty.endsAt.toISOString(),
-      invoiceTotal: result.finance.financials.total,
-      due: result.finance.financials.due,
-    },
-  });
+    await notifyCustomer({
+      orderId: input.orderId,
+      customerId: order.customer.id,
+      phone: order.customer.phone,
+      email: order.customer.email,
+      templateKey: "ORDER_COMPLETED",
+      templateVariables: [
+        order.orderNo,
+        result.warranty.endsAt.toLocaleDateString("ar-EG"),
+        result.finance.financials.total.toLocaleString("ar-EG"),
+      ],
+      subject: `تم إكمال طلب ${order.orderNo}`,
+      message:
+        `Ventic Pro
+  تم إكمال الطلب ${order.orderNo} بنجاح. ` +
+        `الضمان ساري حتى ${result.warranty.endsAt.toLocaleDateString("ar-EG")}. ` +
+        `إجمالي الفاتورة ${result.finance.financials.total.toLocaleString("ar-EG")} ج. ` +
+        `يمكنك تقييم الخدمة من: ${absoluteAppUrl(`/customer/review/${order.id}`)}`,
+      payload: {
+        warrantyEndsAt: result.warranty.endsAt.toISOString(),
+        invoiceTotal: result.finance.financials.total,
+        due: result.finance.financials.due,
+      },
+    });
+
+  }
 
   return {
     ok: true,
@@ -1065,6 +1177,21 @@ export function executionErrorResponse(
     ORDER_NOT_FOUND: {
       status: 404,
       error: "الطلب غير موجود",
+    },
+    TECHNICIAN_MISMATCH: {
+      status: 403,
+      error:
+        "الطلب غير مسند لهذا الفني",
+    },
+    BEFORE_PHOTO_STAGE_INVALID: {
+      status: 409,
+      error:
+        "صورة قبل التنفيذ لا تُرفع إلا بعد وصول الفني أو أثناء التنفيذ.",
+    },
+    AFTER_PHOTO_STAGE_INVALID: {
+      status: 409,
+      error:
+        "صورة بعد التنفيذ لا تُرفع قبل بدء التنفيذ.",
     },
     INVALID_IMAGE: {
       status: 400,
