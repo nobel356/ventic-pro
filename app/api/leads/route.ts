@@ -5,6 +5,7 @@ import { notifyAdmins } from "@/lib/admin-notifications";
 import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
 import { getRuntimeControl } from "@/lib/runtime-control";
 import { leadRequestTypeFromPayload } from "@/lib/lead-capture";
+import { runNonBlockingEffect } from "@/lib/lead-resilience";
 import {
   clientIp,
   durableRateLimit,
@@ -60,6 +61,24 @@ async function notifyLeadStarted(input: {
       dedupeKey: `detailed-lead:${input.leadId}`,
     });
   }
+}
+
+async function safeNotifyLeadStarted(
+  input: Parameters<
+    typeof notifyLeadStarted
+  >[0],
+) {
+  return runNonBlockingEffect(
+    () => notifyLeadStarted(input),
+    {
+      onError: (error) => {
+        console.error(
+          "LEAD_NOTIFICATION_FAILED",
+          error,
+        );
+      },
+    },
+  );
 }
 
 export async function POST(req: Request) {
@@ -213,7 +232,7 @@ export async function POST(req: Request) {
 
         if (control.notifications) {
           try {
-            await notifyLeadStarted({
+            await safeNotifyLeadStarted({
               leadId: replacement.id,
               requestType,
               intent,
@@ -256,7 +275,7 @@ export async function POST(req: Request) {
         },
       });
 
-      await notifyLeadStarted({
+      await safeNotifyLeadStarted({
         leadId: updated.id,
         requestType,
         intent,
@@ -301,7 +320,7 @@ export async function POST(req: Request) {
           },
         });
 
-        await notifyLeadStarted({
+        await safeNotifyLeadStarted({
           leadId: updated.id,
           requestType,
           intent,
@@ -322,7 +341,7 @@ export async function POST(req: Request) {
       data,
     });
 
-    await notifyLeadStarted({
+    await safeNotifyLeadStarted({
       leadId: created.id,
       requestType,
       intent,

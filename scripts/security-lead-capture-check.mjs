@@ -43,8 +43,18 @@ const checks = [
     read("app/shared/RuntimeSiteGate.tsx"),
     [
       'requestType:\n          "QUICK_REQUEST"',
-      "ventic_runtime_pending_leads_v1",
+      "enqueueRuntimePendingLead",
+      "readRuntimePendingLeads",
+      "writeRuntimePendingLeads",
       '"/api/leads"',
+    ],
+  ],
+  [
+    "runtime pending queue",
+    read("lib/runtime-lead-queue.ts"),
+    [
+      "ventic_runtime_pending_leads_v1",
+      "slice(-20)",
     ],
   ],
   [

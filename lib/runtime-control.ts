@@ -194,14 +194,26 @@ export function sanitizeRuntimeControl(
   };
 }
 
-export async function getRuntimeControl() {
+type RuntimeSettingLike =
+  | {
+      value: unknown;
+    }
+  | null;
+
+export async function resolveRuntimeControl(
+  readSetting: () => Promise<RuntimeSettingLike>,
+  onError: (
+    error: unknown,
+  ) => void = (error) => {
+    console.error(
+      "RUNTIME_CONTROL_DEGRADED",
+      error,
+    );
+  },
+) {
   try {
     const setting =
-      await prisma.runtimeSetting.findUnique({
-        where: {
-          key: RUNTIME_CONTROL_KEY,
-        },
-      });
+      await readSetting();
 
     if (!setting) {
       return {
@@ -219,10 +231,7 @@ export async function getRuntimeControl() {
       degraded: false,
     };
   } catch (error) {
-    console.error(
-      "RUNTIME_CONTROL_DEGRADED",
-      error,
-    );
+    onError(error);
 
     return {
       control:
@@ -230,6 +239,17 @@ export async function getRuntimeControl() {
       degraded: true,
     };
   }
+}
+
+export async function getRuntimeControl() {
+  return resolveRuntimeControl(
+    () =>
+      prisma.runtimeSetting.findUnique({
+        where: {
+          key: RUNTIME_CONTROL_KEY,
+        },
+      }),
+  );
 }
 
 export async function saveRuntimeControl(

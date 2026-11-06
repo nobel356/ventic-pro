@@ -5,6 +5,11 @@ import {
   useMemo,
   useState,
 } from "react";
+import {
+  RUNTIME_PENDING_LEADS_KEY,
+  enqueueRuntimePendingLead,
+  readRuntimePendingLeads,
+} from "@/lib/runtime-lead-queue";
 
 type Control = {
   mode:
@@ -83,6 +88,23 @@ export default function ControlCenterClient() {
     useState(false);
   const [leadHealthRunning, setLeadHealthRunning] =
     useState(false);
+  const [resilienceRunning, setResilienceRunning] =
+    useState(false);
+  const [resilienceHealth, setResilienceHealth] =
+    useState<{
+      ok: boolean;
+      runtimeFailSafe?: boolean;
+      runtimeMode?: string;
+      leadCapturePreserved?: boolean;
+      nonessentialFeaturesDisabled?: boolean;
+      leadWritten?: boolean;
+      notificationFailureIsolated?: boolean;
+      leadSurvivedNotificationFailure?: boolean;
+      localQueue?: boolean;
+      cleanup?: boolean;
+      durationMs?: number;
+      error?: string;
+    } | null>(null);
   const [leadHealth, setLeadHealth] =
     useState<{
       ok: boolean;
@@ -205,6 +227,102 @@ export default function ControlCenterClient() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runResilienceHealth() {
+    if (resilienceRunning) {
+      return;
+    }
+
+    setResilienceRunning(true);
+    setResilienceHealth(null);
+
+    let localQueue = false;
+    let previousRaw: string | null = null;
+
+    try {
+      previousRaw =
+        localStorage.getItem(
+          RUNTIME_PENDING_LEADS_KEY,
+        );
+
+      const marker =
+        `V20V_LOCAL_${Date.now()}`;
+
+      enqueueRuntimePendingLead(
+        localStorage,
+        {
+          marker,
+          noContact: true,
+        },
+      );
+
+      localQueue =
+        readRuntimePendingLeads(
+          localStorage,
+        ).some(
+          (item: any) =>
+            item?.marker === marker,
+        );
+
+      if (!localQueue) {
+        throw new Error(
+          "LOCAL_QUEUE_ROUNDTRIP_FAILED",
+        );
+      }
+
+      const response =
+        await fetch(
+          "/api/admin/resilience-health",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+          },
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "فشل اختبار Resilience",
+        );
+      }
+
+      setResilienceHealth({
+        ...data,
+        localQueue,
+      });
+    } catch (error: any) {
+      setResilienceHealth({
+        ok: false,
+        localQueue,
+        error:
+          error?.message ||
+          "فشل اختبار Resilience",
+      });
+    } finally {
+      try {
+        if (previousRaw === null) {
+          localStorage.removeItem(
+            RUNTIME_PENDING_LEADS_KEY,
+          );
+        } else {
+          localStorage.setItem(
+            RUNTIME_PENDING_LEADS_KEY,
+            previousRaw,
+          );
+        }
+      } catch {
+        // Diagnostic cleanup must not break Control Center.
+      }
+
+      setResilienceRunning(false);
     }
   }
 
@@ -473,6 +591,100 @@ export default function ControlCenterClient() {
             ) : (
               <>
                 FAIL — {leadHealth.error || "Unknown error"}
+              </>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section style={card}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent:
+              "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={sectionTitle}>
+              Resilience Failure Lab
+            </h2>
+            <div
+              style={{
+                color: "#64748b",
+                fontSize: 13,
+                lineHeight: 1.7,
+              }}
+            >
+              محاكاة آمنة لفشل Runtime DB والإشعارات وOffline Queue بدون تعطيل Production أو التواصل مع أي عميل.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runResilienceHealth()
+            }
+            disabled={
+              resilienceRunning
+            }
+            style={{
+              border: 0,
+              borderRadius: 12,
+              padding:
+                "11px 16px",
+              background:
+                "#7c2d12",
+              color: "white",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            {resilienceRunning
+              ? "جاري محاكاة الأعطال..."
+              : "تشغيل Failure Lab"}
+          </button>
+        </div>
+
+        {resilienceHealth ? (
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 12,
+              border:
+                resilienceHealth.ok &&
+                resilienceHealth.localQueue
+                  ? "1px solid #86efac"
+                  : "1px solid #fca5a5",
+              background:
+                resilienceHealth.ok &&
+                resilienceHealth.localQueue
+                  ? "#f0fdf4"
+                  : "#fef2f2",
+              color:
+                resilienceHealth.ok &&
+                resilienceHealth.localQueue
+                  ? "#166534"
+                  : "#991b1b",
+              lineHeight: 1.8,
+              fontWeight: 800,
+            }}
+          >
+            {resilienceHealth.ok &&
+            resilienceHealth.localQueue ? (
+              <>
+                PASS ✓ — Runtime DB Fail-safe ✓ / Lead Capture Preserved ✓ / Nonessential Features OFF ✓ / Lead Survives Notification Failure ✓ / Offline Queue ✓ / Cleanup ✓
+                {typeof resilienceHealth.durationMs === "number"
+                  ? ` — ${resilienceHealth.durationMs} ms`
+                  : ""}
+              </>
+            ) : (
+              <>
+                FAIL — {resilienceHealth.error || "Unknown error"}
               </>
             )}
           </div>

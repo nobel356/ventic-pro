@@ -8,6 +8,11 @@ import {
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
+import {
+  enqueueRuntimePendingLead,
+  readRuntimePendingLeads,
+  writeRuntimePendingLeads,
+} from "@/lib/runtime-lead-queue";
 
 type RuntimeControl = {
   mode: "NORMAL" | "LEAD_ONLY" | "MAINTENANCE";
@@ -28,9 +33,6 @@ const FAIL_SAFE: RuntimeControl = {
   leadSuccessMessage:
     "تم تسجيل بياناتك، وفريق Ventic Pro هيتواصل معاك.",
 };
-
-const PENDING_KEY =
-  "ventic_runtime_pending_leads_v1";
 
 function bypass(pathname: string) {
   return (
@@ -165,16 +167,10 @@ export default function RuntimeSiteGate({
 
     async function syncPending() {
       try {
-        const raw =
-          localStorage.getItem(
-            PENDING_KEY,
+        const pending =
+          readRuntimePendingLeads(
+            localStorage,
           );
-        const pending = raw
-          ? JSON.parse(raw)
-          : [];
-        if (!Array.isArray(pending)) {
-          return;
-        }
 
         const remaining = [];
 
@@ -203,18 +199,10 @@ export default function RuntimeSiteGate({
           }
         }
 
-        if (remaining.length) {
-          localStorage.setItem(
-            PENDING_KEY,
-            JSON.stringify(
-              remaining.slice(-20),
-            ),
-          );
-        } else {
-          localStorage.removeItem(
-            PENDING_KEY,
-          );
-        }
+        writeRuntimePendingLeads(
+          localStorage,
+          remaining,
+        );
       } catch {
         // Fallback must never break the page.
       }
@@ -321,33 +309,17 @@ export default function RuntimeSiteGate({
       );
     } catch (error: any) {
       try {
-        const raw =
-          localStorage.getItem(
-            PENDING_KEY,
-          );
-        const old = raw
-          ? JSON.parse(raw)
-          : [];
-        const list =
-          Array.isArray(old)
-            ? old
-            : [];
-
-        list.push({
-          ...payload,
-          payload: {
-            ...payload.payload,
-            localFallback: true,
-            capturedAt:
-              new Date().toISOString(),
+        enqueueRuntimePendingLead(
+          localStorage,
+          {
+            ...payload,
+            payload: {
+              ...payload.payload,
+              localFallback: true,
+              capturedAt:
+                new Date().toISOString(),
+            },
           },
-        });
-
-        localStorage.setItem(
-          PENDING_KEY,
-          JSON.stringify(
-            list.slice(-20),
-          ),
         );
 
         setSaved(true);
