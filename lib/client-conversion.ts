@@ -3,6 +3,10 @@ import {
   anyTrackingConsentGranted,
   marketingConsentGranted,
 } from "@/lib/privacy-consent";
+import {
+  trackTikTokStandardEvent,
+  type TikTokStandardEvent,
+} from "@/lib/tiktok-pixel";
 
 export type ConversionEvent =
   | "page_view"
@@ -63,48 +67,53 @@ function safeDetail(
 
 function tiktokEventFor(
   event: ConversionEvent,
-  detail: Record<string, ConversionDetailValue>,
-) {
+): TikTokStandardEvent | null {
   if (
-    event === "order_intent" ||
-    event === "order_started"
+    event ===
+    "order_started"
   ) {
     return "InitiateCheckout";
   }
 
   if (
-    event === "callback_submitted" ||
-    event === "order_submitted"
+    event ===
+      "callback_submitted" ||
+    event ===
+      "order_submitted"
   ) {
     return "Lead";
   }
 
   if (
-    event === "whatsapp_click"
+    event ===
+    "whatsapp_click"
   ) {
     return "Contact";
   }
 
   if (
-    event === "works_play" ||
-    event === "works_cta" ||
-    event === "offer_view" ||
-    event === "calculator_estimate"
+    event ===
+    "page_view"
   ) {
-    return "ViewContent";
-  }
-
-  if (event === "page_view") {
     const path =
-      typeof window !== "undefined"
+      typeof window !==
+        "undefined"
         ? window.location.pathname
         : "";
 
     if (
-      path.startsWith("/services/") ||
-      path.startsWith("/works") ||
-      path.startsWith("/offers") ||
-      path.startsWith("/why-ventic")
+      path.startsWith(
+        "/services/",
+      ) ||
+      path.startsWith(
+        "/works",
+      ) ||
+      path.startsWith(
+        "/offers",
+      ) ||
+      path.startsWith(
+        "/why-ventic",
+      )
     ) {
       return "ViewContent";
     }
@@ -113,55 +122,56 @@ function tiktokEventFor(
   return null;
 }
 
-function tiktokPayload(
+function pushTikTok(
   event: ConversionEvent,
-  detail: Record<string, ConversionDetailValue>,
+  detail: Record<
+    string,
+    ConversionDetailValue
+  >,
 ) {
+  if (
+    !marketingConsentGranted()
+  ) {
+    return;
+  }
+
   const standardEvent =
     tiktokEventFor(
       event,
-      detail,
     );
 
   if (!standardEvent) {
-    return null;
+    return;
   }
 
   const rawValue =
-    typeof detail.value === "number"
+    typeof detail.value ===
+      "number"
       ? detail.value
-      : typeof detail.low === "number"
-        ? detail.low
-        : undefined;
+      : undefined;
 
-  return {
-    event:
-      "ventic_tiktok_conversion",
-    tiktok_event:
-      standardEvent,
-    ventic_event:
-      event,
-    page_path:
-      window.location.pathname,
-    currency:
-      typeof detail.currency === "string"
-        ? detail.currency
-        : rawValue !== undefined
-          ? "EGP"
+  trackTikTokStandardEvent(
+    standardEvent,
+    {
+      value:
+        rawValue,
+      currency:
+        rawValue !==
+        undefined
+          ? String(
+              detail.currency ||
+                "EGP",
+            )
           : undefined,
-    value:
-      rawValue,
-    content_type:
-      "service",
-    service:
-      typeof detail.service === "string"
-        ? detail.service
-        : undefined,
-    section:
-      typeof detail.section === "string"
-        ? detail.section
-        : undefined,
-  };
+      content_type:
+        "service",
+      service:
+        typeof detail.service ===
+          "string"
+          ? detail.service
+          : undefined,
+    },
+  );
 }
 
 function pushExternal(
@@ -174,29 +184,16 @@ function pushExternal(
     event: `ventic_${event}`,
     ventic_event: event,
     page_path: window.location.pathname,
-    marketing_allowed:
-      marketingConsentGranted(),
     ...safeDetail(detail),
   };
 
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push(payload);
 
-  if (
-    marketingConsentGranted()
-  ) {
-    const tiktokPayloadValue =
-      tiktokPayload(
-        event,
-        detail,
-      );
-
-    if (tiktokPayloadValue) {
-      window.dataLayer.push(
-        tiktokPayloadValue,
-      );
-    }
-  }
+  pushTikTok(
+    event,
+    detail,
+  );
 
   // GTM is the single external analytics path when configured.
   // Direct gtag() remains only as a fallback for installations without GTM.

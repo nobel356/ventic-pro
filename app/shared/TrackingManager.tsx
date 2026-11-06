@@ -8,6 +8,11 @@ import {
   VENTIC_CONSENT_EVENT,
   type VenticConsent,
 } from "@/lib/privacy-consent";
+import {
+  grantTikTokConsent,
+  revokeTikTokConsent,
+  trackTikTokPage,
+} from "@/lib/tiktok-pixel";
 
 declare global {
   interface Window {
@@ -172,6 +177,25 @@ export default function TrackingManager() {
   }, []);
 
   useEffect(() => {
+    if (dashboard) {
+      return;
+    }
+
+    if (
+      consent?.marketing
+    ) {
+      grantTikTokConsent();
+      trackTikTokPage();
+    } else {
+      revokeTikTokConsent();
+    }
+  }, [
+    pathname,
+    dashboard,
+    consent?.marketing,
+  ]);
+
+  useEffect(() => {
     function onConsent(event: Event) {
       const next =
         (event as CustomEvent<VenticConsent>).detail || readConsent();
@@ -266,8 +290,7 @@ export default function TrackingManager() {
               <span>
                 <strong>قياس الحملات الإعلانية</strong>
                 <small>
-                  يسمح بتشغيل Tags التسويق مثل Meta وTikTok من خلال Google Tag
-                  Manager بعد إعداد الحسابات.
+                  يسمح بتشغيل قياس الحملات مثل Meta وTikTok بعد إعداد الحسابات وموافقتك.
                 </small>
               </span>
             </label>

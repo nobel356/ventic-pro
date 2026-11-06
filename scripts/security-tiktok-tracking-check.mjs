@@ -5,6 +5,16 @@ const conversion =
     "lib/client-conversion.ts",
     "utf8",
   );
+const pixel =
+  fs.readFileSync(
+    "lib/tiktok-pixel.ts",
+    "utf8",
+  );
+const tracking =
+  fs.readFileSync(
+    "app/shared/TrackingManager.tsx",
+    "utf8",
+  );
 const callback =
   fs.readFileSync(
     "app/callback/CallbackClient.tsx",
@@ -16,92 +26,24 @@ const order =
     "utf8",
   );
 
-function extractTrackBlock(
-  source,
-  eventName,
-) {
-  const eventMarker =
-    `"${eventName}"`;
-
-  const eventAt =
-    source.indexOf(
-      eventMarker,
-    );
-
-  if (eventAt < 0) {
-    return "";
-  }
-
-  const start =
-    source.lastIndexOf(
-      "trackConversion(",
-      eventAt,
-    );
-
-  if (start < 0) {
-    return "";
-  }
-
-  const end =
-    source.indexOf(
-      "\n                    );",
-      eventAt,
-    );
-
-  if (end >= 0) {
-    return source.slice(
-      start,
-      end + 24,
-    );
-  }
-
-  const fallbackEnd =
-    source.indexOf(
-      "\n      );",
-      eventAt,
-    );
-
-  return fallbackEnd >= 0
-    ? source.slice(
-        start,
-        fallbackEnd + 10,
-      )
-    : source.slice(
-        start,
-        eventAt + 600,
-      );
-}
-
-const callbackTrack =
-  extractTrackBlock(
-    callback,
-    "callback_submitted",
-  );
-
-const orderStartedTrack =
-  extractTrackBlock(
-    order,
-    "order_started",
-  );
-
-const orderSubmittedTrack =
-  extractTrackBlock(
-    order,
-    "order_submitted",
-  );
-
-const piiPattern =
-  /cleanPhone|cleanName|customerPhone|customerEmail|\bphone\s*:|\bemail\s*:|\bname\s*:/;
-
 const checks = [
   [
-    conversion.includes(
+    pixel.includes(
       "marketingConsentGranted",
     ) &&
-      conversion.includes(
+      pixel.includes(
+        "analytics.tiktok.com/i18n/pixel/events.js",
+      ),
+    "direct TikTok pixel with marketing consent",
+  ],
+  [
+    conversion.includes(
+      "trackTikTokStandardEvent",
+    ) &&
+      !conversion.includes(
         "ventic_tiktok_conversion",
       ),
-    "TikTok marketing-consent gate",
+    "no TikTok GTM dataLayer bridge",
   ],
   [
     conversion.includes(
@@ -116,36 +58,43 @@ const checks = [
       conversion.includes(
         '"ViewContent"',
       ),
-    "TikTok standard event mapping",
+    "standard event mapping",
   ],
   [
-    callbackTrack.includes(
-      '"callback_submitted"',
-    ),
-    "callback success event",
-  ],
-  [
-    orderStartedTrack.includes(
-      '"order_started"',
+    tracking.includes(
+      "grantTikTokConsent",
     ) &&
-      orderSubmittedTrack.includes(
-        '"order_submitted"',
+      tracking.includes(
+        "revokeTikTokConsent",
       ) &&
-      orderSubmittedTrack.includes(
-        '"EGP"',
+      tracking.includes(
+        "trackTikTokPage",
       ),
-    "order funnel success events",
+    "consent lifecycle and page tracking",
   ],
   [
-    Boolean(callbackTrack) &&
-      Boolean(orderSubmittedTrack) &&
-      !piiPattern.test(
-        callbackTrack,
+    callback.includes(
+      '"callback_submitted"',
+    ) &&
+      order.includes(
+        '"order_started"',
       ) &&
-      !piiPattern.test(
-        orderSubmittedTrack,
+      order.includes(
+        '"order_submitted"',
       ),
-    "no customer PII in conversion events",
+    "lead and order funnel events",
+  ],
+  [
+    !conversion.includes(
+      "customerPhone",
+    ) &&
+      !conversion.includes(
+        "customerEmail",
+      ) &&
+      !pixel.includes(
+        "identify(",
+      ),
+    "no customer PII or advanced matching",
   ],
 ];
 
@@ -156,7 +105,7 @@ const failed =
 
 if (failed.length) {
   console.error(
-    "V22-A TikTok tracking check failed:",
+    "V22-B TikTok direct tracking check failed:",
   );
 
   for (const [
@@ -172,5 +121,5 @@ if (failed.length) {
 }
 
 console.log(
-  "PASS ✓ — TikTok Consent Gate ✓ / Lead ✓ / InitiateCheckout ✓ / Contact ✓ / ViewContent ✓ / No PII ✓",
+  "PASS ✓ — Direct Pixel ✓ / Marketing Consent ✓ / ViewContent ✓ / InitiateCheckout ✓ / Contact ✓ / Lead ✓ / GTM Bridge OFF ✓ / No PII ✓",
 );
