@@ -7,6 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  createClientUploadKey,
+} from "@/lib/client-upload-key";
 
 type Bath = {
   service: "new" | "replace" | "install_only";
@@ -254,10 +257,13 @@ export default function Order() {
     const entries =
       Object.entries(photoGroups).flatMap(
         ([label, files]) =>
-          files.map((file) => ({
-            label,
-            file,
-          })),
+          files.map(
+            (file, index) => ({
+              label,
+              file,
+              index,
+            }),
+          ),
       );
 
     if (entries.length === 0) {
@@ -287,6 +293,20 @@ export default function Order() {
           prepared,
         );
 
+        const uploadKey =
+          await createClientUploadKey(
+            [
+              orderId,
+              "CUSTOMER",
+              entry.label,
+              entry.index,
+              entry.file.name,
+              entry.file.size,
+              entry.file
+                .lastModified,
+            ],
+          );
+
         const response =
           await fetch(
             `/api/orders/${orderId}/customer-attachments`,
@@ -295,6 +315,8 @@ export default function Order() {
               headers: {
                 "x-order-upload-token":
                   uploadToken,
+                "x-upload-key":
+                  uploadKey,
               },
               body: form,
             },

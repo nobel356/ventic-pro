@@ -7,6 +7,9 @@ import {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
+import {
+  createClientUploadKey,
+} from "@/lib/client-upload-key";
 
 type Snapshot = {
   order: {
@@ -306,10 +309,25 @@ export default function ExecutionWorkspace({
       form.append("kind", kind);
       form.append("file", prepared);
 
+      const uploadKey =
+        await createClientUploadKey(
+          [
+            orderId,
+            kind,
+            file.name,
+            file.size,
+            file.lastModified,
+          ],
+        );
+
       const response = await fetch(
         `${apiBase}?action=attachment`,
         {
           method: "POST",
+          headers: {
+            "x-upload-key":
+              uploadKey,
+          },
           body: form,
         },
       );

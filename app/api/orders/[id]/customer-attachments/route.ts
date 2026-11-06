@@ -10,9 +10,13 @@ import {
   verifyOrderUploadToken,
 } from "@/lib/customer-order-upload";
 import {
-  deleteStoredFile,
   uploadOrderImage,
 } from "@/lib/storage";
+import {
+  findUploadReplay,
+  normalizeUploadKey,
+  persistUploadedAttachment,
+} from "@/lib/upload-integrity";
 
 const MAX_CUSTOMER_PHOTOS =
   40;
@@ -64,6 +68,27 @@ export async function POST(
       );
     }
 
+    let uploadKey:
+      | string
+      | null = null;
+
+    try {
+      uploadKey =
+        normalizeUploadKey(
+          req.headers.get(
+            "x-upload-key",
+          ),
+        );
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "معرّف رفع الصورة غير صالح.",
+        },
+        { status: 400 },
+      );
+    }
+
     const limited = rateLimit(
       `customer-photo:${clientIp(
         req,
@@ -107,6 +132,27 @@ export async function POST(
             "الطلب غير موجود.",
         },
         { status: 404 },
+      );
+    }
+
+    const replay =
+      await findUploadReplay(
+        prisma,
+        {
+          orderId: id,
+          uploadKey,
+        },
+      );
+
+    if (replay) {
+      return NextResponse.json(
+        {
+          ok: true,
+          id: replay.id,
+          idempotentReplay:
+            true,
+        },
+        { status: 200 },
       );
     }
 
@@ -161,10 +207,11 @@ export async function POST(
         file,
       });
 
-    try {
-      const attachment =
-        await prisma.attachment.create({
-          data: {
+    const persisted =
+      await persistUploadedAttachment(
+        prisma,
+        {
+          attachment: {
             orderId: id,
             kind: "CUSTOMER",
             fileName:
@@ -173,43 +220,53 @@ export async function POST(
               file.type,
             storagePath:
               stored.pathname,
+            uploadKey,
           },
-        });
-
-      await prisma.auditLog.create({
-        data: {
-          orderId: id,
-          actorLabel:
-            "العميل",
-          action:
-            "CUSTOMER_PHOTO_ADDED",
-          newValue: {
-            attachmentId:
-              attachment.id,
-            label,
-            fileName:
-              file.name,
-            storageProvider:
-              "vercel_blob",
-            size:
-              stored.size,
-          },
+          cleanupPath:
+            stored.pathname,
+          audit: (
+            attachmentId,
+          ) => ({
+            orderId: id,
+            actorLabel:
+              "العميل",
+            action:
+              "CUSTOMER_PHOTO_ADDED",
+            newValue: {
+              attachmentId,
+              label,
+              fileName:
+                file.name,
+              storageProvider:
+                "vercel_blob",
+              storagePath:
+                stored.pathname,
+              size:
+                stored.size,
+              uploadKey:
+                uploadKey ||
+                null,
+            },
+          }),
         },
-      });
+      );
 
-      return NextResponse.json(
-        {
-          ok: true,
-          id: attachment.id,
-        },
-        { status: 201 },
-      );
-    } catch (error) {
-      await deleteStoredFile(
-        stored.pathname,
-      );
-      throw error;
-    }
+    return NextResponse.json(
+      {
+        ok: true,
+        id:
+          persisted.item.id,
+        idempotentReplay:
+          persisted.replayed,
+      },
+      {
+        status:
+          persisted.replayed
+            ? 200
+            : 201,
+      },
+    );
+
   } catch (error: any) {
     const code =
       String(
@@ -238,6 +295,19 @@ export async function POST(
         {
           error:
             "نوع الصورة غير مدعوم.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      code ===
+      "INVALID_UPLOAD_KEY"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "معرّف رفع الصورة غير صالح.",
         },
         { status: 400 },
       );

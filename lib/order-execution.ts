@@ -21,9 +21,13 @@ import {
   ensureOrderProperty,
 } from "@/lib/customer-assets";
 import {
-  deleteStoredFile,
   uploadOrderImage,
 } from "@/lib/storage";
+import {
+  findUploadReplay,
+  normalizeUploadKey,
+  persistUploadedAttachment,
+} from "@/lib/upload-integrity";
 import { absoluteAppUrl, notifyCustomer } from "@/lib/customer-notifications";
 import {
   clearDurableRateLimit,
@@ -279,6 +283,7 @@ export async function addExecutionAttachment(
     actor: ExecutionActor;
     kind: "BEFORE" | "AFTER";
     file: File;
+    uploadKey?: string | null;
   },
 ) {
   const order = await getOrder(
@@ -287,11 +292,14 @@ export async function addExecutionAttachment(
   );
 
   if (!order) {
-    throw new Error("ORDER_NOT_FOUND");
+    throw new Error(
+      "ORDER_NOT_FOUND",
+    );
   }
 
   if (
-    input.actor.mode === "TECHNICIAN"
+    input.actor.mode ===
+    "TECHNICIAN"
   ) {
     assertAssignedTechnician(
       order,
@@ -306,49 +314,89 @@ export async function addExecutionAttachment(
       : "AFTER_PHOTO",
   );
 
-  const stored = await uploadOrderImage({
-    orderId: input.orderId,
-    kind: input.kind,
-    file: input.file,
-  });
+  const uploadKey =
+    normalizeUploadKey(
+      input.uploadKey,
+    );
 
-  try {
-    const item = await client.attachment.create({
-      data: {
-        orderId: input.orderId,
-        kind: input.kind,
-        fileName: input.file.name,
-        mimeType: input.file.type,
-        storagePath: stored.pathname,
-        uploadedBy: input.actor.id,
+  const replay =
+    await findUploadReplay(
+      client,
+      {
+        orderId:
+          input.orderId,
+        uploadKey,
       },
-    });
+    );
 
-    await client.auditLog.create({
-      data: {
-        orderId: input.orderId,
-        actorId: input.actor.id,
-        actorLabel: input.actor.name,
-        action:
-          input.kind === "BEFORE"
-            ? "BEFORE_PHOTO_ADDED"
-            : "AFTER_PHOTO_ADDED",
-        newValue: {
-          attachmentId: item.id,
-          fileName: input.file.name,
-          storageProvider: "vercel_blob",
-          storagePath: stored.pathname,
-          size: stored.size,
-          executionMode: input.actor.mode,
-        },
-      },
-    });
-
-    return item;
-  } catch (error) {
-    await deleteStoredFile(stored.pathname);
-    throw error;
+  if (replay) {
+    return replay;
   }
+
+  const stored =
+    await uploadOrderImage({
+      orderId:
+        input.orderId,
+      kind: input.kind,
+      file: input.file,
+    });
+
+  const persisted =
+    await persistUploadedAttachment(
+      client,
+      {
+        attachment: {
+          orderId:
+            input.orderId,
+          kind:
+            input.kind,
+          fileName:
+            input.file.name,
+          mimeType:
+            input.file.type,
+          storagePath:
+            stored.pathname,
+          uploadedBy:
+            input.actor.id,
+          uploadKey,
+        },
+        cleanupPath:
+          stored.pathname,
+        audit: (
+          attachmentId,
+        ) => ({
+          orderId:
+            input.orderId,
+          actorId:
+            input.actor.id,
+          actorLabel:
+            input.actor.name,
+          action:
+            input.kind ===
+            "BEFORE"
+              ? "BEFORE_PHOTO_ADDED"
+              : "AFTER_PHOTO_ADDED",
+          newValue: {
+            attachmentId,
+            fileName:
+              input.file.name,
+            storageProvider:
+              "vercel_blob",
+            storagePath:
+              stored.pathname,
+            size:
+              stored.size,
+            executionMode:
+              input.actor.mode,
+            uploadKey:
+              uploadKey ||
+              null,
+          },
+        }),
+      },
+    );
+
+  return persisted.item;
 }
 
 export async function confirmNoExecutionMaterials(
@@ -1205,6 +1253,11 @@ export function executionErrorResponse(
       status: 503,
       error:
         "تخزين الصور غير مفعّل. اربط Vercel Blob بالمشروع أولًا.",
+    },
+    INVALID_UPLOAD_KEY: {
+      status: 400,
+      error:
+        "معرّف رفع الصورة غير صالح.",
     },
     MATERIALS_ALREADY_USED: {
       status: 409,

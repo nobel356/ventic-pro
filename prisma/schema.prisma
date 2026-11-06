@@ -192,7 +192,10 @@ model Attachment {
   mimeType    String
   storagePath String
   uploadedBy  String?
+  uploadKey   String?
   createdAt   DateTime       @default(now())
+
+  @@unique([orderId, uploadKey])
 }
 
 model AuditLog {

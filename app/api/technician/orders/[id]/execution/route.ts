@@ -142,6 +142,10 @@ export async function POST(
               | "BEFORE"
               | "AFTER",
             file,
+            uploadKey:
+              req.headers.get(
+                "x-upload-key",
+              ),
           },
         );
 
