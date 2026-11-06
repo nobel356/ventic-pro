@@ -99,6 +99,12 @@ export default async function LaunchCenterPage() {
       detail:
         "أحداث Ventic Pro تُدفع إلى dataLayer، ويمكن استخدامها في GTM لـGA4/Meta/TikTok.",
     },
+    {
+      label: "TikTok conversion bridge",
+      ok: true,
+      detail:
+        "V22-A: Lead / InitiateCheckout / Contact / ViewContent تُدفع كـ ventic_tiktok_conversion فقط بعد موافقة Marketing، بدون اسم أو رقم موبايل.",
+    },
   ];
 
   const search = [

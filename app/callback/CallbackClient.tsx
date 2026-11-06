@@ -62,7 +62,7 @@ export default function CallbackClient({
         throw new Error(data?.error || "تعذر إرسال طلب الاتصال.");
       }
 
-      trackConversion("callback_intent", {
+      trackConversion("callback_submitted", {
         stage: "submitted",
         ...(service ? { service } : {}),
       });

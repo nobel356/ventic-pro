@@ -10,6 +10,9 @@ import {
 import {
   createClientUploadKey,
 } from "@/lib/client-upload-key";
+import {
+  trackConversion,
+} from "@/lib/client-conversion";
 
 type Bath = {
   service: "new" | "replace" | "install_only";
@@ -368,6 +371,16 @@ export default function Order() {
     );
 
     setStep(2);
+
+    trackConversion(
+      "order_started",
+      {
+        bathrooms:
+          bathCount,
+        kitchens:
+          kitchenCount,
+      },
+    );
   };
 
   const baseEstimate = useMemo(
@@ -1065,6 +1078,23 @@ export default function Order() {
                     }
 
                     setCreated(data.orderNo);
+
+                    trackConversion(
+                      "order_submitted",
+                      {
+                        value:
+                          Number(
+                            data?.estimatedTotal ||
+                              0,
+                          ),
+                        currency:
+                          "EGP",
+                        referralApplied:
+                          Boolean(
+                            data?.referralApplied,
+                          ),
+                      },
+                    );
 
                     if (
                       data?.orderId &&
