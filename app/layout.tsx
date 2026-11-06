@@ -14,6 +14,7 @@ import MarketingAttribution from "@/app/shared/MarketingAttribution";
 import SeoJsonLd from "@/app/shared/SeoJsonLd";
 import PortfolioPortal from "@/app/shared/PortfolioPortal";
 import GrowthAssist from "@/app/shared/GrowthAssist";
+import AiAssistant from "@/app/shared/AiAssistant";
 import QrQuickAccess from "@/app/shared/QrQuickAccess";
 import ReferralBanner from "@/app/shared/ReferralBanner";
 import ConversionTracker from "@/app/shared/ConversionTracker";
@@ -282,6 +283,7 @@ export default async function Layout({
             <PortfolioPortal />
             <SiteChrome />
             <GrowthAssist />
+            <AiAssistant />
             <QrQuickAccess />
             <PwaInstallPrompt />
           </RuntimeSiteGate>
