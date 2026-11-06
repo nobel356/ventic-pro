@@ -21,7 +21,10 @@ import TrustBar from "@/app/shared/TrustBar";
 import CalculatorOrderSummary from "@/app/shared/CalculatorOrderSummary";
 import TrackingManager from "@/app/shared/TrackingManager";
 import RuntimeSiteGate from "@/app/shared/RuntimeSiteGate";
-import { getRuntimeControl } from "@/lib/runtime-control";
+import {
+  getRuntimeControl,
+  sanitizeRuntimeControl,
+} from "@/lib/runtime-control";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -145,6 +148,22 @@ function gtmBootstrap(containerId: string) {
 `;
 }
 
+function runtimeFromHeader(
+  value: string | null,
+) {
+  if (!value) return null;
+
+  try {
+    return sanitizeRuntimeControl(
+      JSON.parse(
+        decodeURIComponent(value),
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
 function bypassRuntimeLock(
   pathname: string,
 ) {
@@ -168,13 +187,30 @@ export default async function Layout({
       "x-ventic-pathname",
     ) || "/";
 
-  const {
-    control: runtimeControl,
-  } = await getRuntimeControl();
+  const middlewareRuntime =
+    runtimeFromHeader(
+      requestHeaders.get(
+        "x-ventic-runtime-control",
+      ),
+    );
+
+  const runtimeControl =
+    middlewareRuntime ||
+    (
+      await getRuntimeControl()
+    ).control;
 
   const hardLocked =
-    !bypassRuntimeLock(pathname) &&
-    runtimeControl.mode !== "NORMAL";
+    requestHeaders.get(
+      "x-ventic-runtime-lock",
+    ) === "1" ||
+    (
+      !bypassRuntimeLock(
+        pathname,
+      ) &&
+      runtimeControl.mode !==
+        "NORMAL"
+    );
 
   return (
     <html lang="ar" dir="rtl">

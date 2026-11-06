@@ -43,7 +43,7 @@ const checks = [
       "getRuntimeControl",
       "bypassRuntimeLock",
       "hardLocked",
-      "runtimeControl.mode !== \"NORMAL\"",
+      "x-ventic-runtime-lock",
       "initialRuntime=",
     ],
   ],
