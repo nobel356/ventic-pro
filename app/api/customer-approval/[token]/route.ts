@@ -46,6 +46,21 @@ function expiredResponse() {
   );
 }
 
+function archivedOrderResponse() {
+  return NextResponse.json(
+    {
+      error:
+        "هذا الطلب مؤرشف ولم يعد الرابط متاحًا.",
+      archived: true,
+    },
+    {
+      status: 410,
+      headers:
+        publicHeaders(),
+    },
+  );
+}
+
 function publicHeaders() {
   return {
     "Cache-Control":
@@ -124,12 +139,16 @@ export async function GET(
         order: {
           select: {
             orderNo: true,
+            archivedAt: true,
           },
         },
       },
     });
 
   if (estimate) {
+    if (estimate.order.archivedAt) {
+      return archivedOrderResponse();
+    }
     if (
       estimate.status ===
         "SENT" &&
@@ -214,9 +233,19 @@ export async function GET(
         customerToken:
           token,
       },
+      include: {
+        order: {
+          select: {
+            archivedAt: true,
+          },
+        },
+      },
     });
 
   if (quote) {
+    if (quote.order.archivedAt) {
+      return archivedOrderResponse();
+    }
     if (
       quote.status === "SENT" &&
       approvalLinkExpired(
@@ -253,9 +282,19 @@ export async function GET(
         customerToken:
           token,
       },
+      include: {
+        order: {
+          select: {
+            archivedAt: true,
+          },
+        },
+      },
     });
 
   if (extra) {
+    if (extra.order.archivedAt) {
+      return archivedOrderResponse();
+    }
     if (
       extra.status ===
         "PENDING" &&
@@ -385,12 +424,16 @@ export async function POST(
         order: {
           select: {
             orderNo: true,
+            archivedAt: true,
           },
         },
       },
     });
 
   if (estimate) {
+    if (estimate.order.archivedAt) {
+      return archivedOrderResponse();
+    }
     if (
       estimate.status !==
       "SENT"
@@ -583,12 +626,17 @@ export async function POST(
         order: {
           select: {
             orderNo: true,
+            archivedAt: true,
           },
         },
       },
     });
 
   if (quote) {
+    if (quote.order.archivedAt) {
+      return archivedOrderResponse();
+    }
+
     if (
       quote.status !==
       "SENT"
@@ -731,12 +779,17 @@ export async function POST(
         order: {
           select: {
             orderNo: true,
+            archivedAt: true,
           },
         },
       },
     });
 
   if (extra) {
+    if (extra.order.archivedAt) {
+      return archivedOrderResponse();
+    }
+
     if (
       extra.status !==
       "PENDING"

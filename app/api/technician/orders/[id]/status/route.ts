@@ -41,7 +41,11 @@ export async function PATCH(
   }
 
   const old = await prisma.order.findFirst({
-    where: { id, technicianId: tech.id },
+    where: {
+      id,
+      technicianId: tech.id,
+      archivedAt: null,
+    },
     include: { customer: true },
   });
   if (!old) {

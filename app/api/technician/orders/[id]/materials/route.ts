@@ -16,6 +16,7 @@ async function assigned(
     where: {
       id,
       technicianId: techId,
+      archivedAt: null,
     },
     select: { id: true },
   });

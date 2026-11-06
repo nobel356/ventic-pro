@@ -54,6 +54,7 @@ async function authorized(
               invoiceId,
             order: {
               customerId,
+              archivedAt: null,
             },
           },
           select: {

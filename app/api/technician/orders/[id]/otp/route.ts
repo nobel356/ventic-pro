@@ -32,6 +32,7 @@ export async function POST(
         id,
         technicianId:
           tech.id,
+        archivedAt: null,
       },
       select: {
         id: true,

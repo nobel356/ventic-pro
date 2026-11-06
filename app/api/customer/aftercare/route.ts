@@ -4,6 +4,10 @@ import { getRuntimeControl } from "@/lib/runtime-control";
 import { prisma } from "@/lib/prisma";
 import { currentCustomer } from "@/lib/customer-auth";
 import { notifyAdmins } from "@/lib/admin-notifications";
+import {
+  customerActiveOrderWhere,
+  customerDeviceForOrderWhere,
+} from "@/lib/customer-journey-security";
 
 export async function GET() {
   const {
@@ -32,6 +36,7 @@ export async function GET() {
   const orders = await prisma.order.findMany({
     where: {
       customerId: customer.id,
+      archivedAt: null,
       status: "COMPLETED",
     },
     include: {
@@ -99,6 +104,20 @@ export async function GET() {
 export async function POST(
   req: Request,
 ) {
+  const {
+    control,
+  } = await getRuntimeControl();
+
+  if (!control.aftercare) {
+    return NextResponse.json(
+      {
+        error:
+          "خدمات ما بعد البيع متوقفة مؤقتًا.",
+      },
+      { status: 503 },
+    );
+  }
+
   const customer =
     await currentCustomer();
 
@@ -143,11 +162,15 @@ export async function POST(
 
     const order =
       await prisma.order.findFirst({
-        where: {
-          id: orderId,
-          customerId: customer.id,
-          status: "COMPLETED",
-        },
+        where:
+          customerActiveOrderWhere(
+            customer.id,
+            orderId,
+            {
+              status:
+                "COMPLETED",
+            },
+          ),
         include: {
           warranties: {
             orderBy: {
@@ -171,20 +194,23 @@ export async function POST(
     if (deviceId) {
       const device =
         await prisma.device.findFirst({
-          where: {
-            id: deviceId,
-            property: {
-              customerId:
-                customer.id,
-            },
-          },
+          where:
+            customerDeviceForOrderWhere(
+              customer.id,
+              {
+                id: order.id,
+                propertyId:
+                  order.propertyId,
+              },
+              deviceId,
+            ),
         });
 
       if (!device) {
         return NextResponse.json(
           {
             error:
-              "الجهاز غير تابع لحسابك",
+              "الجهاز غير تابع لهذا الطلب أو العقار",
           },
           { status: 400 },
         );

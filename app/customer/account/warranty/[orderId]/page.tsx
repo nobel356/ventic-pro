@@ -29,6 +29,7 @@ export default async function WarrantyCertificatePage({
       where: {
         id: orderId,
         customerId: customer.id,
+        archivedAt: null,
       },
       include: {
         customer: true,

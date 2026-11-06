@@ -17,6 +17,7 @@ export default async function CustomerReviewPage({
     where: {
       id: orderId,
       customerId: customer.id,
+      archivedAt: null,
     },
     include: {
       review: true,

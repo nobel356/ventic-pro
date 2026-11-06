@@ -88,6 +88,28 @@ export default function ControlCenterClient() {
     useState(false);
   const [leadHealthRunning, setLeadHealthRunning] =
     useState(false);
+  const [journeyRunning, setJourneyRunning] =
+    useState(false);
+  const [journeyHealth, setJourneyHealth] =
+    useState<{
+      ok: boolean;
+      customerOwnOrder?: boolean;
+      crossCustomerDenied?: boolean;
+      archivedCustomerDenied?: boolean;
+      technicianOwnOrder?: boolean;
+      wrongTechnicianDenied?: boolean;
+      archivedTechnicianDenied?: boolean;
+      correctDeviceAccepted?: boolean;
+      wrongPropertyDeviceDenied?: boolean;
+      otherCustomerDeviceDenied?: boolean;
+      activeInvoiceVisible?: boolean;
+      archivedInvoiceDenied?: boolean;
+      roleBoundaries?: boolean;
+      rollbackCleanup?: boolean;
+      durationMs?: number;
+      error?: string;
+    } | null>(null);
+
   const [resilienceRunning, setResilienceRunning] =
     useState(false);
   const [resilienceHealth, setResilienceHealth] =
@@ -227,6 +249,50 @@ export default function ControlCenterClient() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runJourneyHealth() {
+    if (journeyRunning) {
+      return;
+    }
+
+    setJourneyRunning(true);
+    setJourneyHealth(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/admin/journey-health",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+          },
+        );
+
+      const data =
+        await response.json();
+
+      setJourneyHealth(data);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "فشل اختبار Customer Journey",
+        );
+      }
+    } catch (error: any) {
+      setJourneyHealth({
+        ok: false,
+        error:
+          error?.message ||
+          "فشل اختبار Customer Journey",
+      });
+    } finally {
+      setJourneyRunning(false);
     }
   }
 
@@ -591,6 +657,96 @@ export default function ControlCenterClient() {
             ) : (
               <>
                 FAIL — {leadHealth.error || "Unknown error"}
+              </>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section style={card}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent:
+              "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={sectionTitle}>
+              Customer Journey Integrity
+            </h2>
+            <div
+              style={{
+                color: "#64748b",
+                fontSize: 13,
+                lineHeight: 1.7,
+              }}
+            >
+              اختبار عزل العميل والفني والأرشيف وربط الجهاز بالطلب والعقار داخل Transaction يتم عمل Rollback لها بالكامل.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              void runJourneyHealth()
+            }
+            disabled={
+              journeyRunning
+            }
+            style={{
+              border: 0,
+              borderRadius: 12,
+              padding:
+                "11px 16px",
+              background:
+                "#1d4ed8",
+              color: "white",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            {journeyRunning
+              ? "جاري اختبار المسار..."
+              : "اختبار Customer Journey"}
+          </button>
+        </div>
+
+        {journeyHealth ? (
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 12,
+              border:
+                journeyHealth.ok
+                  ? "1px solid #86efac"
+                  : "1px solid #fca5a5",
+              background:
+                journeyHealth.ok
+                  ? "#f0fdf4"
+                  : "#fef2f2",
+              color:
+                journeyHealth.ok
+                  ? "#166534"
+                  : "#991b1b",
+              lineHeight: 1.8,
+              fontWeight: 800,
+            }}
+          >
+            {journeyHealth.ok ? (
+              <>
+                PASS ✓ — Customer Isolation ✓ / Archive Isolation ✓ / Technician Isolation ✓ / Device-Order Binding ✓ / Invoice Isolation ✓ / Role Boundaries ✓ / Rollback Cleanup ✓
+                {typeof journeyHealth.durationMs === "number"
+                  ? ` — ${journeyHealth.durationMs} ms`
+                  : ""}
+              </>
+            ) : (
+              <>
+                FAIL — {journeyHealth.error || "Unknown error"}
               </>
             )}
           </div>

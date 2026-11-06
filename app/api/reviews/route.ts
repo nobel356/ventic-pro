@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getRuntimeControl } from "@/lib/runtime-control";
 import { prisma } from "@/lib/prisma";
 import { currentCustomer } from "@/lib/customer-auth";
+import { customerActiveOrderWhere } from "@/lib/customer-journey-security";
 
 const fields = [
   "overall",
@@ -53,7 +54,11 @@ export async function POST(req: Request) {
     }
 
     const order = await prisma.order.findFirst({
-      where: { id: orderId, customerId: customer.id },
+      where:
+        customerActiveOrderWhere(
+          customer.id,
+          orderId,
+        ),
       select: { id: true, status: true, technicianId: true, orderNo: true },
     });
 

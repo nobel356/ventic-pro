@@ -27,6 +27,7 @@ export default async function CustomerInvoicePage({
       id,
       order: {
         customerId: customer.id,
+        archivedAt: null,
       },
     },
     include: {

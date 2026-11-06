@@ -27,6 +27,7 @@ async function context(id: string) {
     where: {
       id,
       technicianId: tech.id,
+      archivedAt: null,
     },
     select: {
       id: true,
