@@ -47,12 +47,18 @@ function normalizePhone(value: string) {
 
 export default function RuntimeSiteGate({
   children,
+  initialRuntime = null,
+  hardLocked = false,
 }: {
   children: ReactNode;
+  initialRuntime?: RuntimeControl | null;
+  hardLocked?: boolean;
 }) {
   const pathname = usePathname() || "/";
   const [runtime, setRuntime] =
-    useState<RuntimeControl | null>(null);
+    useState<RuntimeControl | null>(
+      initialRuntime,
+    );
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [sending, setSending] =
@@ -86,12 +92,28 @@ export default function RuntimeSiteGate({
         }
         const data =
           await response.json();
-        if (!cancelled) {
-          setRuntime(data);
+
+        if (cancelled) {
+          return;
         }
+
+        if (
+          hardLocked &&
+          data?.mode === "NORMAL"
+        ) {
+          window.location.reload();
+          return;
+        }
+
+        setRuntime(data);
       } catch {
         if (!cancelled) {
-          setRuntime(FAIL_SAFE);
+          setRuntime(
+            hardLocked
+              ? initialRuntime ||
+                  FAIL_SAFE
+              : FAIL_SAFE,
+          );
         }
       }
     }
@@ -126,7 +148,12 @@ export default function RuntimeSiteGate({
         onVisible,
       );
     };
-  }, [pathname, skipped]);
+  }, [
+    hardLocked,
+    initialRuntime,
+    pathname,
+    skipped,
+  ]);
 
   useEffect(() => {
     if (

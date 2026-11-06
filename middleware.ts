@@ -55,7 +55,19 @@ export function middleware(req: NextRequest) {
     );
   }
 
-  const res = NextResponse.next();
+  const requestHeaders =
+    new Headers(req.headers);
+
+  requestHeaders.set(
+    "x-ventic-pathname",
+    req.nextUrl.pathname,
+  );
+
+  const res = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("X-Frame-Options", "DENY");

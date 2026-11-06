@@ -7,6 +7,7 @@ import "./navigation-v18.css";
 import "./growth-v18b.css";
 import "./a11y-v19.css";
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import SiteChrome from "@/app/shared/SiteChrome";
 import PwaInstallPrompt from "@/app/shared/PwaInstallPrompt";
 import MarketingAttribution from "@/app/shared/MarketingAttribution";
@@ -20,6 +21,7 @@ import TrustBar from "@/app/shared/TrustBar";
 import CalculatorOrderSummary from "@/app/shared/CalculatorOrderSummary";
 import TrackingManager from "@/app/shared/TrackingManager";
 import RuntimeSiteGate from "@/app/shared/RuntimeSiteGate";
+import { getRuntimeControl } from "@/lib/runtime-control";
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -143,15 +145,41 @@ function gtmBootstrap(containerId: string) {
 `;
 }
 
-export default function Layout({
+function bypassRuntimeLock(
+  pathname: string,
+) {
+  return (
+    pathname === "/login" ||
+    pathname === "/callback" ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/technician")
+  );
+}
+
+export default async function Layout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const requestHeaders =
+    await headers();
+  const pathname =
+    requestHeaders.get(
+      "x-ventic-pathname",
+    ) || "/";
+
+  const {
+    control: runtimeControl,
+  } = await getRuntimeControl();
+
+  const hardLocked =
+    !bypassRuntimeLock(pathname) &&
+    runtimeControl.mode !== "NORMAL";
+
   return (
     <html lang="ar" dir="rtl">
       <head>
-        {gtmId ? (
+        {!hardLocked && gtmId ? (
           <script
             id="ventic-gtm-bootstrap"
             dangerouslySetInnerHTML={{
@@ -162,7 +190,7 @@ export default function Layout({
       </head>
 
       <body>
-        {gtmId ? (
+        {!hardLocked && gtmId ? (
           <noscript>
             <iframe
               src={`https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(
@@ -179,27 +207,49 @@ export default function Layout({
           </noscript>
         ) : null}
 
-        <a href="#main-content" className="vpSkipLink">
-          تخطي للمحتوى
-        </a>
+        {!hardLocked ? (
+          <a
+            href="#main-content"
+            className="vpSkipLink"
+          >
+            تخطي للمحتوى
+          </a>
+        ) : null}
 
-        <RuntimeSiteGate>
-          <TrackingManager />
-          <MarketingAttribution />
-          <ConversionTracker />
-          <ReferralBanner />
-          <SeoJsonLd />
-          <TrustBar />
-          <CalculatorOrderSummary />
+        {hardLocked ? (
+          <RuntimeSiteGate
+            initialRuntime={
+              runtimeControl
+            }
+            hardLocked
+          >
+            {null}
+          </RuntimeSiteGate>
+        ) : (
+          <RuntimeSiteGate
+            initialRuntime={
+              runtimeControl
+            }
+          >
+            <TrackingManager />
+            <MarketingAttribution />
+            <ConversionTracker />
+            <ReferralBanner />
+            <SeoJsonLd />
+            <TrustBar />
+            <CalculatorOrderSummary />
 
-          <div id="main-content">{children}</div>
+            <div id="main-content">
+              {children}
+            </div>
 
-          <PortfolioPortal />
-          <SiteChrome />
-          <GrowthAssist />
-          <QrQuickAccess />
-          <PwaInstallPrompt />
-        </RuntimeSiteGate>
+            <PortfolioPortal />
+            <SiteChrome />
+            <GrowthAssist />
+            <QrQuickAccess />
+            <PwaInstallPrompt />
+          </RuntimeSiteGate>
+        )}
       </body>
     </html>
   );
