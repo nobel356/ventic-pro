@@ -64,6 +64,12 @@ const mainLinks = [
     description: "فيديوهات تنفيذ حقيقية",
   },
   {
+    href: "/blog",
+    label: "دليل التهوية",
+    icon: "▤",
+    description: "مقالات ونصائح قبل الشراء والتركيب",
+  },
+  {
     href: "/faq",
     label: "الأسئلة الشائعة",
     icon: "?",
@@ -134,6 +140,7 @@ function whatsappMessageForPath(pathname: string) {
   if (pathname.startsWith("/calculator")) return "مرحبًا Ventic Pro، استخدمت حاسبة السعر وعاوز أتأكد من التقدير.";
   if (pathname.startsWith("/offers")) return "مرحبًا Ventic Pro، شفت العروض وعاوز أعرف الأنسب لطلبي.";
   if (pathname.startsWith("/areas")) return "مرحبًا Ventic Pro، عاوز أتأكد إن منطقتي ضمن مناطق الخدمة.";
+  if (pathname.startsWith("/blog")) return "مرحبًا Ventic Pro، قرأت دليل التهوية وعندي سؤال عن الحالة عندي.";
   if (pathname.startsWith("/order")) return "مرحبًا Ventic Pro، عندي استفسار وأنا بعمل طلب تركيب.";
   return "مرحبًا Ventic Pro، أريد الاستفسار عن خدمات التهوية والتركيب.";
 }
@@ -456,6 +463,9 @@ export default function SiteChrome() {
                   </Link>
                   <Link style={footerLink} href="/works">
                     أعمالنا
+                  </Link>
+                  <Link style={footerLink} href="/blog">
+                    دليل التهوية
                   </Link>
                   <Link style={footerLink} href="/faq">
                     الأسئلة الشائعة

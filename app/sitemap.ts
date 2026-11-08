@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
+import { blogArticles } from "@/lib/blog/articles";
 
 export const revalidate = 3600;
 
@@ -22,6 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ["/why-ventic", "monthly", 0.8],
     ["/faq", "monthly", 0.7],
     ["/areas", "weekly", 0.8],
+    ["/blog", "weekly", 0.85],
     ["/services/bathroom-ventilation", "monthly", 0.9],
     ["/services/kitchen-ventilation", "monthly", 0.9],
     ["/services/hood-exhaust", "monthly", 0.9],
@@ -48,6 +50,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${base}${path}`,
       changeFrequency,
       priority,
+    })),
+    ...blogArticles.map((article) => ({
+      url: `${base}/blog/${article.slug}`,
+      lastModified: new Date(article.updatedAt),
+      changeFrequency: "monthly" as const,
+      priority: 0.8,
     })),
     ...areaRows.map((item) => ({
       url: `${base}/areas/${encodeURIComponent(item.governorate)}/${encodeURIComponent(item.area)}`,

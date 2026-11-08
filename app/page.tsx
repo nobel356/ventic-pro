@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { safeDiagnosticError } from "@/lib/safe-diagnostics";
+import { blogArticles } from "@/lib/blog/articles";
 
 export const revalidate = 300;
 
@@ -480,6 +481,64 @@ export default async function Home() {
             })}
           </div>
         )}
+      </section>
+
+      <section style={sectionStyle}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "end",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 18,
+          }}
+        >
+          <div>
+            <span className="tag">دليل التهوية</span>
+            <h2 style={{ marginBottom: 4 }}>اعرف قبل ما تشتري أو تركب</h2>
+            <p style={{ color: "#64748b", margin: 0 }}>
+              أدلة قصيرة وعملية عن الشفاطات والهود والدكت والرطوبة والروائح.
+            </p>
+          </div>
+          <Link href="/blog" style={{ color: "#075985", fontWeight: 900 }}>
+            كل المقالات ←
+          </Link>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+            gap: 10,
+          }}
+        >
+          {blogArticles.slice(0, 3).map((article) => (
+            <Link
+              key={article.slug}
+              href={`/blog/${article.slug}`}
+              style={{
+                background: "white",
+                border: "1px solid #dbe7ef",
+                borderRadius: 16,
+                padding: 17,
+                textDecoration: "none",
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <small style={{ color: "#0284c7", fontWeight: 900 }}>
+                {article.category}
+              </small>
+              <strong style={{ color: "#0b2f49", lineHeight: 1.6 }}>
+                {article.title}
+              </strong>
+              <span style={{ color: "#075985", fontWeight: 900, fontSize: 13 }}>
+                اقرأ الدليل ←
+              </span>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section style={sectionStyle}>
