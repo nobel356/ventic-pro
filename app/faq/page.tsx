@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "الأسئلة الشائعة",
   description:
     "أسئلة شائعة عن طلب وتركيب خدمات Ventic Pro والأسعار والمواعيد والضمان.",
+  alternates: { canonical: "/faq" },
 };
 
 const questions = [
@@ -35,6 +36,19 @@ const questions = [
 ];
 
 export default function FaqPage() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: questions.map(([question, answer]) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: answer,
+      },
+    })),
+  };
+
   return (
     <main
       dir="rtl"
@@ -44,6 +58,13 @@ export default function FaqPage() {
         padding: "28px 16px 70px",
       }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqSchema),
+        }}
+      />
+
       <section
         style={{
           maxWidth: 900,

@@ -49,13 +49,37 @@ export default async function ServiceLanding({
 
   const priceFrom = visiblePrices.length ? Math.min(...visiblePrices) : null;
 
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://ventic-pro-v11-7.vercel.app"
+  ).replace(/\/$/, "");
+
+  const servicePathBySlug: Record<string, string> = {
+    bathroom_ventilation: "/services/bathroom-ventilation",
+    kitchen_ventilation: "/services/kitchen-ventilation",
+    hood_exhaust: "/services/hood-exhaust",
+  };
+
+  const servicePath =
+    servicePathBySlug[slug] || "/services";
+
+  const serviceUrl =
+    `${baseUrl}${servicePath}`;
+
+
   const serviceSchema = {
     "@context": "https://schema.org",
     "@type": "Service",
+    "@id": `${serviceUrl}#service`,
+    url: serviceUrl,
     name: title,
+    serviceType: eyebrow,
     provider: {
-      "@type": "HomeAndConstructionBusiness",
-      name: "Ventic Pro",
+      "@id": `${baseUrl}/#business`,
+    },
+    areaServed: {
+      "@type": "Country",
+      name: "Egypt",
     },
     description,
     ...(priceFrom
@@ -83,6 +107,25 @@ export default async function ServiceLanding({
     })),
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Ventic Pro",
+        item: baseUrl,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: eyebrow,
+        item: serviceUrl,
+      },
+    ],
+  };
+
   return (
     <main dir="rtl">
       <script
@@ -92,6 +135,10 @@ export default async function ServiceLanding({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
 
       <section style={heroWrap}>

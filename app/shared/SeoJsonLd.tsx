@@ -5,6 +5,10 @@ export default function SeoJsonLd() {
     process.env.NEXT_PUBLIC_APP_URL ||
     "https://ventic-pro-v11-7.vercel.app";
 
+  const baseUrl = appUrl.replace(/\/$/, "");
+  const businessId = `${baseUrl}/#business`;
+  const websiteId = `${baseUrl}/#website`;
+
   const sameAs = [
     siteConfig.facebook,
     siteConfig.instagram,
@@ -26,50 +30,70 @@ export default function SeoJsonLd() {
 
   const schema = {
     "@context": "https://schema.org",
-    "@type": "HomeAndConstructionBusiness",
-    name: "Ventic Pro",
-    legalName: siteConfig.legalName,
-    url: appUrl,
-    description:
-      "حلول التهوية والتركيب للحمامات والمطابخ والهود وخطوط الطرد.",
-    telephone: siteConfig.supportPhone || undefined,
-    email: siteConfig.supportEmail || undefined,
-    areaServed: {
-      "@type": "Country",
-      name: "Egypt",
-    },
-    contactPoint,
-    sameAs,
-    hasOfferCatalog: {
-      "@type": "OfferCatalog",
-      name: "خدمات Ventic Pro",
-      itemListElement: [
-        {
-          "@type": "Offer",
-          itemOffered: {
-            "@type": "Service",
-            name: "تهوية الحمامات",
-            url: `${appUrl.replace(/\/$/, "")}/services/bathroom-ventilation`,
-          },
+    "@graph": [
+      {
+        "@type": "HomeAndConstructionBusiness",
+        "@id": businessId,
+        name: "Ventic Pro",
+        legalName: siteConfig.legalName,
+        url: baseUrl,
+        logo: {
+          "@type": "ImageObject",
+          url: `${baseUrl}/icon.png`,
         },
-        {
-          "@type": "Offer",
-          itemOffered: {
-            "@type": "Service",
-            name: "تهوية المطابخ",
-            url: `${appUrl.replace(/\/$/, "")}/services/kitchen-ventilation`,
-          },
+        image: `${baseUrl}/social-preview.png`,
+        description:
+          "حلول التهوية والتركيب للحمامات والمطابخ والهود وخطوط الطرد.",
+        telephone: siteConfig.supportPhone || undefined,
+        email: siteConfig.supportEmail || undefined,
+        areaServed: {
+          "@type": "Country",
+          name: "Egypt",
         },
-        {
-          "@type": "Offer",
-          itemOffered: {
-            "@type": "Service",
-            name: "تركيب الهود وخطوط الطرد",
-            url: `${appUrl.replace(/\/$/, "")}/services/hood-exhaust`,
-          },
+        contactPoint,
+        sameAs,
+        hasOfferCatalog: {
+          "@type": "OfferCatalog",
+          name: "خدمات Ventic Pro",
+          itemListElement: [
+            {
+              "@type": "Offer",
+              itemOffered: {
+                "@type": "Service",
+                name: "تهوية الحمامات",
+                url: `${baseUrl}/services/bathroom-ventilation`,
+              },
+            },
+            {
+              "@type": "Offer",
+              itemOffered: {
+                "@type": "Service",
+                name: "تهوية المطابخ",
+                url: `${baseUrl}/services/kitchen-ventilation`,
+              },
+            },
+            {
+              "@type": "Offer",
+              itemOffered: {
+                "@type": "Service",
+                name: "تركيب الهود وخطوط الطرد",
+                url: `${baseUrl}/services/hood-exhaust`,
+              },
+            },
+          ],
         },
-      ],
-    },
+      },
+      {
+        "@type": "WebSite",
+        "@id": websiteId,
+        url: baseUrl,
+        name: "Ventic Pro",
+        inLanguage: "ar-EG",
+        publisher: {
+          "@id": businessId,
+        },
+      },
+    ],
   };
 
   return (

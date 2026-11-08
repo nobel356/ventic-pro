@@ -53,6 +53,13 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
   verification: {
     google: googleVerification,
@@ -80,7 +87,7 @@ export const metadata: Metadata = {
         url: "/social-preview.png",
         width: 1200,
         height: 630,
-        alt: "Ventic Pro - Ø­Ù„ÙˆÙ„ Ø§Ù„ØªÙ‡ÙˆÙŠØ© ÙˆØ§Ù„ØªØ±ÙƒÙŠØ¨",
+        alt: "Ventic Pro - حلول التهوية والتركيب",
       },
     ],
   },

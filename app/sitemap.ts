@@ -43,18 +43,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     areaRows = [];
   }
 
-  const now = new Date();
-
   return [
     ...staticPaths.map(([path, changeFrequency, priority]) => ({
       url: `${base}${path}`,
-      lastModified: now,
       changeFrequency,
       priority,
     })),
     ...areaRows.map((item) => ({
       url: `${base}/areas/${encodeURIComponent(item.governorate)}/${encodeURIComponent(item.area)}`,
-      lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.7,
     })),
