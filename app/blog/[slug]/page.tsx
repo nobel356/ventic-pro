@@ -1,14 +1,16 @@
+export const revalidate = 60;
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { categoryForArticle } from "@/lib/blog/categories";
 import ArticleVisual from "@/app/blog/ArticleVisual";
 import PortfolioGallery from "@/app/shared/PortfolioGallery";
+import { blogArticles } from "@/lib/blog/articles";
 import {
-  blogArticles,
-  getBlogArticle,
-  relatedBlogArticles,
-} from "@/lib/blog/articles";
+  getPublishedBlogArticle,
+  getPublishedBlogArticles,
+  relatedCmsArticles,
+} from "@/lib/blog/cms";
 
 export function generateStaticParams() {
   return blogArticles.map((article) => ({
@@ -22,7 +24,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const article = getBlogArticle(slug);
+  const article = await getPublishedBlogArticle(slug);
 
   if (!article) return {};
 
@@ -57,7 +59,7 @@ export default async function BlogArticlePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const article = getBlogArticle(slug);
+  const article = await getPublishedBlogArticle(slug);
 
   if (!article) notFound();
 
@@ -70,7 +72,7 @@ export default async function BlogArticlePage({
   ).replace(/\/$/, "");
 
   const articleUrl = `${baseUrl}/blog/${article.slug}`;
-  const related = relatedBlogArticles(article);
+  const related = relatedCmsArticles(await getPublishedBlogArticles(), article);
 
   const workTerms =
     article.category.includes("الحمامات")
@@ -88,7 +90,7 @@ export default async function BlogArticlePage({
     mainEntityOfPage: articleUrl,
     headline: article.title,
     description: article.description,
-    image: [`${baseUrl}/blog/visuals/${article.slug}.svg`],
+    image: [article.visualPath ? `${baseUrl}${article.visualPath}` : `${baseUrl}/blog/visuals/${article.slug}.svg`],
     datePublished: article.publishedAt,
     dateModified: article.updatedAt,
     inLanguage: "ar-EG",
@@ -184,6 +186,7 @@ export default async function BlogArticlePage({
         <ArticleVisual
           slug={article.slug}
           title={article.title}
+          src={article.visualPath || undefined}
         />
 
         <div style={articleBody}>

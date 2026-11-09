@@ -1,6 +1,7 @@
+export const revalidate = 60;
 import type { Metadata } from "next";
 import Link from "next/link";
-import { blogArticles } from "@/lib/blog/articles";
+import { getPublishedBlogArticles } from "@/lib/blog/cms";
 import { blogCategories } from "@/lib/blog/categories";
 
 export const metadata: Metadata = {
@@ -17,7 +18,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const articles = await getPublishedBlogArticles();
   const baseUrl = (
     process.env.NEXT_PUBLIC_APP_URL ||
     "https://ventic-pro.com"
@@ -33,7 +35,7 @@ export default function BlogPage() {
     isPartOf: { "@id": `${baseUrl}/#website` },
     mainEntity: {
       "@type": "ItemList",
-      itemListElement: blogArticles.map((article, index) => ({
+      itemListElement: articles.map((article, index) => ({
         "@type": "ListItem",
         position: index + 1,
         url: `${baseUrl}/blog/${article.slug}`,
@@ -72,7 +74,7 @@ export default function BlogPage() {
         </div>
 
         <div style={grid}>
-          {blogArticles.map((article, index) => (
+          {articles.map((article, index) => (
             <article key={article.slug} style={card}>
               <div style={cardTop}>
                 <span style={articleTag}>{article.category}</span>

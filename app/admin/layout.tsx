@@ -129,6 +129,12 @@ export default async function AdminLayout({
     user.permissions,
   );
 
+  const canManageBlog = can(
+    user.role,
+    PERMISSIONS.BLOG_MANAGE,
+    user.permissions,
+  );
+
   const canViewArchive = can(
     user.role,
     PERMISSIONS.ARCHIVE_VIEW,
@@ -160,6 +166,7 @@ export default async function AdminLayout({
         canManageLeads={canManageLeads}
         canGlobalSearch={canGlobalSearch}
         canManageReviews={canManageReviews}
+        canManageBlog={canManageBlog}
         canViewArchive={canViewArchive}
       />
 

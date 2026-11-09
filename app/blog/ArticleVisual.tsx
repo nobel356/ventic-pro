@@ -1,14 +1,16 @@
 export default function ArticleVisual({
   slug,
   title,
+  src,
 }: {
   slug: string;
   title: string;
+  src?: string;
 }) {
   return (
     <figure style={figureStyle}>
       <img
-        src={`/blog/visuals/${slug}.svg`}
+        src={src || `/blog/visuals/${slug}.svg`}
         alt={`رسم توضيحي: ${title}`}
         width={1200}
         height={675}

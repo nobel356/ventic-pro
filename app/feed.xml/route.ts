@@ -1,4 +1,4 @@
-import { blogArticles } from "@/lib/blog/articles";
+import { getPublishedBlogArticles } from "@/lib/blog/cms";
 
 export const dynamic = "force-static";
 
@@ -12,6 +12,7 @@ function esc(value: string) {
 }
 
 export async function GET() {
+  const blogArticles = await getPublishedBlogArticles();
   const baseUrl = (
     process.env.NEXT_PUBLIC_APP_URL ||
     "https://ventic-pro.com"

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
-import { blogArticles } from "@/lib/blog/articles";
+import { getPublishedBlogArticles } from "@/lib/blog/cms";
 import { blogCategories } from "@/lib/blog/categories";
 
 export const revalidate = 3600;
@@ -10,6 +10,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     process.env.NEXT_PUBLIC_APP_URL ||
     "https://ventic-pro-v11-7.vercel.app"
   ).replace(/\/$/, "");
+
+  const publishedArticles = await getPublishedBlogArticles();
 
   const staticPaths: Array<[
     string,
@@ -60,7 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.82,
     })),
-    ...blogArticles.map((article) => ({
+    ...publishedArticles.map((article) => ({
       url: `${base}/blog/${article.slug}`,
       lastModified: new Date(article.updatedAt),
       changeFrequency: "monthly" as const,

@@ -23,6 +23,7 @@ type NavItem = {
   leadsPermission?: boolean;
   searchPermission?: boolean;
   reviewsPermission?: boolean;
+  blogPermission?: boolean;
   archivePermission?: boolean;
 };
 
@@ -108,6 +109,12 @@ const navItems: NavItem[] = [
     label: "تقييمات العملاء",
     icon: "⭐",
     reviewsPermission: true,
+  },
+  {
+    href: "/admin/blog",
+    label: "المقالات",
+    icon: "📝",
+    blogPermission: true,
   },
   {
     href: "/admin/reports",
@@ -241,6 +248,7 @@ export default function AdminSidebar({
   canManageLeads,
   canGlobalSearch,
   canManageReviews,
+  canManageBlog,
   canViewArchive,
 }: {
   isSuperAdmin: boolean;
@@ -259,6 +267,7 @@ export default function AdminSidebar({
   canManageLeads: boolean;
   canGlobalSearch: boolean;
   canManageReviews: boolean;
+  canManageBlog: boolean;
   canViewArchive: boolean;
 }) {
   const pathname = usePathname();
@@ -297,6 +306,7 @@ export default function AdminSidebar({
             if (item.leadsPermission && !canManageLeads) return false;
             if (item.searchPermission && !canGlobalSearch) return false;
             if (item.reviewsPermission && !canManageReviews) return false;
+            if (item.blogPermission && !canManageBlog) return false;
             if (item.archivePermission && !canViewArchive) return false;
             return true;
           })

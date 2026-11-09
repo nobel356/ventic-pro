@@ -1,11 +1,12 @@
+export const revalidate = 60;
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  articlesForCategory,
   blogCategories,
   getBlogCategory,
 } from "@/lib/blog/categories";
+import { getPublishedBlogArticles } from "@/lib/blog/cms";
 
 export function generateStaticParams() {
   return blogCategories.map((category) => ({
@@ -48,7 +49,9 @@ export default async function BlogCategoryPage({
 
   if (!category) notFound();
 
-  const articles = articlesForCategory(category.name);
+  const articles = (await getPublishedBlogArticles()).filter(
+    (article) => article.category === category.name,
+  );
 
   if (!articles.length) notFound();
 

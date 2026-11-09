@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   PROMOTIONS_MANAGE: "promotions.manage",
   LEADS_MANAGE: "leads.manage",
   GLOBAL_SEARCH: "search.global",
+  BLOG_MANAGE: "blog.manage",
 
   ARCHIVE_VIEW: "archive.view",
   ARCHIVE_MANAGE: "archive.manage",
@@ -226,6 +227,11 @@ export const PERMISSION_OPTIONS: Array<{
       "البحث في الطلبات والعملاء والفواتير والفنيين والعقارات والأجهزة والموردين.",
   },
   {
+    value: PERMISSIONS.BLOG_MANAGE,
+    label: "إدارة المقالات",
+    description: "إنشاء وتعديل ونشر وإخفاء مقالات دليل التهوية وإدارة SEO والمراجع.",
+  },
+  {
     value: PERMISSIONS.ARCHIVE_VIEW,
     label: "مشاهدة الأرشيف",
     description:
@@ -280,6 +286,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<
     PERMISSIONS.PROMOTIONS_MANAGE,
     PERMISSIONS.LEADS_MANAGE,
     PERMISSIONS.GLOBAL_SEARCH,
+    PERMISSIONS.BLOG_MANAGE,
   ],
   CUSTOMER_SERVICE: [
     PERMISSIONS.ORDERS_VIEW,

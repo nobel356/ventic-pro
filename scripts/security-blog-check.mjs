@@ -9,13 +9,24 @@ const home = fs.readFileSync("app/page.tsx", "utf8");
 
 const slugCount = (data.match(/"slug":/g) || []).length;
 
+const sitemapHasBlogSource =
+  sitemap.includes("blogArticles") ||
+  sitemap.includes("getPublishedBlogArticles") ||
+  sitemap.includes("publishedArticles");
+
+const indexHasBlogSource =
+  index.includes("blogArticles") ||
+  index.includes("getPublishedBlogArticles") ||
+  index.includes("articles.map");
+
 const checks = [
-  [slugCount === 12, "exactly 12 editorial articles"],
+  [slugCount === 12, "12 static fallback articles"],
   [article.includes('"@type": "BlogPosting"'), "BlogPosting structured data"],
   [article.includes('"@type": "BreadcrumbList"'), "article breadcrumbs"],
   [article.includes("generateStaticParams"), "static article params"],
   [index.includes('"@type": "CollectionPage"'), "blog collection schema"],
-  [sitemap.includes("blogArticles"), "blog sitemap source"],
+  [sitemapHasBlogSource, "blog sitemap source"],
+  [indexHasBlogSource, "blog index source"],
   [chrome.includes('href: "/blog"'), "blog navigation link"],
   [chrome.includes('href="/blog"'), "blog footer link"],
   [home.includes("blogArticles.slice(0, 3)"), "homepage editorial links"],
@@ -30,5 +41,5 @@ if (failed.length) {
 }
 
 console.log(
-  "PASS ✓ — 12 Articles ✓ / BlogPosting ✓ / Breadcrumbs ✓ / Sitemap ✓ / Navigation ✓ / Homepage Links ✓ / Editorial Note ✓",
+  "PASS ✓ — Static Fallback ✓ / BlogPosting ✓ / Breadcrumbs ✓ / CMS-Compatible Sitemap ✓ / Navigation ✓ / Homepage Links ✓",
 );
