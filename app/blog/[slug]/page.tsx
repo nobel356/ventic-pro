@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import ArticleVisual from "@/app/blog/ArticleVisual";
+import PortfolioGallery from "@/app/shared/PortfolioGallery";
 import {
   blogArticles,
   getBlogArticle,
@@ -65,6 +67,15 @@ export default async function BlogArticlePage({
 
   const articleUrl = `${baseUrl}/blog/${article.slug}`;
   const related = relatedBlogArticles(article);
+
+  const workTerms =
+    article.category.includes("الحمامات")
+      ? ["حمام", "بلاور", "تهوية", "كور"]
+      : article.category.includes("المطابخ")
+        ? ["مطبخ", "هود", "تهوية"]
+        : article.category.includes("هود")
+          ? ["هود", "خط طرد", "مطبخ"]
+          : ["تركيب", "تهوية", "هود"];
 
   const articleSchema = {
     "@context": "https://schema.org",
@@ -154,6 +165,11 @@ export default async function BlogArticlePage({
           </div>
         </header>
 
+        <ArticleVisual
+          slug={article.slug}
+          title={article.title}
+        />
+
         <div style={articleBody}>
           {article.sections.map((section) => (
             <section key={section.heading} style={sectionStyle}>
@@ -206,6 +222,13 @@ export default async function BlogArticlePage({
             </div>
           </section>
         )}
+
+        <PortfolioGallery
+          limit={2}
+          showAllLink
+          matchTerms={workTerms}
+          contextTitle="تنفيذات Ventic Pro المرتبطة بالموضوع"
+        />
 
         <section style={serviceCta}>
           <div>

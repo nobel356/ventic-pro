@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">طرد خارجي أم إعادة تدوير؟</title>
+  <desc id="desc">فرق الوظيفة قبل فرق السعر</desc>
+  
+    <defs>
+      <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L0,6 L9,3 z" fill="#0284c7"/>
+      </marker>
+      <linearGradient id="bg" x1="0" x2="1">
+        <stop offset="0%" stop-color="#f8fcff"/>
+        <stop offset="100%" stop-color="#edf8fd"/>
+      </linearGradient>
+    </defs>
+  <rect width="1200" height="675" rx="38" fill="url(#bg)"/>
+  <rect x="55" y="45" width="1090" height="120" rx="30" fill="#0b2f49"/>
+  <text x="600" y="100" text-anchor="middle" font-size="38" font-weight="900" fill="#ffffff" direction="rtl">طرد خارجي أم إعادة تدوير؟</text>
+  <text x="600" y="140" text-anchor="middle" font-size="22" fill="#c8e2f0" direction="rtl">فرق الوظيفة قبل فرق السعر</text>
+  
+      
+    <rect x="90" y="260" width="430" height="220" rx="28" fill="#ffffff" stroke="#cfe3ee" stroke-width="3"/>
+    <text x="305" y="318" text-anchor="middle" font-size="26" font-weight="700" fill="#0b2f49">فلتر دهون</text>
+    
+  
+      
+    <rect x="680" y="260" width="430" height="220" rx="28" fill="#ffffff" stroke="#cfe3ee" stroke-width="3"/>
+    <text x="895" y="318" text-anchor="middle" font-size="26" font-weight="700" fill="#0b2f49">فلتر كربون</text>
+    
+  
+      <line x1="520" y1="370" x2="680" y2="370" stroke="#0284c7" stroke-width="7" marker-end="url(#arrow)"/>
+      <circle cx="600" cy="370" r="52" fill="#0b2f49"/>
+      <text x="600" y="380" text-anchor="middle" font-size="24" font-weight="800" fill="#fff">VS</text>
+      <text x="300" y="530" text-anchor="middle" font-size="22" fill="#64748b">خروج للخارج</text>
+    
+  <text x="1100" y="625" text-anchor="end" font-size="18" font-weight="800" fill="#0284c7">VENTIC PRO • دليل التهوية</text>
+</svg>

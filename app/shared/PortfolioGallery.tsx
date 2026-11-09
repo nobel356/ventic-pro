@@ -39,10 +39,14 @@ export default function PortfolioGallery({
   limit,
   showAllLink = false,
   filters = false,
+  matchTerms,
+  contextTitle,
 }: {
   limit?: number;
   showAllLink?: boolean;
   filters?: boolean;
+  matchTerms?: string[];
+  contextTitle?: string;
 }) {
   const [items, setItems] = useState<PortfolioVideo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +74,31 @@ export default function PortfolioGallery({
     };
   }, []);
 
+  const contextMatched = useMemo(
+    () => {
+      if (!matchTerms?.length) return items;
+
+      const terms = matchTerms
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean);
+
+      return items.filter((item) => {
+        const haystack = [
+          item.title,
+          item.caption,
+          item.location,
+          item.serviceType,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return terms.some((term) => haystack.includes(term));
+      });
+    },
+    [items, matchTerms],
+  );
+
   const services = useMemo(
     () => [...new Set(items.map((item) => item.serviceType).filter(Boolean) as string[])].sort(),
     [items],
@@ -81,17 +110,17 @@ export default function PortfolioGallery({
 
   const filtered = useMemo(
     () =>
-      items.filter((item) => {
+      contextMatched.filter((item) => {
         const itemPlatform = platformOf(item);
         if (platform !== "ALL" && itemPlatform !== platform) return false;
         if (service !== "ALL" && item.serviceType !== service) return false;
         if (location !== "ALL" && item.location !== location) return false;
         return true;
       }),
-    [items, platform, service, location],
+    [contextMatched, platform, service, location],
   );
 
-  if (loading || items.length === 0) return null;
+  if (loading || contextMatched.length === 0) return null;
 
   const visible = typeof limit === "number" ? filtered.slice(0, limit) : filtered;
 
@@ -110,14 +139,14 @@ export default function PortfolioGallery({
             تنفيذ حقيقي من Ventic Pro
           </span>
           <h2 style={{ color: "#071a2b", fontSize: "clamp(27px,4vw,36px)", margin: "6px 0 5px" }}>
-            شوف شغلنا على الطبيعة
+            {contextTitle || "شوف شغلنا على الطبيعة"}
           </h2>
           <p style={{ color: "#64748b", margin: 0, lineHeight: 1.8 }}>
             فيديوهات من YouTube وTikTok لتنفيذات فعلية بعد موافقة العملاء.
           </p>
         </div>
 
-        {showAllLink && items.length > visible.length && (
+        {showAllLink && contextMatched.length > visible.length && (
           <Link href="/works" style={allLinkStyle}>كل الأعمال ←</Link>
         )}
       </div>

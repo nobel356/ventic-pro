@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">أخطاء تركيب الشفاط</title>
+  <desc id="desc">المسار السيئ يحوّل القوة إلى صوت</desc>
+  
+    <defs>
+      <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L0,6 L9,3 z" fill="#0284c7"/>
+      </marker>
+      <linearGradient id="bg" x1="0" x2="1">
+        <stop offset="0%" stop-color="#f8fcff"/>
+        <stop offset="100%" stop-color="#edf8fd"/>
+      </linearGradient>
+    </defs>
+  <rect width="1200" height="675" rx="38" fill="url(#bg)"/>
+  <rect x="55" y="45" width="1090" height="120" rx="30" fill="#0b2f49"/>
+  <text x="600" y="100" text-anchor="middle" font-size="38" font-weight="900" fill="#ffffff" direction="rtl">أخطاء تركيب الشفاط</text>
+  <text x="600" y="140" text-anchor="middle" font-size="22" fill="#c8e2f0" direction="rtl">المسار السيئ يحوّل القوة إلى صوت</text>
+  
+      <rect x="90" y="240" width="450" height="300" rx="30" fill="#fff7ed" stroke="#fed7aa" stroke-width="3"/>
+      <text x="315" y="295" text-anchor="middle" font-size="28" font-weight="900" fill="#c2410c">✕ مسار يضعف الأداء</text>
+      <path d="M150 425 H270 V345 H390 V465 H485" fill="none" stroke="#ea580c" stroke-width="18"/>
+      <rect x="660" y="240" width="450" height="300" rx="30" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="3"/>
+      <text x="885" y="295" text-anchor="middle" font-size="28" font-weight="900" fill="#166534">✓ مسار أفضل</text>
+      <path d="M720 410 C820 410, 900 390, 1040 360" fill="none" stroke="#16a34a" stroke-width="18" marker-end="url(#arrow)"/>
+      <text x="315" y="505" text-anchor="middle" font-size="20" fill="#9a3412">دكت ضيق + أكواع كثيرة</text>
+      <text x="885" y="505" text-anchor="middle" font-size="20" fill="#166534">تسريب وصلات</text>
+    
+  <text x="1100" y="625" text-anchor="end" font-size="18" font-weight="800" fill="#0284c7">VENTIC PRO • دليل التهوية</text>
+</svg>

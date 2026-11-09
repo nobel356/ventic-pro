@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">الريحة لسه في المطبخ؟</title>
+  <desc id="desc">الالتقاط عند المصدر أهم من صوت المروحة</desc>
+  
+    <defs>
+      <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L0,6 L9,3 z" fill="#0284c7"/>
+      </marker>
+      <linearGradient id="bg" x1="0" x2="1">
+        <stop offset="0%" stop-color="#f8fcff"/>
+        <stop offset="100%" stop-color="#edf8fd"/>
+      </linearGradient>
+    </defs>
+  <rect width="1200" height="675" rx="38" fill="url(#bg)"/>
+  <rect x="55" y="45" width="1090" height="120" rx="30" fill="#0b2f49"/>
+  <text x="600" y="100" text-anchor="middle" font-size="38" font-weight="900" fill="#ffffff" direction="rtl">الريحة لسه في المطبخ؟</text>
+  <text x="600" y="140" text-anchor="middle" font-size="22" fill="#c8e2f0" direction="rtl">الالتقاط عند المصدر أهم من صوت المروحة</text>
+  
+      <rect x="215" y="250" width="770" height="55" rx="20" fill="#0b2f49"/>
+      <path d="M360 500 C330 430, 360 360, 430 310" fill="none" stroke="#f59e0b" stroke-width="12" opacity=".85"/>
+      <path d="M600 510 C580 430, 590 360, 610 310" fill="none" stroke="#ea580c" stroke-width="15" opacity=".85"/>
+      <path d="M835 500 C860 430, 840 360, 760 310" fill="none" stroke="#f59e0b" stroke-width="12" opacity=".85"/>
+      <path d="M600 245 V155" stroke="#0284c7" stroke-width="12" marker-end="url(#arrow)"/>
+      <text x="600" y="570" text-anchor="middle" font-size="24" fill="#64748b">بخار الطبخ → منطقة التقاط الهود → خط الطرد</text>
+    
+  <text x="1100" y="625" text-anchor="end" font-size="18" font-weight="800" fill="#0284c7">VENTIC PRO • دليل التهوية</text>
+</svg>
