@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { categoryForArticle } from "@/lib/blog/categories";
 import ArticleVisual from "@/app/blog/ArticleVisual";
 import PortfolioGallery from "@/app/shared/PortfolioGallery";
 import {
@@ -59,6 +60,9 @@ export default async function BlogArticlePage({
   const article = getBlogArticle(slug);
 
   if (!article) notFound();
+
+  const articleCategory =
+    categoryForArticle(article.category);
 
   const baseUrl = (
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -145,7 +149,19 @@ export default async function BlogArticlePage({
           <span>‹</span>
           <Link href="/blog" style={crumbLink}>دليل التهوية</Link>
           <span>‹</span>
-          <span>{article.category}</span>
+          {articleCategory ? (
+            <Link
+              href={
+                "/blog/category/" +
+                articleCategory.slug
+              }
+              style={crumbLink}
+            >
+              {article.category}
+            </Link>
+          ) : (
+            <span>{article.category}</span>
+          )}
         </nav>
 
         <header style={headerCard}>

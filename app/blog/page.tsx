@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { blogArticles } from "@/lib/blog/articles";
+import { blogCategories } from "@/lib/blog/categories";
 
 export const metadata: Metadata = {
   title: "دليل التهوية | Ventic Pro",
@@ -41,7 +42,7 @@ export default function BlogPage() {
     },
   };
 
-  const categories = [...new Set(blogArticles.map((article) => article.category))];
+  const categories = blogCategories;
 
   return (
     <main dir="rtl" style={{ background: "#f5f8fb", minHeight: "100vh" }}>
@@ -60,7 +61,13 @@ export default function BlogPage() {
 
         <div style={categoryRow}>
           {categories.map((category) => (
-            <span key={category} style={categoryPill}>{category}</span>
+            <Link
+              key={category.slug}
+              href={"/blog/category/" + category.slug}
+              style={categoryPill}
+            >
+              {category.name}
+            </Link>
           ))}
         </div>
 
