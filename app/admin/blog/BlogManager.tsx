@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import BlogWorkflowPanel from "./BlogWorkflowPanel";
 
 type Section = {
   heading: string;
@@ -16,7 +17,7 @@ type Article = {
   description: string;
   excerpt: string;
   category: string;
-  status: "DRAFT" | "PUBLISHED";
+  status: "DRAFT" | "PUBLISHED" | "SCHEDULED";
   readingMinutes: number;
   serviceHref: string;
   serviceLabel: string;
@@ -24,6 +25,8 @@ type Article = {
   faq: [string, string][];
   sources: [string, string][];
   visualPath: string | null;
+  visualStoragePath?: string | null;
+  scheduledAt?: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
   sortOrder: number;
@@ -61,6 +64,8 @@ function blank(): Article {
     faq: [],
     sources: [],
     visualPath: "",
+    visualStoragePath: null,
+    scheduledAt: null,
     seoTitle: "",
     seoDescription: "",
     sortOrder: 0,
@@ -85,7 +90,7 @@ export default function BlogManager() {
   const [category, setCategory] = useState("ALL");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [tab, setTab] = useState<"content" | "seo" | "faq" | "sources">("content");
+  const [tab, setTab] = useState<"content" | "seo" | "faq" | "sources" | "workflow">("content");
 
   async function load() {
     const res = await fetch("/api/admin/blog", { cache: "no-store" });
@@ -292,6 +297,7 @@ export default function BlogManager() {
             >
               <option value="ALL">كل الحالات</option>
               <option value="PUBLISHED">منشور</option>
+              <option value="SCHEDULED">مجدول</option>
               <option value="DRAFT">مسودة</option>
             </select>
 
@@ -405,6 +411,7 @@ export default function BlogManager() {
             ["seo", "SEO"],
             ["faq", "FAQ"],
             ["sources", "المصادر"],
+            ["workflow", "النشر"],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -780,6 +787,23 @@ export default function BlogManager() {
             ))}
           </div>
         )}
+
+        {tab === "workflow" && draft.id && (
+          <BlogWorkflowPanel
+            article={draft}
+            onChanged={async () => {
+              const res = await fetch("/api/admin/blog", {
+                cache: "no-store",
+              });
+              const data = await res.json().catch(() => ({}));
+              const next = Array.isArray(data?.items) ? data.items : [];
+              setItems(next);
+              const updated = next.find((item: Article) => item.id === draft.id);
+              if (updated) setDraft(updated);
+            }}
+          />
+        )}
+
       </section>
 
       <style>{`

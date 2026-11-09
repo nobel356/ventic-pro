@@ -234,3 +234,50 @@ export async function getStoredFile(
     throw error;
   }
 }
+
+const allowedBlogImageTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+export async function uploadBlogImage(
+  input: {
+    articleId: string;
+    file: File;
+  },
+) {
+  if (!storageEnabled()) {
+    throw new Error("STORAGE_NOT_CONFIGURED");
+  }
+
+  if (!allowedBlogImageTypes.has(input.file.type)) {
+    throw new Error("INVALID_BLOG_IMAGE");
+  }
+
+  if (input.file.size > MAX_IMAGE_BYTES) {
+    throw new Error("IMAGE_TOO_LARGE");
+  }
+
+  const filename = safeName(input.file.name);
+  const pathname = [
+    "blog",
+    input.articleId,
+    `${crypto.randomUUID()}-${filename}`,
+  ].join("/");
+
+  const blob = await put(
+    pathname,
+    input.file,
+    {
+      access: "private",
+      addRandomSuffix: false,
+    },
+  );
+
+  return {
+    pathname: blob.pathname,
+    size: input.file.size,
+    contentType: input.file.type,
+  };
+}

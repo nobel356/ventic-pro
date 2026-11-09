@@ -19,9 +19,11 @@ type DbBlogArticle = {
   faq: unknown;
   sources: unknown;
   visualPath: string | null;
+  visualStoragePath: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
   sortOrder: number;
+  scheduledAt: Date | null;
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -43,9 +45,11 @@ export type CmsBlogArticle = BlogArticle & {
   id?: string;
   status?: string;
   visualPath?: string | null;
+  visualStoragePath?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
   sortOrder?: number;
+  scheduledAt?: string | null;
 };
 
 function normalize(row: DbBlogArticle): CmsBlogArticle {
@@ -55,7 +59,7 @@ function normalize(row: DbBlogArticle): CmsBlogArticle {
     description: row.description,
     excerpt: row.excerpt,
     category: row.category,
-    publishedAt: (row.publishedAt || row.createdAt)
+    publishedAt: (row.publishedAt || row.scheduledAt || row.createdAt)
       .toISOString()
       .slice(0, 10),
     updatedAt: row.updatedAt.toISOString().slice(0, 10),
@@ -68,16 +72,30 @@ function normalize(row: DbBlogArticle): CmsBlogArticle {
     id: row.id,
     status: row.status,
     visualPath: row.visualPath,
+    visualStoragePath: row.visualStoragePath,
     seoTitle: row.seoTitle,
     seoDescription: row.seoDescription,
     sortOrder: row.sortOrder,
+    scheduledAt: row.scheduledAt?.toISOString() || null,
+  };
+}
+
+function publicWhere(now = new Date()) {
+  return {
+    OR: [
+      { status: "PUBLISHED" },
+      {
+        status: "SCHEDULED",
+        scheduledAt: { lte: now },
+      },
+    ],
   };
 }
 
 export async function getPublishedBlogArticles(): Promise<CmsBlogArticle[]> {
   try {
     const rows = await prisma.blogArticle.findMany({
-      where: { status: "PUBLISHED" },
+      where: publicWhere(),
       orderBy: [
         { sortOrder: "asc" },
         { publishedAt: "desc" },
@@ -102,7 +120,7 @@ export async function getPublishedBlogArticle(
     const row = await prisma.blogArticle.findFirst({
       where: {
         slug,
-        status: "PUBLISHED",
+        ...publicWhere(),
       },
     });
 

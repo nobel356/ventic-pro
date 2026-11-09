@@ -21,8 +21,45 @@ function jsonArray(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
 
+function parseStatus(value: unknown) {
+  if (value === "PUBLISHED") return "PUBLISHED";
+  if (value === "SCHEDULED") return "SCHEDULED";
+  return "DRAFT";
+}
+
+function parseScheduledAt(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 async function auth() {
   return requirePermission(PERMISSIONS.BLOG_MANAGE);
+}
+
+function revisionSnapshot(article: any) {
+  return {
+    slug: article.slug,
+    title: article.title,
+    description: article.description,
+    excerpt: article.excerpt,
+    category: article.category,
+    status: article.status,
+    readingMinutes: article.readingMinutes,
+    serviceHref: article.serviceHref,
+    serviceLabel: article.serviceLabel,
+    sections: article.sections,
+    faq: article.faq,
+    sources: article.sources,
+    visualPath: article.visualPath,
+    visualStoragePath: article.visualStoragePath,
+    seoTitle: article.seoTitle,
+    seoDescription: article.seoDescription,
+    sortOrder: article.sortOrder,
+    publishedAt: article.publishedAt,
+    scheduledAt: article.scheduledAt,
+  };
 }
 
 export async function GET() {
@@ -62,7 +99,8 @@ export async function POST(request: Request) {
     const description = clean(body?.description, 500);
     const excerpt = clean(body?.excerpt, 600);
     const category = clean(body?.category, 80);
-    const status = body?.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT";
+    const status = parseStatus(body?.status);
+    const scheduledAt = parseScheduledAt(body?.scheduledAt);
     const readingMinutes = Math.max(
       1,
       Math.min(60, Number(body?.readingMinutes) || 5),
@@ -80,6 +118,13 @@ export async function POST(request: Request) {
     if (!title || !slug || !description || !excerpt || !category) {
       return NextResponse.json(
         { error: "الحقول الأساسية مطلوبة" },
+        { status: 400 },
+      );
+    }
+
+    if (status === "SCHEDULED" && !scheduledAt) {
+      return NextResponse.json(
+        { error: "حدد موعد نشر صحيح للمقال المجدول" },
         { status: 400 },
       );
     }
@@ -102,6 +147,7 @@ export async function POST(request: Request) {
         seoTitle,
         seoDescription,
         sortOrder,
+        scheduledAt: status === "SCHEDULED" ? scheduledAt : null,
         publishedAt: status === "PUBLISHED" ? new Date() : null,
         createdByLabel: actor.name || actor.email,
         updatedByLabel: actor.name || actor.email,
@@ -118,6 +164,7 @@ export async function POST(request: Request) {
           slug: saved.slug,
           title: saved.title,
           status: saved.status,
+          scheduledAt: saved.scheduledAt,
         },
       },
     });
@@ -162,15 +209,11 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const nextStatus =
-      body?.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT";
-
+    const nextStatus = parseStatus(body?.status);
+    const scheduledAt = parseScheduledAt(body?.scheduledAt);
     const nextSlug = safeSlug(body?.slug || current.slug);
 
-    if (
-      current.publishedAt &&
-      nextSlug !== current.slug
-    ) {
+    if (current.publishedAt && nextSlug !== current.slug) {
       return NextResponse.json(
         {
           error:
@@ -179,6 +222,21 @@ export async function PATCH(request: Request) {
         { status: 400 },
       );
     }
+
+    if (nextStatus === "SCHEDULED" && !scheduledAt) {
+      return NextResponse.json(
+        { error: "حدد موعد نشر صحيح للمقال المجدول" },
+        { status: 400 },
+      );
+    }
+
+    await prisma.blogArticleRevision.create({
+      data: {
+        articleId: current.id,
+        snapshot: revisionSnapshot(current),
+        createdByLabel: actor.name || actor.email,
+      },
+    });
 
     const saved = await prisma.blogArticle.update({
       where: { id },
@@ -218,10 +276,12 @@ export async function PATCH(request: Request) {
           -9999,
           Math.min(9999, Number(body?.sortOrder) || current.sortOrder),
         ),
+        scheduledAt:
+          nextStatus === "SCHEDULED" ? scheduledAt : null,
         publishedAt:
           nextStatus === "PUBLISHED"
             ? current.publishedAt || new Date()
-            : null,
+            : current.publishedAt,
         updatedByLabel: actor.name || actor.email,
       },
     });
@@ -236,12 +296,14 @@ export async function PATCH(request: Request) {
           slug: current.slug,
           title: current.title,
           status: current.status,
+          scheduledAt: current.scheduledAt,
         },
         newValue: {
           id: saved.id,
           slug: saved.slug,
           title: saved.title,
           status: saved.status,
+          scheduledAt: saved.scheduledAt,
         },
       },
     });
@@ -286,11 +348,11 @@ export async function DELETE(request: Request) {
       );
     }
 
-    if (current.status === "PUBLISHED") {
+    if (current.status !== "DRAFT") {
       return NextResponse.json(
         {
           error:
-            "لا يمكن حذف مقال منشور مباشرة. حوّله إلى Draft أولًا.",
+            "لا يمكن حذف مقال منشور أو مجدول مباشرة. حوّله إلى Draft أولًا.",
         },
         { status: 400 },
       );

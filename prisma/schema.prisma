@@ -898,10 +898,12 @@ model BlogArticle {
   faq              Json
   sources          Json
   visualPath       String?
+  visualStoragePath String?
   seoTitle         String?
   seoDescription   String?
   sortOrder        Int      @default(0)
   publishedAt      DateTime?
+  scheduledAt      DateTime?
   createdByLabel   String?
   updatedByLabel   String?
   createdAt        DateTime @default(now())
@@ -909,4 +911,15 @@ model BlogArticle {
 
   @@index([status, sortOrder, publishedAt])
   @@index([category, status])
+}
+
+
+model BlogArticleRevision {
+  id             String   @id @default(cuid())
+  articleId      String
+  snapshot       Json
+  createdByLabel String?
+  createdAt      DateTime @default(now())
+
+  @@index([articleId, createdAt])
 }
