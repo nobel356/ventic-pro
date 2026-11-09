@@ -223,6 +223,12 @@ export default async function Layout({
   return (
     <html lang="ar" dir="rtl">
       <head>
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title="دليل التهوية - Ventic Pro"
+          href="/feed.xml"
+        />
         {!hardLocked && gtmId ? (
           <script
             id="ventic-gtm-bootstrap"

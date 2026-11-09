@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { blogArticles } from "@/lib/blog/articles";
 
 type FAQ = [string, string];
 
@@ -66,6 +67,40 @@ export default async function ServiceLanding({
   const serviceUrl =
     `${baseUrl}${servicePath}`;
 
+
+
+  const serviceArticleSlugs: Record<string, string[]> = {
+    bathroom_ventilation: [
+      "bathroom-exhaust-fan-size",
+      "bathroom-no-window-ventilation",
+      "bathroom-fan-running-but-humidity",
+    ],
+    kitchen_ventilation: [
+      "kitchen-odor-despite-exhaust",
+      "kitchen-exhaust-sizing",
+      "kitchen-exhaust-installation-mistakes",
+    ],
+    hood_exhaust: [
+      "hood-exhaust-duct-guide",
+      "duct-length-elbows-airflow",
+      "hood-duct-size",
+    ],
+  };
+
+  const serviceArticles =
+    (serviceArticleSlugs[slug] || [])
+      .map((articleSlug) =>
+        blogArticles.find(
+          (article) =>
+            article.slug === articleSlug,
+        ),
+      )
+      .filter(
+        (
+          article,
+        ): article is (typeof blogArticles)[number] =>
+          Boolean(article),
+      );
 
   const serviceSchema = {
     "@context": "https://schema.org",
@@ -263,6 +298,105 @@ export default async function ServiceLanding({
           أي إضافة يتم توضيح سببها ومبلغها قبل اعتمادها، والسعر الظاهر أثناء الطلب يظل تقديريًا حتى مراجعة الصور ومتطلبات المكان.
         </p>
       </section>
+
+      {serviceArticles.length > 0 && (
+        <section style={sectionStyle}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "end",
+              gap: 10,
+              flexWrap: "wrap",
+              marginBottom: 14,
+            }}
+          >
+            <div>
+              <span
+                style={{
+                  color: "#0284c7",
+                  fontWeight: 900,
+                  fontSize: 12,
+                }}
+              >
+                دليل Ventic Pro
+              </span>
+              <h2
+                style={{
+                  ...headingStyle,
+                  marginBottom: 4,
+                }}
+              >
+                مقالات تساعدك قبل التنفيذ
+              </h2>
+              <p
+                style={{
+                  color: "#64748b",
+                  lineHeight: 1.8,
+                  margin: 0,
+                }}
+              >
+                افهم الاختيارات والمشاكل الشائعة قبل ما تحدد الجهاز أو المسار.
+              </p>
+            </div>
+
+            <Link
+              href="/blog"
+              style={{
+                color: "#075985",
+                fontWeight: 900,
+                textDecoration: "none",
+              }}
+            >
+              كل المقالات ←
+            </Link>
+          </div>
+
+          <div style={gridStyle}>
+            {serviceArticles.map((article) => (
+              <Link
+                key={article.slug}
+                href={"/blog/" + article.slug}
+                style={{
+                  ...cardStyle,
+                  alignItems: "start",
+                  textDecoration: "none",
+                  display: "grid",
+                  gap: 7,
+                }}
+              >
+                <small
+                  style={{
+                    color: "#0284c7",
+                    fontWeight: 900,
+                  }}
+                >
+                  {article.category}
+                </small>
+
+                <strong
+                  style={{
+                    color: "#0b2f49",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {article.title}
+                </strong>
+
+                <span
+                  style={{
+                    color: "#075985",
+                    fontWeight: 900,
+                    fontSize: 13,
+                  }}
+                >
+                  اقرأ الدليل ←
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section style={sectionStyle}>
         <h2 style={headingStyle}>الأسئلة الشائعة</h2>

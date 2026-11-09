@@ -56,6 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(article.updatedAt),
       changeFrequency: "monthly" as const,
       priority: 0.8,
+      images: [`${base}/blog/visuals/${article.slug}.svg`],
     })),
     ...areaRows.map((item) => ({
       url: `${base}/areas/${encodeURIComponent(item.governorate)}/${encodeURIComponent(item.area)}`,

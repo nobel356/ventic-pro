@@ -84,7 +84,7 @@ export default async function BlogArticlePage({
     mainEntityOfPage: articleUrl,
     headline: article.title,
     description: article.description,
-    image: [`${baseUrl}/social-preview.png`],
+    image: [`${baseUrl}/blog/visuals/${article.slug}.svg`],
     datePublished: article.publishedAt,
     dateModified: article.updatedAt,
     inLanguage: "ar-EG",
