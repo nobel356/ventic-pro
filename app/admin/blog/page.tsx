@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   can,
@@ -33,9 +34,33 @@ export default async function AdminBlogPage() {
           <span style={{ color: "#0284c7", fontWeight: 900, fontSize: 12 }}>
             Ventic Pro Content
           </span>
-          <h1 style={{ color: "#071a2b", margin: "5px 0 6px" }}>
-            إدارة المقالات
-          </h1>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <h1 style={{ color: "#071a2b", margin: "5px 0 6px" }}>
+              إدارة المقالات
+            </h1>
+            <Link
+              href="/admin/blog/performance"
+              style={{
+                textDecoration: "none",
+                background: "#eef8fd",
+                color: "#075985",
+                border: "1px solid #bae6fd",
+                borderRadius: 10,
+                padding: "8px 12px",
+                fontWeight: 900,
+              }}
+            >
+              الأداء والتحويلات
+            </Link>
+          </div>
           <p style={{ color: "#64748b", margin: 0, lineHeight: 1.8 }}>
             إنشاء وتعديل ومعاينة ونشر المقالات وإدارة SEO والمصادر والأسئلة من لوحة التحكم.
           </p>

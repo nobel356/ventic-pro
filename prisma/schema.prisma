@@ -923,3 +923,17 @@ model BlogArticleRevision {
 
   @@index([articleId, createdAt])
 }
+
+
+model BlogAnalyticsEvent {
+  id          String   @id @default(cuid())
+  articleSlug String
+  eventType   String
+  sessionHash String
+  target      String?
+  createdAt   DateTime @default(now())
+
+  @@index([articleSlug, createdAt])
+  @@index([eventType, createdAt])
+  @@index([sessionHash, createdAt])
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { categoryForArticle } from "@/lib/blog/categories";
 import ArticleVisual from "@/app/blog/ArticleVisual";
+import BlogAnalyticsTracker from "@/app/blog/BlogAnalyticsTracker";
 import PortfolioGallery from "@/app/shared/PortfolioGallery";
 import { blogArticles } from "@/lib/blog/articles";
 import {
@@ -74,6 +75,13 @@ export default async function BlogArticlePage({
   const articleUrl = `${baseUrl}/blog/${article.slug}`;
   const related = relatedCmsArticles(await getPublishedBlogArticles(), article);
 
+  const blogUtm =
+    "utm_source=Organic&utm_medium=blog&utm_campaign=" +
+    encodeURIComponent(article.slug);
+
+  const withBlogUtm = (href: string) =>
+    href + (href.includes("?") ? "&" : "?") + blogUtm;
+
   const workTerms =
     article.category.includes("الحمامات")
       ? ["حمام", "بلاور", "تهوية", "كور"]
@@ -136,6 +144,7 @@ export default async function BlogArticlePage({
 
   return (
     <main dir="rtl" style={{ background: "#f8fafc", minHeight: "100vh" }}>
+      <BlogAnalyticsTracker slug={article.slug} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
@@ -260,11 +269,30 @@ export default async function BlogArticlePage({
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Link className="button" href={article.serviceHref}>شوف الخدمة</Link>
-            <Link className="outline" href="/calculator" style={{ background: "white" }}>
+            <Link
+              className="button"
+              href={withBlogUtm(article.serviceHref)}
+              data-blog-event="SERVICE_CLICK"
+              data-blog-target={article.serviceHref}
+            >
+              شوف الخدمة
+            </Link>
+            <Link
+              className="outline"
+              href={"/calculator?" + blogUtm}
+              style={{ background: "white" }}
+              data-blog-event="CALCULATOR_CLICK"
+              data-blog-target="/calculator"
+            >
               احسب سعر مبدئي
             </Link>
-            <Link className="outline" href="/order" style={{ background: "white" }}>
+            <Link
+              className="outline"
+              href={"/order?" + blogUtm}
+              style={{ background: "white" }}
+              data-blog-event="ORDER_CLICK"
+              data-blog-target="/order"
+            >
               ابدأ طلب
             </Link>
           </div>
@@ -274,7 +302,13 @@ export default async function BlogArticlePage({
           <h2 style={h2}>اقرأ كمان</h2>
           <div style={relatedGrid}>
             {related.map((item) => (
-              <Link key={item.slug} href={`/blog/${item.slug}`} style={relatedCard}>
+              <Link
+                key={item.slug}
+                href={`/blog/${item.slug}`}
+                style={relatedCard}
+                data-blog-event="RELATED_CLICK"
+                data-blog-target={item.slug}
+              >
                 <small style={{ color: "#0284c7", fontWeight: 900 }}>{item.category}</small>
                 <strong style={{ color: "#0b2f49", lineHeight: 1.6 }}>{item.title}</strong>
                 <span style={{ color: "#075985", fontWeight: 900 }}>اقرأ ←</span>
