@@ -17,7 +17,10 @@ type Experiment = {
   status:
     | "DRAFT"
     | "RUNNING"
-    | "STOPPED";
+    | "STOPPED"
+    | "DECIDED"
+    | "ROLLED_OUT"
+    | "ROLLED_BACK";
   controlLabel: string;
   variantLabel: string;
   createdAt: string;
@@ -220,6 +223,22 @@ export default function CroExperimentCenter() {
         >
           CRO Experiment Center
         </h1>
+        <a
+          href="/admin/cro-decisions"
+          style={{
+            display: "inline-block",
+            marginTop: 8,
+            textDecoration: "none",
+            background: "#eef8fd",
+            color: "#075985",
+            border: "1px solid #bae6fd",
+            borderRadius: 9,
+            padding: "7px 10px",
+            fontWeight: 900,
+          }}
+        >
+          Decisions & Rollout
+        </a>
         <p style={muted}>
           اختبر نص CTA الرئيسي للمقال 50/50. النظام لا يعلن Winner قبل حجم عينة كافٍ ودلالة إحصائية تقريبية.
         </p>

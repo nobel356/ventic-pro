@@ -992,11 +992,20 @@ model CroExperiment {
   createdByLabel String?
   startedAt      DateTime?
   endsAt         DateTime?
-  stoppedAt      DateTime?
-  createdAt      DateTime @default(now())
+  stoppedAt            DateTime?
+  decision             String?
+  decisionNote         String?
+  decidedAt            DateTime?
+  decidedByLabel       String?
+  previousServiceLabel String?
+  appliedServiceLabel  String?
+  rolledOutAt          DateTime?
+  rolledBackAt         DateTime?
+  createdAt            DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([articleSlug, status])
+  @@index([status, decidedAt])
 }
 
 model CroEvent {

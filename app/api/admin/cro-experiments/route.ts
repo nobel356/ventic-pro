@@ -27,6 +27,8 @@ async function rows() {
       },
     });
 
+  // V48 decision fields (decision, decisionNote, decidedAt, rolledOutAt, rolledBackAt)
+  // are returned automatically because Prisma findMany selects all scalar CroExperiment fields.
   const output = [];
 
   for (const experiment of experiments) {
