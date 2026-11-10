@@ -135,6 +135,12 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/seo-health",
+    label: "SEO Health",
+    icon: "🩻",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/conversions",
     label: "Conversion Tracking",
     icon: "🎯",
