@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import { categoryForArticle } from "@/lib/blog/categories";
 import ArticleVisual from "@/app/blog/ArticleVisual";
 import BlogAnalyticsTracker from "@/app/blog/BlogAnalyticsTracker";
+import ExperimentServiceCta from "@/app/blog/ExperimentServiceCta";
+import { getRunningExperiment } from "@/lib/cro-experiments";
 import PortfolioGallery from "@/app/shared/PortfolioGallery";
 import { blogArticles } from "@/lib/blog/articles";
 import {
@@ -74,6 +76,7 @@ export default async function BlogArticlePage({
 
   const articleUrl = `${baseUrl}/blog/${article.slug}`;
   const related = relatedCmsArticles(await getPublishedBlogArticles(), article);
+  const croExperiment = await getRunningExperiment(article.slug);
 
   const blogUtm =
     "utm_source=Organic&utm_medium=blog&utm_campaign=" +
@@ -269,14 +272,19 @@ export default async function BlogArticlePage({
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Link
-              className="button"
+            <ExperimentServiceCta
               href={withBlogUtm(article.serviceHref)}
-              data-blog-event="SERVICE_CLICK"
-              data-blog-target={article.serviceHref}
-            >
-              شوف الخدمة
-            </Link>
+              fallbackLabel="شوف الخدمة"
+              experiment={
+                croExperiment
+                  ? {
+                      id: croExperiment.id,
+                      controlLabel: croExperiment.controlLabel,
+                      variantLabel: croExperiment.variantLabel,
+                    }
+                  : null
+              }
+            />
             <Link
               className="outline"
               href={"/calculator?" + blogUtm}

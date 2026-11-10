@@ -60,6 +60,20 @@ export default async function AdminBlogPage() {
             >
               الأداء والتحويلات
             </Link>
+            <Link
+              href="/admin/cro-experiments"
+              style={{
+                textDecoration: "none",
+                background: "#eef8fd",
+                color: "#075985",
+                border: "1px solid #bae6fd",
+                borderRadius: 10,
+                padding: "8px 12px",
+                fontWeight: 900,
+              }}
+            >
+              A/B Experiments
+            </Link>
           </div>
           <p style={{ color: "#64748b", margin: 0, lineHeight: 1.8 }}>
             إنشاء وتعديل ومعاينة ونشر المقالات وإدارة SEO والمصادر والأسئلة من لوحة التحكم.

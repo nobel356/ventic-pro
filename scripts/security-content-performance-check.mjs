@@ -10,7 +10,19 @@ const dashboard = fs.readFileSync("app/admin/blog/BlogPerformanceDashboard.tsx",
 const checks = [
   [schema.includes("model BlogAnalyticsEvent"), "analytics model"],
   [article.includes("<BlogAnalyticsTracker") && article.includes("utm_medium=blog"), "article tracker + blog UTM"],
-  [article.includes('data-blog-event="SERVICE_CLICK"'), "service CTA tracking"],
+  [
+    article.includes('data-blog-event="SERVICE_CLICK"') ||
+      (
+        article.includes("<ExperimentServiceCta") &&
+        fs
+          .readFileSync(
+            "app/blog/ExperimentServiceCta.tsx",
+            "utf8",
+          )
+          .includes('data-blog-event="SERVICE_CLICK"')
+      ),
+    "service CTA tracking",
+  ],
   [article.includes('data-blog-event="CALCULATOR_CLICK"'), "calculator CTA tracking"],
   [article.includes('data-blog-event="ORDER_CLICK"'), "order CTA tracking"],
   [publicApi.includes("sha256") && !publicApi.includes("clientIp"), "privacy-safe session hashing"],

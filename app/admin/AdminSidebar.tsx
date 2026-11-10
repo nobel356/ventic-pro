@@ -153,6 +153,12 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/cro-experiments",
+    label: "CRO Experiments",
+    icon: "🧪",
+    blogPermission: true,
+  },
+  {
     href: "/admin/conversions",
     label: "Conversion Tracking",
     icon: "🎯",

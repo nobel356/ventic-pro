@@ -980,3 +980,33 @@ model SeoActionState {
 
   @@index([status, dueAt])
 }
+
+
+model CroExperiment {
+  id             String   @id @default(cuid())
+  name           String
+  articleSlug    String
+  status         String   @default("DRAFT")
+  controlLabel   String
+  variantLabel   String
+  createdByLabel String?
+  startedAt      DateTime?
+  endsAt         DateTime?
+  stoppedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([articleSlug, status])
+}
+
+model CroEvent {
+  id           String   @id @default(cuid())
+  experimentId String
+  variant      String
+  eventType    String
+  sessionHash  String
+  createdAt    DateTime @default(now())
+
+  @@unique([experimentId, variant, eventType, sessionHash])
+  @@index([experimentId, variant, eventType])
+}
