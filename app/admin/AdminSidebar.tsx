@@ -71,6 +71,7 @@ const ADMIN_NAV_STRUCTURE: Record<string, { group: AdminNavGroupKey; sub?: strin
   "/admin/growth-funnel": { group: "growth", sub: "Growth OS" },
   "/admin/growth-reviews": { group: "growth", sub: "Growth OS" },
   "/admin/growth-commitments": { group: "growth", sub: "Growth OS" },
+  "/admin/growth-execution": { group: "growth", sub: "Growth OS" },
   "/admin/marketing-analytics": { group: "growth", sub: "Acquisition & Attribution" },
   "/admin/attribution-health": { group: "growth", sub: "Acquisition & Attribution" },
   "/admin/conversions": { group: "growth", sub: "Acquisition & Attribution" },
@@ -138,6 +139,12 @@ const navItems: NavItem[] = [
     href: "/admin/growth-commitments",
     label: "Growth Commitments",
     icon: "📌",
+    reportsPermission: true,
+  },
+  {
+    href: "/admin/growth-execution",
+    label: "Growth Execution Closure",
+    icon: "🏁",
     reportsPermission: true,
   },
   {

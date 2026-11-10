@@ -16,6 +16,9 @@ import {
 import {
   notifyIfBackupStale,
 } from "@/lib/backup-freshness";
+import {
+  runReviewReminderBatch,
+} from "@/lib/review-reminders";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -62,6 +65,10 @@ export async function GET(req: Request) {
     warrantySent: 0,
     warrantySkipped: 0,
     warrantyFailed: 0,
+    reviewReminderCandidates: 0,
+    reviewReminderSent: 0,
+    reviewReminderSkipped: 0,
+    reviewReminderFailed: 0,
     digestSent: 0,
     digestSkipped: 0,
     digestFailed: 0,
@@ -194,6 +201,26 @@ export async function GET(req: Request) {
   }
 
   try {
+    const reviewReminders =
+      await runReviewReminderBatch(now);
+
+    summary.reviewReminderCandidates =
+      reviewReminders.candidates;
+    summary.reviewReminderSent =
+      reviewReminders.sent;
+    summary.reviewReminderSkipped =
+      reviewReminders.skipped;
+    summary.reviewReminderFailed =
+      reviewReminders.failed;
+  } catch (error) {
+    summary.errors += 1;
+    safeDiagnosticError(
+      "cron.daily_ops.review_reminders",
+      error,
+    );
+  }
+
+  try {
     const admins = await prisma.user.findMany({
       where: {
         role: "SUPER_ADMIN",
@@ -282,6 +309,10 @@ export async function GET(req: Request) {
     warrantySent: summary.warrantySent,
     warrantySkipped: summary.warrantySkipped,
     warrantyFailed: summary.warrantyFailed,
+    reviewReminderCandidates: summary.reviewReminderCandidates,
+    reviewReminderSent: summary.reviewReminderSent,
+    reviewReminderSkipped: summary.reviewReminderSkipped,
+    reviewReminderFailed: summary.reviewReminderFailed,
     digestSent: summary.digestSent,
     digestSkipped: summary.digestSkipped,
     digestFailed: summary.digestFailed,

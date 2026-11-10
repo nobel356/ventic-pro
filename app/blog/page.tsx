@@ -5,7 +5,7 @@ import { getPublishedBlogArticles } from "@/lib/blog/cms";
 import { blogCategories } from "@/lib/blog/categories";
 
 export const metadata: Metadata = {
-  title: "دليل التهوية | Ventic Pro",
+  title: "دليل التهوية",
   description:
     "مقالات عملية عن تهوية الحمامات والمطابخ والهود وخطوط الطرد: اختيار الشفاط، قوة السحب، الدكت، الأكواع، الرطوبة والروائح.",
   alternates: { canonical: "/blog" },

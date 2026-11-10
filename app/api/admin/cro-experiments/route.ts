@@ -8,6 +8,8 @@ import {
   summarizeExperiment,
 } from "@/lib/cro-experiments";
 
+const CRO_MIN_UNIQUE_SESSIONS_30D = 100;
+
 function clean(
   value: unknown,
   max: number,
@@ -332,6 +334,57 @@ export async function PATCH(
     }
 
     if (action === "START") {
+      const trafficSince =
+        new Date(
+          Date.now() -
+            30 *
+              24 *
+              60 *
+              60 *
+              1000,
+        );
+
+      const trafficEvents =
+        await prisma.blogAnalyticsEvent.findMany({
+          where: {
+            articleSlug:
+              current.articleSlug,
+            eventType:
+              "PAGE_VIEW",
+            createdAt: {
+              gte: trafficSince,
+            },
+          },
+          select: {
+            sessionHash: true,
+          },
+        });
+
+      const uniqueSessions =
+        new Set(
+          trafficEvents.map(
+            (event) =>
+              event.sessionHash,
+          ),
+        ).size;
+
+      if (
+        uniqueSessions <
+        CRO_MIN_UNIQUE_SESSIONS_30D
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "CRO_TRAFFIC_NOT_READY",
+            message:
+              `المقال عنده ${uniqueSessions}/${CRO_MIN_UNIQUE_SESSIONS_30D} Unique Sessions خلال آخر 30 يوم. Start Experiment مقفول لحد ما يكون فيه Traffic كفاية.`,
+            uniqueSessions,
+            required:
+              CRO_MIN_UNIQUE_SESSIONS_30D,
+          },
+          { status: 409 },
+        );
+      }
       const conflict =
         await prisma.croExperiment.findFirst({
           where: {
