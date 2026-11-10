@@ -9,3 +9,17 @@
 .statCard{padding:20px;border:1px solid #e3eaf0;border-radius:16px;background:#f8fafc;display:flex;flex-direction:column;gap:6px}.statCard b{font-size:30px;color:var(--navy)}.notice{margin-top:20px;padding:14px;background:#eff6ff;border-radius:12px}
 
 .adminShell{min-height:100vh;background:#f5f8fa;display:grid;grid-template-columns:240px 1fr;direction:rtl}.adminSide{background:var(--navy);padding:24px;color:white}.adminSide .brand{color:white;margin-bottom:28px}.adminSide nav{display:flex;flex-direction:column;gap:8px}.adminSide nav a{color:#dbeafe;text-decoration:none;padding:11px 12px;border-radius:10px}.adminSide nav a:hover{background:rgba(255,255,255,.1);color:white}.adminMain{padding:36px}.adminStats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:24px 0}.adminQuick{background:white;padding:22px;border-radius:18px;border:1px solid #e5e7eb}.adminQuick div{display:flex;gap:10px;flex-wrap:wrap}.adminQuick a{background:#f1f5f9;padding:10px 14px;border-radius:10px;text-decoration:none;color:var(--navy);font-weight:700}@media(max-width:900px){.adminShell{grid-template-columns:1fr}.adminSide nav{flex-direction:row;overflow:auto}.adminMain{padding:20px}.adminStats{grid-template-columns:repeat(2,1fr)}}
+
+
+/* V54 hierarchical admin sidebar */
+.vpAdminNavGroup{border:1px solid rgba(148,163,184,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02)}
+.vpAdminNavGroup+.vpAdminNavGroup{margin-top:7px}
+.vpAdminNavGroupSummary{list-style:none;cursor:pointer;display:grid;grid-template-columns:28px 1fr 18px;align-items:center;gap:8px;min-height:43px;padding:8px 10px;color:inherit;font-weight:900;user-select:none}
+.vpAdminNavGroupSummary::-webkit-details-marker{display:none}
+.vpAdminNavGroup.active>.vpAdminNavGroupSummary{background:rgba(14,165,233,.08)}
+.vpAdminNavChevron{opacity:.65;transition:transform .16s ease}
+.vpAdminNavGroup[open]>.vpAdminNavGroupSummary .vpAdminNavChevron{transform:rotate(180deg)}
+.vpAdminNavGroupBody{padding:2px 7px 8px}
+.vpAdminNavSubGroup{margin-top:7px;padding-top:7px;border-top:1px solid rgba(148,163,184,.11)}
+.vpAdminNavSubTitle{padding:3px 8px 6px;color:#94a3b8;font-size:10px;font-weight:900;letter-spacing:.02em}
+.vpAdminNavLink.nested{min-height:35px;margin-inline-start:8px;font-size:12px}

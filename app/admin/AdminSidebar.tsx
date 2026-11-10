@@ -27,6 +27,75 @@ type NavItem = {
   archivePermission?: boolean;
 };
 
+const ADMIN_NAV_GROUPS = [
+  { key: "overview", label: "نظرة عامة", icon: "🏠" },
+  { key: "sales", label: "المبيعات والعملاء", icon: "🧾" },
+  { key: "ops", label: "التشغيل والخدمة", icon: "🛠️" },
+  { key: "finance", label: "المخزون والمالية", icon: "💰" },
+  { key: "growth", label: "التسويق والنمو", icon: "📈" },
+  { key: "content", label: "المحتوى وSEO", icon: "📝" },
+  { key: "monitoring", label: "التقارير والمراقبة", icon: "📊" },
+  { key: "system", label: "إدارة النظام", icon: "⚙️" },
+] as const;
+
+type AdminNavGroupKey = (typeof ADMIN_NAV_GROUPS)[number]["key"];
+
+const ADMIN_NAV_STRUCTURE: Record<string, { group: AdminNavGroupKey; sub?: string }> = {
+  "/admin": { group: "overview" },
+  "/admin/control-center": { group: "overview" },
+  "/admin/search": { group: "overview" },
+
+  "/admin/orders": { group: "sales", sub: "الطلبات والعملاء" },
+  "/admin/customers": { group: "sales", sub: "الطلبات والعملاء" },
+  "/admin/schedule": { group: "sales", sub: "الطلبات والعملاء" },
+  "/admin/leads": { group: "sales", sub: "Leads والاسترجاع" },
+  "/admin/lead-recovery": { group: "sales", sub: "Leads والاسترجاع" },
+
+  "/admin/technicians": { group: "ops", sub: "الفنيون والتغطية" },
+  "/admin/areas": { group: "ops", sub: "الفنيون والتغطية" },
+  "/admin/aftercare": { group: "ops", sub: "الجودة وما بعد الخدمة" },
+  "/admin/reviews": { group: "ops", sub: "الجودة وما بعد الخدمة" },
+  "/admin/work-videos": { group: "ops", sub: "الجودة وما بعد الخدمة" },
+
+  "/admin/inventory": { group: "finance", sub: "المخزون والمشتريات" },
+  "/admin/inventory/stocktakes": { group: "finance", sub: "المخزون والمشتريات" },
+  "/admin/purchases": { group: "finance", sub: "المخزون والمشتريات" },
+  "/admin/pricing": { group: "finance", sub: "التسعير والحسابات" },
+  "/admin/accounting": { group: "finance", sub: "التسعير والحسابات" },
+  "/admin/profitability": { group: "finance", sub: "التسعير والحسابات" },
+  "/admin/exports": { group: "finance", sub: "التسعير والحسابات" },
+
+  "/admin/growth-dashboard": { group: "growth", sub: "Growth OS" },
+  "/admin/growth-targets": { group: "growth", sub: "Growth OS" },
+  "/admin/growth-funnel": { group: "growth", sub: "Growth OS" },
+  "/admin/growth-reviews": { group: "growth", sub: "Growth OS" },
+  "/admin/growth-commitments": { group: "growth", sub: "Growth OS" },
+  "/admin/marketing-analytics": { group: "growth", sub: "Acquisition & Attribution" },
+  "/admin/attribution-health": { group: "growth", sub: "Acquisition & Attribution" },
+  "/admin/conversions": { group: "growth", sub: "Acquisition & Attribution" },
+  "/admin/marketing": { group: "growth", sub: "Acquisition & Attribution" },
+  "/admin/marketing-spend": { group: "growth", sub: "Acquisition & Attribution" },
+  "/admin/promotions": { group: "growth", sub: "Offers & Referrals" },
+  "/admin/referrals": { group: "growth", sub: "Offers & Referrals" },
+
+  "/admin/blog": { group: "content", sub: "Content" },
+  "/admin/content-growth": { group: "content", sub: "Content" },
+  "/admin/seo-health": { group: "content", sub: "SEO" },
+  "/admin/seo-actions": { group: "content", sub: "SEO" },
+  "/admin/cro-experiments": { group: "content", sub: "CRO" },
+  "/admin/cro-decisions": { group: "content", sub: "CRO" },
+
+  "/admin/reports": { group: "monitoring", sub: "Reports" },
+  "/admin/daily-digest": { group: "monitoring", sub: "Reports" },
+  "/admin/notification-health": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/system-health": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/security-audit": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/launch-center": { group: "monitoring", sub: "System Monitoring" },
+
+  "/admin/users": { group: "system" },
+  "/admin/archive": { group: "system" },
+};
+
 const navItems: NavItem[] = [
   { href: "/admin", label: "الرئيسية", icon: "⌂" },
   {
@@ -332,6 +401,43 @@ export default function AdminSidebar({
 }) {
   const pathname = usePathname();
 
+  const visibleItems = navItems.filter((item) => {
+    if (item.superAdminOnly && !isSuperAdmin) return false;
+    if (item.inventoryPermission && !canViewInventory) return false;
+    if (item.accountingPermission && !canViewAccounting) return false;
+    if (item.customersPermission && !canViewCustomers) return false;
+    if (item.stocktakePermission && !canStocktake) return false;
+    if (item.purchasesPermission && !canPurchases) return false;
+    if (item.exportsPermission && !canExports) return false;
+    if (item.aftercarePermission && !canViewAftercare) return false;
+    if (item.technicianPerformancePermission && !canViewTechnicianPerformance) return false;
+    if (item.reportsPermission && !canViewReports) return false;
+    if (item.profitabilityPermission && !canViewProfitability) return false;
+    if (item.areasPermission && !canManageAreas) return false;
+    if (item.promotionsPermission && !canManagePromotions) return false;
+    if (item.leadsPermission && !canManageLeads) return false;
+    if (item.searchPermission && !canGlobalSearch) return false;
+    if (item.reviewsPermission && !canManageReviews) return false;
+    if (item.blogPermission && !canManageBlog) return false;
+    if (item.archivePermission && !canViewArchive) return false;
+    return true;
+  });
+
+  const itemLink = (item: NavItem, nested = false) => {
+    const active = isActive(pathname, item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`vpAdminNavLink${active ? " active" : ""}${nested ? " nested" : ""}`}
+        title={item.label}
+      >
+        <span className="vpAdminNavIcon" aria-hidden="true">{item.icon}</span>
+        <span className="vpAdminNavLabel">{item.label}</span>
+      </Link>
+    );
+  };
+
   return (
     <aside className="vpAdminSidebar" dir="rtl">
       <Link
@@ -348,45 +454,55 @@ export default function AdminSidebar({
       </Link>
 
       <nav className="vpAdminNav" aria-label="القائمة الرئيسية">
-        {navItems
-          .filter((item) => {
-            if (item.superAdminOnly && !isSuperAdmin) return false;
-            if (item.inventoryPermission && !canViewInventory) return false;
-            if (item.accountingPermission && !canViewAccounting) return false;
-            if (item.customersPermission && !canViewCustomers) return false;
-            if (item.stocktakePermission && !canStocktake) return false;
-            if (item.purchasesPermission && !canPurchases) return false;
-            if (item.exportsPermission && !canExports) return false;
-            if (item.aftercarePermission && !canViewAftercare) return false;
-            if (item.technicianPerformancePermission && !canViewTechnicianPerformance) return false;
-            if (item.reportsPermission && !canViewReports) return false;
-            if (item.profitabilityPermission && !canViewProfitability) return false;
-            if (item.areasPermission && !canManageAreas) return false;
-            if (item.promotionsPermission && !canManagePromotions) return false;
-            if (item.leadsPermission && !canManageLeads) return false;
-            if (item.searchPermission && !canGlobalSearch) return false;
-            if (item.reviewsPermission && !canManageReviews) return false;
-            if (item.blogPermission && !canManageBlog) return false;
-            if (item.archivePermission && !canViewArchive) return false;
-            return true;
-          })
-          .map((item) => {
-            const active = isActive(pathname, item.href);
+        {ADMIN_NAV_GROUPS.map((group) => {
+          const groupItems = visibleItems.filter(
+            (item) => ADMIN_NAV_STRUCTURE[item.href]?.group === group.key,
+          );
+          if (groupItems.length === 0) return null;
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`vpAdminNavLink${active ? " active" : ""}`}
-                title={item.label}
-              >
-                <span className="vpAdminNavIcon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                <span className="vpAdminNavLabel">{item.label}</span>
-              </Link>
-            );
-          })}
+          const active = groupItems.some((item) => isActive(pathname, item.href));
+          const subNames = Array.from(
+            new Set(
+              groupItems
+                .map((item) => ADMIN_NAV_STRUCTURE[item.href]?.sub)
+                .filter(Boolean) as string[],
+            ),
+          );
+          const directItems = groupItems.filter(
+            (item) => !ADMIN_NAV_STRUCTURE[item.href]?.sub,
+          );
+
+          return (
+            <details
+              key={group.key}
+              className={`vpAdminNavGroup${active ? " active" : ""}`}
+              open={active || group.key === "overview"}
+            >
+              <summary className="vpAdminNavGroupSummary">
+                <span className="vpAdminNavIcon" aria-hidden="true">{group.icon}</span>
+                <span className="vpAdminNavLabel">{group.label}</span>
+                <span className="vpAdminNavChevron" aria-hidden="true">▾</span>
+              </summary>
+
+              <div className="vpAdminNavGroupBody">
+                {directItems.map((item) => itemLink(item))}
+
+                {subNames.map((subName) => {
+                  const subItems = groupItems.filter(
+                    (item) => ADMIN_NAV_STRUCTURE[item.href]?.sub === subName,
+                  );
+
+                  return (
+                    <section key={subName} className="vpAdminNavSubGroup">
+                      <div className="vpAdminNavSubTitle">{subName}</div>
+                      {subItems.map((item) => itemLink(item, true))}
+                    </section>
+                  );
+                })}
+              </div>
+            </details>
+          );
+        })}
       </nav>
 
       <div className="vpAdminSidebarHint">
