@@ -13,6 +13,9 @@ import {
   safeDiagnostic,
   safeDiagnosticError,
 } from "@/lib/safe-diagnostics";
+import {
+  notifyIfBackupStale,
+} from "@/lib/backup-freshness";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -62,6 +65,8 @@ export async function GET(req: Request) {
     digestSent: 0,
     digestSkipped: 0,
     digestFailed: 0,
+    backupFreshness: "UNKNOWN" as "UNKNOWN" | "FRESH" | "STALE",
+    backupAgeHours: null as number | null,
     errors: 0,
   };
 
@@ -252,6 +257,24 @@ export async function GET(req: Request) {
     );
   }
 
+  try {
+    const backup =
+      await notifyIfBackupStale(today);
+
+    summary.backupFreshness =
+      backup.fresh
+        ? "FRESH"
+        : "STALE";
+    summary.backupAgeHours =
+      backup.ageHours;
+  } catch (error) {
+    summary.errors += 1;
+    safeDiagnosticError(
+      "cron.daily_ops.backup_freshness",
+      error,
+    );
+  }
+
   safeDiagnostic("cron.daily_ops.complete", {
     date: summary.date,
     expiredMarked: summary.expiredMarked,
@@ -262,6 +285,8 @@ export async function GET(req: Request) {
     digestSent: summary.digestSent,
     digestSkipped: summary.digestSkipped,
     digestFailed: summary.digestFailed,
+    backupFreshness: summary.backupFreshness,
+    backupAgeHours: summary.backupAgeHours,
     errors: summary.errors,
   });
 

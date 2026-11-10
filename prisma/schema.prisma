@@ -1077,3 +1077,24 @@ model DisasterRecoveryRecord {
 
   @@index([recordType, occurredAt])
 }
+
+
+model OpsChangeLog {
+  id             String    @id @default(cuid())
+  kind           String
+  severity       String
+  status         String    @default("OPEN")
+  title          String
+  detail         String?
+  rootCause      String?
+  resolution     String?
+  relatedSha     String?
+  occurredAt     DateTime
+  resolvedAt     DateTime?
+  createdByLabel String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([kind, status, occurredAt])
+  @@index([severity, status])
+}

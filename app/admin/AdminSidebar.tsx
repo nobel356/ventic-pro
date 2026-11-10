@@ -91,6 +91,8 @@ const ADMIN_NAV_STRUCTURE: Record<string, { group: AdminNavGroupKey; sub?: strin
   "/admin/notification-health": { group: "monitoring", sub: "System Monitoring" },
   "/admin/system-health": { group: "monitoring", sub: "System Monitoring" },
   "/admin/security-audit": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/production-verification": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/ops-log": { group: "monitoring", sub: "System Monitoring" },
   "/admin/disaster-recovery": { group: "monitoring", sub: "System Monitoring" },
   "/admin/ops-smoke": { group: "monitoring", sub: "System Monitoring" },
   "/admin/permission-matrix": { group: "monitoring", sub: "System Monitoring" },
@@ -367,6 +369,18 @@ const navItems: NavItem[] = [
     href: "/admin/permission-matrix",
     label: "Permission Matrix",
     icon: "🔏",
+    superAdminOnly: true,
+  },
+  {
+    href: "/admin/production-verification",
+    label: "Production Verification",
+    icon: "🚦",
+    superAdminOnly: true,
+  },
+  {
+    href: "/admin/ops-log",
+    label: "Incident & Change Log",
+    icon: "🧯",
     superAdminOnly: true,
   },
   {

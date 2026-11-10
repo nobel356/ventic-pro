@@ -323,6 +323,31 @@ export async function GET(req: Request) {
         );
       });
 
+    await rawPrisma.disasterRecoveryRecord
+      .create({
+        data: {
+          recordType: "BACKUP",
+          status: "PASS",
+          provider: "Vercel Blob",
+          providerRef: blob.pathname,
+          occurredAt: new Date(payload.createdAt),
+          note:
+            `Verified gzip round-trip; SHA-256 ${envelope.sha256}; ${tableNames.length} tables; ${totalRows} rows.`,
+          createdByLabel: "system:db-backup",
+        },
+      })
+      .then(() => {
+        safeDiagnostic("DB_BACKUP_DR_RECORDED", {
+          pathname: blob.pathname,
+        });
+      })
+      .catch((error) => {
+        safeDiagnosticError(
+          "cron.db_backup.dr_registry",
+          error,
+        );
+      });
+
     safeDiagnostic("cron.db_backup.complete", {
       pathname: blob.pathname,
       tables: tableNames.length,
