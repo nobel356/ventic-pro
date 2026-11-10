@@ -147,6 +147,12 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/content-growth",
+    label: "Content Growth",
+    icon: "📈",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/conversions",
     label: "Conversion Tracking",
     icon: "🎯",
