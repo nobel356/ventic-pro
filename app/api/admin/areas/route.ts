@@ -5,8 +5,47 @@ import {
   requirePermission,
 } from "@/lib/auth-v7";
 
-function clean(value: unknown) {
-  return String(value || "").trim();
+function clean(value: unknown, max = 1000) {
+  return String(value || "").trim().slice(0, max);
+}
+
+function cleanList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => clean(item, 240))
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function cleanFaq(value: unknown): [string, string][] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!Array.isArray(item)) return null;
+      const question = clean(item[0], 240);
+      const answer = clean(item[1], 800);
+      if (!question || !answer) return null;
+      return [question, answer] as [string, string];
+    })
+    .filter((item): item is [string, string] => Boolean(item))
+    .slice(0, 10);
+}
+
+function seoReady(input: {
+  title: string;
+  description: string;
+  intro: string;
+  highlights: string[];
+  faq: [string, string][];
+}) {
+  return (
+    input.title.length >= 20 &&
+    input.description.length >= 80 &&
+    input.intro.length >= 120 &&
+    input.highlights.length >= 2 &&
+    input.faq.length >= 2
+  );
 }
 
 export async function GET() {
@@ -44,16 +83,34 @@ export async function GET() {
     ]);
 
     return NextResponse.json({
-      areas: areas.map((item) => ({
-        id: item.id,
-        governorate: item.governorate,
-        area: item.area,
-        travelFee: Number(item.travelFee),
-        serviceDays: item.serviceDays || "",
-        active: item.active,
-        technicianIds: item.technicians.map((tech) => tech.id),
-        technicianNames: item.technicians.map((tech) => tech.name),
-      })),
+      areas: areas.map((item) => {
+        const highlights = item.seoHighlights || [];
+        const faq = cleanFaq(item.seoFaq);
+
+        return {
+          id: item.id,
+          governorate: item.governorate,
+          area: item.area,
+          travelFee: Number(item.travelFee),
+          serviceDays: item.serviceDays || "",
+          active: item.active,
+          technicianIds: item.technicians.map((tech) => tech.id),
+          technicianNames: item.technicians.map((tech) => tech.name),
+          seoPublished: item.seoPublished,
+          seoTitle: item.seoTitle || "",
+          seoDescription: item.seoDescription || "",
+          seoIntro: item.seoIntro || "",
+          seoHighlights: highlights,
+          seoFaq: faq,
+          seoReady: seoReady({
+            title: item.seoTitle || "",
+            description: item.seoDescription || "",
+            intro: item.seoIntro || "",
+            highlights,
+            faq,
+          }),
+        };
+      }),
       technicians,
     });
   } catch (error: any) {
@@ -76,18 +133,27 @@ export async function POST(req: Request) {
     const actor = await requirePermission(
       PERMISSIONS.AREAS_MANAGE,
     );
+
     const body = await req.json();
-    const id = clean(body?.id);
-    const governorate = clean(body?.governorate);
-    const area = clean(body?.area);
-    const serviceDays = clean(body?.serviceDays) || null;
+    const id = clean(body?.id, 120);
+    const governorate = clean(body?.governorate, 120);
+    const area = clean(body?.area, 120);
+    const serviceDays = clean(body?.serviceDays, 240) || null;
     const travelFee = Math.max(0, Number(body?.travelFee || 0));
     const active = body?.active !== false;
+
+    const seoPublished = body?.seoPublished === true;
+    const seoTitle = clean(body?.seoTitle, 220) || null;
+    const seoDescription = clean(body?.seoDescription, 500) || null;
+    const seoIntro = clean(body?.seoIntro, 2000) || null;
+    const seoHighlights = cleanList(body?.seoHighlights);
+    const seoFaq = cleanFaq(body?.seoFaq);
+
     const technicianIds: string[] = Array.isArray(body?.technicianIds)
       ? Array.from(
           new Set(
             body.technicianIds
-              .map((value: unknown) => clean(value))
+              .map((value: unknown) => clean(value, 120))
               .filter((value: string) => Boolean(value)),
           ),
         )
@@ -96,6 +162,25 @@ export async function POST(req: Request) {
     if (!governorate || !area) {
       return NextResponse.json(
         { error: "المحافظة والمنطقة مطلوبتان" },
+        { status: 400 },
+      );
+    }
+
+    if (
+      seoPublished &&
+      !seoReady({
+        title: seoTitle || "",
+        description: seoDescription || "",
+        intro: seoIntro || "",
+        highlights: seoHighlights,
+        faq: seoFaq,
+      })
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "لا يمكن نشر SEO قبل اكتمال المحتوى: عنوان 20+ حرف، وصف 80+، مقدمة 120+، نقطتان محليتان على الأقل، وسؤالان شائعان.",
+        },
         { status: 400 },
       );
     }
@@ -128,19 +213,27 @@ export async function POST(req: Request) {
         })
       : null;
 
+    const data = {
+      governorate,
+      area,
+      travelFee,
+      serviceDays,
+      active,
+      seoPublished,
+      seoTitle,
+      seoDescription,
+      seoIntro,
+      seoHighlights,
+      seoFaq,
+      technicians: {
+        set: technicianIds.map((techId) => ({ id: techId })),
+      },
+    };
+
     const saved = id
       ? await prisma.serviceArea.update({
           where: { id },
-          data: {
-            governorate,
-            area,
-            travelFee,
-            serviceDays,
-            active,
-            technicians: {
-              set: technicianIds.map((techId) => ({ id: techId })),
-            },
-          },
+          data,
           include: {
             technicians: {
               select: { id: true, name: true },
@@ -149,11 +242,7 @@ export async function POST(req: Request) {
         })
       : await prisma.serviceArea.create({
           data: {
-            governorate,
-            area,
-            travelFee,
-            serviceDays,
-            active,
+            ...data,
             technicians: {
               connect: technicianIds.map((techId) => ({ id: techId })),
             },
@@ -169,7 +258,9 @@ export async function POST(req: Request) {
       data: {
         actorId: actor.id,
         actorLabel: actor.name,
-        action: id ? "SERVICE_AREA_UPDATED" : "SERVICE_AREA_CREATED",
+        action: id
+          ? "SERVICE_AREA_UPDATED"
+          : "SERVICE_AREA_CREATED",
         oldValue: old
           ? {
               id: old.id,
@@ -178,6 +269,8 @@ export async function POST(req: Request) {
               travelFee: Number(old.travelFee),
               serviceDays: old.serviceDays,
               active: old.active,
+              seoPublished: old.seoPublished,
+              seoTitle: old.seoTitle,
               technicians: old.technicians,
             }
           : undefined,
@@ -188,12 +281,18 @@ export async function POST(req: Request) {
           travelFee: Number(saved.travelFee),
           serviceDays: saved.serviceDays,
           active: saved.active,
+          seoPublished: saved.seoPublished,
+          seoTitle: saved.seoTitle,
           technicians: saved.technicians,
         },
       },
     });
 
-    return NextResponse.json({ ok: true, id: saved.id });
+    return NextResponse.json({
+      ok: true,
+      id: saved.id,
+      seoPublished: saved.seoPublished,
+    });
   } catch (error: any) {
     if (error?.code === "P2002") {
       return NextResponse.json(

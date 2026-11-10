@@ -36,13 +36,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ["/legal/warranty", "yearly", 0.4],
   ];
 
-  let areaRows: Array<{ governorate: string; area: string }> = [];
+  let areaRows: Array<{
+    governorate: string;
+    area: string;
+    updatedAt: Date;
+  }> = [];
 
   try {
     areaRows = await prisma.serviceArea.findMany({
-      where: { active: true },
-      select: { governorate: true, area: true },
-      orderBy: [{ governorate: "asc" }, { area: "asc" }],
+      where: {
+        active: true,
+        seoPublished: true,
+      },
+      select: {
+        governorate: true,
+        area: true,
+        updatedAt: true,
+      },
+      orderBy: [
+        { governorate: "asc" },
+        { area: "asc" },
+      ],
     });
   } catch {
     areaRows = [];
@@ -71,8 +85,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
     ...areaRows.map((item) => ({
       url: `${base}/areas/${encodeURIComponent(item.governorate)}/${encodeURIComponent(item.area)}`,
+      lastModified: item.updatedAt,
       changeFrequency: "weekly" as const,
-      priority: 0.7,
+      priority: 0.75,
     })),
   ];
 }

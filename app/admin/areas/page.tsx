@@ -30,8 +30,8 @@ export default async function AreasPage() {
         }}
       >
         <h1 style={{ marginBottom: 6 }}>مناطق الخدمة</h1>
-        <p style={{ color: "#64748b", marginTop: 0 }}>
-          المنطقة الواحدة تتحكم في رسوم الانتقال وأيام الخدمة والفنيين المتاحين لها.
+        <p style={{ color: "#64748b", marginTop: 0, lineHeight: 1.7 }}>
+          المنطقة الواحدة تتحكم في التشغيل ورسوم الانتقال والفنيين، ومع V42 تقدر تنشر Local SEO منفصل فقط بعد اكتمال المحتوى المحلي الحقيقي.
         </p>
 
         <AreasManagement />

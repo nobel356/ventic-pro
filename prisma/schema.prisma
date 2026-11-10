@@ -706,17 +706,25 @@ model StocktakeLine {
 }
 
 model ServiceArea {
-  id          String   @id @default(cuid())
-  governorate String
-  area        String
-  travelFee   Decimal  @default(0) @db.Decimal(10,2)
-  active      Boolean  @default(true)
-  serviceDays String?
-  technicians User[]   @relation("ServiceAreaTechnicians")
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  governorate    String
+  area           String
+  travelFee      Decimal  @default(0) @db.Decimal(10,2)
+  active         Boolean  @default(true)
+  serviceDays    String?
+  seoPublished   Boolean  @default(false)
+  seoTitle       String?
+  seoDescription String?
+  seoIntro       String?
+  seoHighlights  String[] @default([])
+  seoFaq         Json?
+  technicians    User[]   @relation("ServiceAreaTechnicians")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([governorate, area])
   @@index([active, governorate, area])
+  @@index([seoPublished, active])
 }
 
 model Coupon {
