@@ -42,6 +42,30 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/growth-targets",
+    label: "Growth Targets",
+    icon: "🎯",
+    reportsPermission: true,
+  },
+  {
+    href: "/admin/growth-funnel",
+    label: "Funnel Leaks",
+    icon: "🪣",
+    reportsPermission: true,
+  },
+  {
+    href: "/admin/growth-reviews",
+    label: "Weekly Growth Review",
+    icon: "🗓️",
+    reportsPermission: true,
+  },
+  {
+    href: "/admin/growth-commitments",
+    label: "Growth Commitments",
+    icon: "📌",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/search",
     label: "بحث شامل",
     icon: "🔎",

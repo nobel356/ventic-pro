@@ -489,6 +489,22 @@ export default async function GrowthDashboardPage() {
 
           <div style={quickGrid}>
             <Quick
+              href="/admin/growth-targets"
+              label="Growth Targets"
+            />
+            <Quick
+              href="/admin/growth-funnel"
+              label="Funnel Leaks"
+            />
+            <Quick
+              href="/admin/growth-reviews"
+              label="Weekly Review"
+            />
+            <Quick
+              href="/admin/growth-commitments"
+              label="Commitments"
+            />
+            <Quick
               href="/admin/seo-health"
               label="SEO Health"
             />

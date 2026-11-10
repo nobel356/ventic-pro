@@ -1019,3 +1019,46 @@ model CroEvent {
   @@unique([experimentId, variant, eventType, sessionHash])
   @@index([experimentId, variant, eventType])
 }
+
+
+model GrowthTarget {
+  id             String   @id @default(cuid())
+  key            String   @unique
+  label          String
+  targetValue    Float
+  comparator     String   @default("GTE")
+  active         Boolean  @default(true)
+  updatedByLabel String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model GrowthReview {
+  id               String   @id @default(cuid())
+  weekStart        DateTime @unique
+  snapshot         Json
+  notes            String?
+  decisions        String?
+  createdByLabel   String?
+  refreshedAt      DateTime?
+  refreshedByLabel String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model GrowthCommitment {
+  id             String    @id @default(cuid())
+  title          String
+  sourceType     String    @default("MANUAL")
+  sourceKey      String?
+  ownerLabel     String?
+  status         String    @default("OPEN")
+  dueAt          DateTime?
+  note           String?
+  createdByLabel String?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, dueAt])
+}
