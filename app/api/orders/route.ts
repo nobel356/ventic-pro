@@ -5,7 +5,8 @@ import { notifyAdmins } from "@/lib/admin-notifications";
 import { calculateOrderOffer } from "@/lib/promotions";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { createOrderUploadToken } from "@/lib/customer-order-upload";
-import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
+import { attributionSnapshotFromRequest } from "@/lib/marketing-attribution";
+import { orderAttributionData } from "@/lib/attribution-integrity";
 import { getRuntimeControl } from "@/lib/runtime-control";
 import {
   findActiveReferral,
@@ -189,13 +190,66 @@ export async function POST(req: Request) {
     );
 
     const email = rawEmail || null;
-    const acquisitionSource =
+    const leadId = clean(b?.leadId);
+
+    const linkedLead = leadId
+      ? await prisma.lead.findUnique({
+          where: { id: leadId },
+          select: {
+            source: true,
+            attributionSource: true,
+            attributionMedium: true,
+            attributionCampaign: true,
+            attributionContent: true,
+            attributionTerm: true,
+            attributionRef: true,
+            attributionLanding: true,
+          },
+        })
+      : null;
+
+    const requestAttribution =
       control.marketingTracking
-        ? acquisitionSourceFromRequest(
+        ? attributionSnapshotFromRequest(
             req,
             b?.source,
           )
-        : null;
+        : {
+            raw: null,
+            source: null,
+            medium: null,
+            campaign: null,
+            content: null,
+            term: null,
+            ref: null,
+            landing: null,
+          };
+
+    const attribution =
+      requestAttribution.raw
+        ? requestAttribution
+        : linkedLead
+          ? {
+              raw: linkedLead.source,
+              source:
+                linkedLead.attributionSource,
+              medium:
+                linkedLead.attributionMedium,
+              campaign:
+                linkedLead.attributionCampaign,
+              content:
+                linkedLead.attributionContent,
+              term:
+                linkedLead.attributionTerm,
+              ref:
+                linkedLead.attributionRef,
+              landing:
+                linkedLead.attributionLanding,
+            }
+          : requestAttribution;
+
+    const acquisitionSource =
+      attribution.raw;
 
     const existingCustomer =
       await prisma.customer.findUnique({
@@ -542,7 +596,7 @@ export async function POST(req: Request) {
                 : null,
           couponDiscountSnapshot:
             Math.round((Number(offer.discount || 0) + referralDiscount) * 100) / 100,
-          acquisitionSource,
+          ...orderAttributionData(attribution),
           governorate,
           area,
           address,
@@ -564,7 +618,6 @@ export async function POST(req: Request) {
         });
       }
 
-      const leadId = clean(b?.leadId);
       if (leadId) {
         const lead = await tx.lead.findUnique({
           where: { id: leadId },

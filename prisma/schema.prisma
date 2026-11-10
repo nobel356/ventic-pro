@@ -109,6 +109,13 @@ model Order {
   couponCodeSnapshot     String?
   couponDiscountSnapshot Decimal             @default(0) @db.Decimal(10,2)
   acquisitionSource      String?
+  attributionSource      String?
+  attributionMedium      String?
+  attributionCampaign    String?
+  attributionContent     String?
+  attributionTerm        String?
+  attributionRef         String?
+  attributionLanding     String?
   governorate            String?
   area                   String?
   address                String?
@@ -146,6 +153,8 @@ model Order {
   updatedAt              DateTime            @updatedAt
 
   @@index([archivedAt])
+  @@index([attributionSource, createdAt])
+  @@index([attributionCampaign, createdAt])
 }
 
 model Space {
@@ -817,8 +826,15 @@ model Lead {
   id               String     @id @default(cuid())
   phone            String?
   name             String?
-  source           String?
-  status           LeadStatus @default(STARTED)
+  source              String?
+  attributionSource   String?
+  attributionMedium   String?
+  attributionCampaign String?
+  attributionContent  String?
+  attributionTerm     String?
+  attributionRef      String?
+  attributionLanding  String?
+  status              LeadStatus @default(STARTED)
   currentStep      Int        @default(1)
   payload          Json?
   consentToFollowUp Boolean   @default(false)
@@ -836,6 +852,8 @@ model Lead {
   createdAt        DateTime   @default(now())
 
   @@index([archivedAt])
+  @@index([attributionSource, createdAt])
+  @@index([attributionCampaign, createdAt])
 }
 
 model Notification {

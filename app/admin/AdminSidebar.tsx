@@ -129,6 +129,12 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/attribution-health",
+    label: "Attribution Health",
+    icon: "🧭",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/conversions",
     label: "Conversion Tracking",
     icon: "🎯",

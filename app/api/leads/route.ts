@@ -2,7 +2,8 @@ import { AdminNotificationType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/admin-notifications";
-import { acquisitionSourceFromRequest } from "@/lib/marketing-attribution";
+import { attributionSnapshotFromRequest } from "@/lib/marketing-attribution";
+import { leadAttributionData } from "@/lib/attribution-integrity";
 import { getRuntimeControl } from "@/lib/runtime-control";
 import { leadRequestTypeFromPayload } from "@/lib/lead-capture";
 import { runNonBlockingEffect } from "@/lib/lead-resilience";
@@ -134,14 +135,29 @@ export async function POST(req: Request) {
 
     const name = clean(body?.name) || null;
 
-    const source =
+    const attribution =
       control.marketingTracking
-        ? acquisitionSourceFromRequest(
+        ? attributionSnapshotFromRequest(
             req,
             body?.source,
           )
-        : clean(body?.source) ||
-          null;
+        : {
+            raw:
+              clean(body?.source) ||
+              null,
+            source:
+              clean(body?.source) ||
+              null,
+            medium: null,
+            campaign: null,
+            content: null,
+            term: null,
+            ref: null,
+            landing: null,
+          };
+
+    const source =
+      attribution.raw;
 
     const currentStep = Math.min(
       4,
@@ -195,7 +211,7 @@ export async function POST(req: Request) {
     const data = {
       phone,
       name,
-      source,
+      ...leadAttributionData(attribution),
       currentStep,
       payload,
       consentToFollowUp,
