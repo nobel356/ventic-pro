@@ -1,190 +1,720 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import {
   PERMISSIONS,
   requirePermission,
 } from "@/lib/auth-v7";
-import { loadReferralCodes } from "@/lib/referrals";
+import { buildGrowthCommandCenter } from "@/lib/growth-command";
 
 export const dynamic = "force-dynamic";
 
-function money(value: unknown) {
-  return Number(value || 0).toLocaleString("ar-EG", {
-    maximumFractionDigits: 0,
-  });
+function money(value: number) {
+  return value.toLocaleString(
+    "ar-EG",
+    {
+      maximumFractionDigits: 0,
+    },
+  );
 }
 
-function payloadObject(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+function priorityStyle(
+  priority: string,
+): React.CSSProperties {
+  if (
+    priority === "CRITICAL"
+  ) {
+    return {
+      background:
+        "#fef2f2",
+      color: "#991b1b",
+      borderColor:
+        "#fecaca",
+    };
+  }
+
+  if (priority === "HIGH") {
+    return {
+      background:
+        "#fff7ed",
+      color: "#9a3412",
+      borderColor:
+        "#fed7aa",
+    };
+  }
+
+  if (
+    priority === "MEDIUM"
+  ) {
+    return {
+      background:
+        "#eff6ff",
+      color: "#1d4ed8",
+      borderColor:
+        "#bfdbfe",
+    };
+  }
+
+  return {
+    background: "#f8fafc",
+    color: "#475569",
+    borderColor: "#e2e8f0",
+  };
 }
 
 export default async function GrowthDashboardPage() {
   try {
-    await requirePermission(PERMISSIONS.REPORTS_VIEW);
+    await requirePermission(
+      PERMISSIONS.REPORTS_VIEW,
+    );
   } catch {
     redirect("/admin");
   }
 
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-  const [orders, leads, events, referrals] = await Promise.all([
-    prisma.order.findMany({
-      where: { createdAt: { gte: since } },
-      select: {
-        id: true,
-        status: true,
-        estimatedTotal: true,
-        finalTotal: true,
-        invoice: { select: { total: true, paid: true } },
-        spaces: {
-          select: {
-            services: {
-              select: { serviceNameSnapshot: true },
-            },
-          },
-        },
-      },
-    }),
-    prisma.lead.findMany({
-      where: { createdAt: { gte: since } },
-      select: {
-        status: true,
-        payload: true,
-        consentToFollowUp: true,
-      },
-    }),
-    prisma.auditLog.findMany({
-      where: {
-        action: "MARKETING_EVENT",
-        createdAt: { gte: since },
-      },
-      select: { newValue: true },
-      take: 5000,
-    }),
-    loadReferralCodes(prisma),
-  ]);
-
-  const completed = orders.filter((item) => item.status === "COMPLETED").length;
-  const cancelled = orders.filter((item) => item.status === "CANCELLED").length;
-  const invoiced = orders.reduce(
-    (sum, item) => sum + Number(item.invoice?.total || item.finalTotal || item.estimatedTotal || 0),
-    0,
-  );
-  const paid = orders.reduce((sum, item) => sum + Number(item.invoice?.paid || 0), 0);
-  const convertedLeads = leads.filter((item) => item.status === "CONVERTED").length;
-  const callbacks = leads.filter((item) => String(payloadObject(item.payload).intent || "") === "CALLBACK").length;
-  const activeReferralUses = referrals.reduce((sum, item) => sum + item.uses, 0);
-
-  const eventCounts = new Map<string, number>();
-  for (const row of events) {
-    const value = payloadObject(row.newValue);
-    const event = String(value.event || "unknown");
-    eventCounts.set(event, (eventCounts.get(event) || 0) + 1);
-  }
-
-  const serviceCounts = new Map<string, number>();
-  for (const order of orders) {
-    for (const space of order.spaces) {
-      for (const service of space.services) {
-        const name = service.serviceNameSnapshot;
-        serviceCounts.set(name, (serviceCounts.get(name) || 0) + 1);
-      }
-    }
-  }
-
-  const topServices = [...serviceCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6);
-
-  const leadConversion = leads.length ? (convertedLeads / leads.length) * 100 : 0;
-  const completionRate = orders.length ? (completed / orders.length) * 100 : 0;
+  const data =
+    await buildGrowthCommandCenter();
 
   return (
-    <main className="admin" dir="rtl">
-      <section style={{ maxWidth: 1250, margin: "0 auto", padding: "24px 18px 70px" }}>
-        <div style={headStyle}>
+    <main
+      className="admin"
+      dir="rtl"
+    >
+      <section
+        style={{
+          maxWidth: 1400,
+          margin: "0 auto",
+          padding:
+            "24px 18px 70px",
+        }}
+      >
+        <div style={head}>
           <div>
-            <h1 style={{ marginBottom: 6 }}>Growth Dashboard</h1>
-            <p style={{ color: "#64748b", marginTop: 0 }}>
-              صورة تنفيذية مختصرة لآخر 30 يوم: Leads، تحويل، طلبات، تحصيل، تفاعل، وإحالات.
+            <h1
+              style={{
+                marginBottom: 6,
+              }}
+            >
+              Growth Command Center
+            </h1>
+            <p style={muted}>
+              لقطة تنفيذية لآخر 30 يوم + جودة البيانات + أهم القرارات المطلوبة من SEO وContent وCRO.
             </p>
           </div>
-          <Link href="/admin/marketing-analytics" style={linkStyle}>تحليلات التسويق المتقدمة</Link>
+
+          <Link
+            href="/admin/marketing-analytics"
+            style={action}
+          >
+            Marketing Analytics
+          </Link>
         </div>
 
-        <div style={statsStyle}>
-          <Stat label="Leads" value={leads.length} meta={`تحويل ${leadConversion.toFixed(1)}%`} />
-          <Stat label="طلبات" value={orders.length} meta={`إكمال ${completionRate.toFixed(1)}%`} />
-          <Stat label="طلبات اتصال" value={callbacks} />
-          <Stat label="قيمة مسجلة" value={`${money(invoiced)} ج`} />
-          <Stat label="محصل" value={`${money(paid)} ج`} />
-          <Stat label="استخدامات إحالة" value={activeReferralUses} />
-          <Stat label="WhatsApp clicks" value={eventCounts.get("whatsapp_click") || 0} />
-          <Stat label="حاسبة السعر" value={eventCounts.get("calculator_estimate") || 0} />
-        </div>
+        <section style={section}>
+          <h2 style={h2}>
+            Business Snapshot
+          </h2>
 
-        <div style={twoColStyle}>
-          <Panel title="أعلى الخدمات">
-            {topServices.length ? topServices.map(([name, count]) => (
-              <Row key={name} label={name} value={count} />
-            )) : <p style={{ color: "#64748b" }}>لا توجد بيانات كافية.</p>}
-          </Panel>
-
-          <Panel title="مؤشرات التشغيل">
-            <Row label="مكتمل" value={completed} />
-            <Row label="ملغي" value={cancelled} />
-            <Row label="Conversion events" value={events.length} />
-            <Row label="Referral codes" value={referrals.length} />
-          </Panel>
-        </div>
-
-        <section style={{ ...panelStyle, marginTop: 16 }}>
-          <h2 style={{ marginTop: 0 }}>انتقال سريع</h2>
-          <div style={quickGrid}>
-            <Quick href="/admin/lead-recovery" label="Lead Recovery" />
-            <Quick href="/admin/conversions" label="Conversions" />
-            <Quick href="/admin/referrals" label="Referrals" />
-            <Quick href="/admin/reviews" label="Reviews" />
-            <Quick href="/admin/marketing-analytics" label="Marketing Analytics" />
-            <Quick href="/admin/security-audit" label="Security Audit" />
+          <div style={stats}>
+            <Stat
+              label="Leads"
+              value={
+                data.snapshot.leads
+              }
+              meta={
+                "Conversion " +
+                data.snapshot
+                  .leadConversion +
+                "%"
+              }
+            />
+            <Stat
+              label="Orders"
+              value={
+                data.snapshot.orders
+              }
+              meta={
+                "Completion " +
+                data.snapshot
+                  .completionRate +
+                "%"
+              }
+            />
+            <Stat
+              label="Revenue"
+              value={
+                money(
+                  data.snapshot
+                    .revenue,
+                ) + " ج"
+              }
+            />
+            <Stat
+              label="Paid"
+              value={
+                money(
+                  data.snapshot
+                    .paid,
+                ) + " ج"
+              }
+              meta={
+                "Collection " +
+                data.snapshot
+                  .collectionRate +
+                "%"
+              }
+            />
           </div>
         </section>
+
+        <section style={section}>
+          <h2 style={h2}>
+            Quality Gates
+          </h2>
+
+          <div style={stats}>
+            <Stat
+              label="SEO Score"
+              value={
+                data.quality
+                  .seoScore +
+                "/100"
+              }
+              danger={
+                data.quality
+                  .seoCritical > 0
+              }
+            />
+            <Stat
+              label="SEO Critical"
+              value={
+                data.quality
+                  .seoCritical
+              }
+              danger={
+                data.quality
+                  .seoCritical > 0
+              }
+            />
+            <Stat
+              label="SEO Tasks"
+              value={
+                data.quality
+                  .seoTodo +
+                data.quality
+                  .seoInProgress
+              }
+              meta={
+                data.quality
+                  .overdueSeoActions +
+                " overdue"
+              }
+            />
+            <Stat
+              label="Order Attribution"
+              value={
+                data.quality
+                  .orderAttributionCoverage +
+                "%"
+              }
+              danger={
+                data.quality
+                  .orderAttributionCoverage <
+                90
+              }
+            />
+            <Stat
+              label="Lead Attribution"
+              value={
+                data.quality
+                  .leadAttributionCoverage +
+                "%"
+              }
+              danger={
+                data.quality
+                  .leadAttributionCoverage <
+                90
+              }
+            />
+          </div>
+        </section>
+
+        <section style={section}>
+          <div style={head}>
+            <div>
+              <h2 style={h2}>
+                Next Best Actions
+              </h2>
+              <p style={muted}>
+                الأولوية حسب المخاطر وجودة البيانات وفرص النمو. ما تنفذش كل حاجة مرة واحدة.
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 9,
+            }}
+          >
+            {data.actions.map(
+              (item, index) => (
+                <article
+                  key={item.id}
+                  style={{
+                    ...decisionCard,
+                    ...priorityStyle(
+                      item.priority,
+                    ),
+                  }}
+                >
+                  <div
+                    style={{
+                      display:
+                        "flex",
+                      gap: 10,
+                      alignItems:
+                        "flex-start",
+                    }}
+                  >
+                    <strong
+                      style={
+                        rank
+                      }
+                    >
+                      {index + 1}
+                    </strong>
+
+                    <div>
+                      <div
+                        style={{
+                          display:
+                            "flex",
+                          gap: 7,
+                          flexWrap:
+                            "wrap",
+                          alignItems:
+                            "center",
+                        }}
+                      >
+                        <span
+                          style={
+                            pill
+                          }
+                        >
+                          {
+                            item.priority
+                          }
+                        </span>
+                        <strong>
+                          {
+                            item.title
+                          }
+                        </strong>
+                      </div>
+
+                      <p
+                        style={{
+                          margin:
+                            "5px 0 0",
+                          lineHeight:
+                            1.7,
+                        }}
+                      >
+                        {
+                          item.detail
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={
+                      item.href
+                    }
+                    style={action}
+                  >
+                    {item.label} ←
+                  </Link>
+                </article>
+              ),
+            )}
+          </div>
+        </section>
+
+        <div style={twoCol}>
+          <section style={section}>
+            <h2 style={h2}>
+              Content Growth
+            </h2>
+
+            <p style={muted}>
+              Data status:{" "}
+              <strong>
+                {data.growth
+                  .dataReady
+                  ? "Ready"
+                  : "Preliminary"}
+              </strong>
+            </p>
+
+            {data.growth
+              .opportunities
+              .length ? (
+              <div
+                style={{
+                  display:
+                    "grid",
+                  gap: 8,
+                }}
+              >
+                {data.growth
+                  .opportunities
+                  .map(
+                    (item) => (
+                      <div
+                        key={
+                          item.id
+                        }
+                        style={
+                          miniCard
+                        }
+                      >
+                        <span
+                          style={
+                            pill
+                          }
+                        >
+                          {
+                            item.priority
+                          }
+                        </span>
+                        <strong>
+                          {
+                            item.title
+                          }
+                        </strong>
+                        <small
+                          style={{
+                            color:
+                              "#64748b",
+                            lineHeight:
+                              1.6,
+                          }}
+                        >
+                          {
+                            item.detail
+                          }
+                        </small>
+                      </div>
+                    ),
+                  )}
+              </div>
+            ) : (
+              <p style={muted}>
+                مفيش Opportunity واضحة حاليًا.
+              </p>
+            )}
+
+            <Link
+              href="/admin/content-growth"
+              style={{
+                ...action,
+                marginTop: 10,
+              }}
+            >
+              Content Growth
+            </Link>
+          </section>
+
+          <section style={section}>
+            <h2 style={h2}>
+              CRO Pipeline
+            </h2>
+
+            <div style={stats}>
+              <Stat
+                label="Running"
+                value={
+                  data.cro.running
+                }
+              />
+              <Stat
+                label="Ready for Decision"
+                value={
+                  data.cro
+                    .stoppedWithWinner
+                }
+                danger={
+                  data.cro
+                    .stoppedWithWinner >
+                  0
+                }
+              />
+              <Stat
+                label="Tracked"
+                value={
+                  data.cro
+                    .totalTracked
+                }
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                marginTop: 10,
+              }}
+            >
+              <Link
+                href="/admin/cro-experiments"
+                style={action}
+              >
+                Experiments
+              </Link>
+              <Link
+                href="/admin/cro-decisions"
+                style={action}
+              >
+                Decisions
+              </Link>
+            </div>
+          </section>
+        </div>
+
+        <section style={section}>
+          <h2 style={h2}>
+            Quick Access
+          </h2>
+
+          <div style={quickGrid}>
+            <Quick
+              href="/admin/seo-health"
+              label="SEO Health"
+            />
+            <Quick
+              href="/admin/seo-actions"
+              label="SEO Actions"
+            />
+            <Quick
+              href="/admin/attribution-health"
+              label="Attribution"
+            />
+            <Quick
+              href="/admin/blog/performance"
+              label="Blog Performance"
+            />
+            <Quick
+              href="/admin/content-growth"
+              label="Content Growth"
+            />
+            <Quick
+              href="/admin/cro-decisions"
+              label="CRO Decisions"
+            />
+          </div>
+        </section>
+
+        <p
+          style={{
+            color: "#94a3b8",
+            fontSize: 12,
+          }}
+        >
+          Last refresh:{" "}
+          {new Date(
+            data.generatedAt,
+          ).toLocaleString(
+            "ar-EG",
+          )}
+        </p>
       </section>
     </main>
   );
 }
 
-function Stat({ label, value, meta }: { label: string; value: string | number; meta?: string }) {
+function Stat({
+  label,
+  value,
+  meta,
+  danger = false,
+}: {
+  label: string;
+  value: string | number;
+  meta?: string;
+  danger?: boolean;
+}) {
   return (
-    <div style={statStyle}>
-      <b style={{ fontSize: 23, color: "#0f2d4a" }}>{value}</b>
-      <span style={{ color: "#64748b", fontSize: 12 }}>{label}</span>
-      {meta && <small style={{ color: "#94a3b8" }}>{meta}</small>}
+    <div
+      style={{
+        ...stat,
+        background: danger
+          ? "#fef2f2"
+          : "white",
+        borderColor: danger
+          ? "#fecaca"
+          : "#dbe7ef",
+      }}
+    >
+      <b
+        style={{
+          fontSize: 23,
+          color: danger
+            ? "#991b1b"
+            : "#0f2d4a",
+        }}
+      >
+        {value}
+      </b>
+      <span
+        style={{
+          color: "#64748b",
+          fontSize: 12,
+        }}
+      >
+        {label}
+      </span>
+      {meta && (
+        <small
+          style={{
+            color: "#94a3b8",
+          }}
+        >
+          {meta}
+        </small>
+      )}
     </div>
   );
-}
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section style={panelStyle}><h2 style={{ marginTop: 0 }}>{title}</h2>{children}</section>;
-}
-function Row({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, borderBottom: "1px solid #eef2f7", padding: "9px 0" }}>
-      <span>{label}</span><strong>{value}</strong>
-    </div>
-  );
-}
-function Quick({ href, label }: { href: string; label: string }) {
-  return <Link href={href} style={quickLink}>{label}</Link>;
 }
 
-const headStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
-const statsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(155px,1fr))", gap: 10, margin: "18px 0" };
-const statStyle: React.CSSProperties = { background: "white", border: "1px solid #e2e8f0", borderRadius: 14, padding: 14, display: "grid", gap: 4 };
-const twoColStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 };
-const panelStyle: React.CSSProperties = { background: "white", border: "1px solid #e2e8f0", borderRadius: 16, padding: 18 };
-const quickGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8 };
-const quickLink: React.CSSProperties = { minHeight: 42, display: "grid", placeItems: "center", border: "1px solid #cbd5e1", borderRadius: 10, background: "#f8fafc", color: "#0f2d4a", textDecoration: "none", fontWeight: 900 };
-const linkStyle: React.CSSProperties = { minHeight: 40, display: "inline-flex", alignItems: "center", border: "1px solid #cbd5e1", borderRadius: 9, padding: "0 12px", color: "#0f2d4a", background: "white", textDecoration: "none", fontWeight: 900 };
+function Quick({
+  href,
+  label,
+}: {
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      style={quick}
+    >
+      {label}
+    </Link>
+  );
+}
+
+const head: React.CSSProperties = {
+  display: "flex",
+  justifyContent:
+    "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+const muted: React.CSSProperties = {
+  color: "#64748b",
+  marginTop: 0,
+  lineHeight: 1.8,
+};
+const section: React.CSSProperties = {
+  background: "white",
+  border:
+    "1px solid #e2e8f0",
+  borderRadius: 16,
+  padding: 16,
+  marginTop: 16,
+};
+const h2: React.CSSProperties = {
+  color: "#0b2f49",
+  marginTop: 0,
+};
+const stats: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit,minmax(155px,1fr))",
+  gap: 9,
+};
+const stat: React.CSSProperties = {
+  border:
+    "1px solid #dbe7ef",
+  borderRadius: 13,
+  padding: 12,
+  display: "grid",
+  gap: 4,
+};
+const decisionCard: React.CSSProperties = {
+  border: "1px solid",
+  borderRadius: 13,
+  padding: 12,
+  display: "flex",
+  justifyContent:
+    "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+const rank: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  flex: "0 0 30px",
+  display: "grid",
+  placeItems: "center",
+  borderRadius: 9,
+  background:
+    "rgba(255,255,255,.75)",
+};
+const pill: React.CSSProperties = {
+  width: "fit-content",
+  borderRadius: 999,
+  background:
+    "rgba(255,255,255,.75)",
+  padding: "4px 7px",
+  fontSize: 10,
+  fontWeight: 900,
+};
+const action: React.CSSProperties = {
+  minHeight: 38,
+  display: "inline-flex",
+  alignItems: "center",
+  border:
+    "1px solid #bae6fd",
+  borderRadius: 9,
+  padding: "0 10px",
+  color: "#075985",
+  background: "#eef8fd",
+  textDecoration: "none",
+  fontWeight: 900,
+};
+const twoCol: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit,minmax(330px,1fr))",
+  gap: 16,
+};
+const miniCard: React.CSSProperties = {
+  border:
+    "1px solid #e2e8f0",
+  borderRadius: 11,
+  padding: 10,
+  display: "grid",
+  gap: 5,
+};
+const quickGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit,minmax(150px,1fr))",
+  gap: 8,
+};
+const quick: React.CSSProperties = {
+  minHeight: 42,
+  display: "grid",
+  placeItems: "center",
+  border:
+    "1px solid #cbd5e1",
+  borderRadius: 10,
+  background: "#f8fafc",
+  color: "#0f2d4a",
+  textDecoration: "none",
+  fontWeight: 900,
+};
