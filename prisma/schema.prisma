@@ -1062,3 +1062,18 @@ model GrowthCommitment {
 
   @@index([status, dueAt])
 }
+
+
+model DisasterRecoveryRecord {
+  id             String   @id @default(cuid())
+  recordType     String
+  status         String
+  provider       String   @default("Neon")
+  providerRef    String?
+  occurredAt     DateTime
+  note           String?
+  createdByLabel String?
+  createdAt      DateTime @default(now())
+
+  @@index([recordType, occurredAt])
+}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 type NavItem = {
   href: string;
@@ -90,6 +91,9 @@ const ADMIN_NAV_STRUCTURE: Record<string, { group: AdminNavGroupKey; sub?: strin
   "/admin/notification-health": { group: "monitoring", sub: "System Monitoring" },
   "/admin/system-health": { group: "monitoring", sub: "System Monitoring" },
   "/admin/security-audit": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/disaster-recovery": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/ops-smoke": { group: "monitoring", sub: "System Monitoring" },
+  "/admin/permission-matrix": { group: "monitoring", sub: "System Monitoring" },
   "/admin/launch-center": { group: "monitoring", sub: "System Monitoring" },
 
   "/admin/users": { group: "system" },
@@ -348,6 +352,24 @@ const navItems: NavItem[] = [
     superAdminOnly: true,
   },
   {
+    href: "/admin/disaster-recovery",
+    label: "Backup & DR",
+    icon: "💾",
+    superAdminOnly: true,
+  },
+  {
+    href: "/admin/ops-smoke",
+    label: "Smoke Tests",
+    icon: "🧪",
+    reportsPermission: true,
+  },
+  {
+    href: "/admin/permission-matrix",
+    label: "Permission Matrix",
+    icon: "🔏",
+    superAdminOnly: true,
+  },
+  {
     href: "/admin/users",
     label: "المستخدمون",
     icon: "🔐",
@@ -401,6 +423,41 @@ export default function AdminSidebar({
 }) {
   const pathname = usePathname();
 
+  const [navSearch, setNavSearch] = useState("");
+  const [pinnedHrefs, setPinnedHrefs] = useState<string[]>([]);
+  const [recentHrefs, setRecentHrefs] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      setPinnedHrefs(
+        JSON.parse(localStorage.getItem("vp_admin_pins") || "[]"),
+      );
+      setRecentHrefs(
+        JSON.parse(localStorage.getItem("vp_admin_recent") || "[]"),
+      );
+    } catch {
+      setPinnedHrefs([]);
+      setRecentHrefs([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pathname.startsWith("/admin")) return;
+
+    setRecentHrefs((current) => {
+      const next = [
+        pathname,
+        ...current.filter((href) => href !== pathname),
+      ].slice(0, 5);
+
+      try {
+        localStorage.setItem("vp_admin_recent", JSON.stringify(next));
+      } catch {}
+
+      return next;
+    });
+  }, [pathname]);
+
   const visibleItems = navItems.filter((item) => {
     if (item.superAdminOnly && !isSuperAdmin) return false;
     if (item.inventoryPermission && !canViewInventory) return false;
@@ -422,6 +479,50 @@ export default function AdminSidebar({
     if (item.archivePermission && !canViewArchive) return false;
     return true;
   });
+
+  const currentItem =
+    visibleItems.find(
+      (item) => isActive(pathname, item.href),
+    ) || null;
+
+  const searchItems = useMemo(() => {
+    const query = navSearch.trim().toLowerCase();
+    if (!query) return [];
+
+    return visibleItems
+      .filter((item) =>
+        (item.label + " " + item.href)
+          .toLowerCase()
+          .includes(query),
+      )
+      .slice(0, 12);
+  }, [navSearch, visibleItems]);
+
+  const pinnedItems = pinnedHrefs
+    .map((href) => visibleItems.find((item) => item.href === href))
+    .filter(Boolean) as NavItem[];
+
+  const recentItems = recentHrefs
+    .map((href) => visibleItems.find((item) => item.href === href))
+    .filter(Boolean)
+    .slice(0, 5) as NavItem[];
+
+  const toggleCurrentPin = () => {
+    if (!currentItem) return;
+
+    setPinnedHrefs((current) => {
+      const exists = current.includes(currentItem.href);
+      const next = exists
+        ? current.filter((href) => href !== currentItem.href)
+        : [currentItem.href, ...current].slice(0, 8);
+
+      try {
+        localStorage.setItem("vp_admin_pins", JSON.stringify(next));
+      } catch {}
+
+      return next;
+    });
+  };
 
   const itemLink = (item: NavItem, nested = false) => {
     const active = isActive(pathname, item.href);
@@ -452,6 +553,52 @@ export default function AdminSidebar({
           <small>لوحة التشغيل</small>
         </span>
       </Link>
+
+      <section className="vpAdminPowerTools">
+        <input
+          value={navSearch}
+          onChange={(event) => setNavSearch(event.target.value)}
+          placeholder="ابحث في لوحة التحكم..."
+          className="vpAdminNavSearch"
+        />
+
+        {currentItem && (
+          <button
+            type="button"
+            onClick={toggleCurrentPin}
+            className="vpAdminPinButton"
+          >
+            {pinnedHrefs.includes(currentItem.href)
+              ? "★ إزالة من المفضلة"
+              : "☆ تثبيت الصفحة الحالية"}
+          </button>
+        )}
+
+        {navSearch.trim() && (
+          <div className="vpAdminQuickBlock">
+            <small>نتائج البحث</small>
+            {searchItems.length
+              ? searchItems.map((item) => itemLink(item))
+              : <span className="vpAdminQuickEmpty">لا توجد نتائج</span>}
+          </div>
+        )}
+
+        {!navSearch.trim() && pinnedItems.length > 0 && (
+          <div className="vpAdminQuickBlock">
+            <small>المفضلة</small>
+            {pinnedItems.map((item) => itemLink(item))}
+          </div>
+        )}
+
+        {!navSearch.trim() && recentItems.length > 0 && (
+          <details className="vpAdminRecent">
+            <summary>آخر الصفحات</summary>
+            <div>
+              {recentItems.map((item) => itemLink(item))}
+            </div>
+          </details>
+        )}
+      </section>
 
       <nav className="vpAdminNav" aria-label="القائمة الرئيسية">
         {ADMIN_NAV_GROUPS.map((group) => {

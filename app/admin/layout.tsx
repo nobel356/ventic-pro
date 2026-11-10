@@ -261,6 +261,76 @@ export default async function AdminLayout({
           gap: 5px;
         }
 
+        .vpAdminPowerTools {
+          display: grid;
+          gap: 7px;
+          margin-bottom: 10px;
+        }
+
+        .vpAdminNavSearch {
+          width: 100%;
+          min-height: 38px;
+          border: 1px solid rgba(255,255,255,.14);
+          border-radius: 10px;
+          background: rgba(255,255,255,.08);
+          color: white;
+          padding: 0 9px;
+          outline: none;
+          box-sizing: border-box;
+        }
+
+        .vpAdminNavSearch::placeholder {
+          color: #bfdbfe;
+        }
+
+        .vpAdminPinButton {
+          min-height: 34px;
+          border: 1px solid rgba(255,255,255,.12);
+          border-radius: 9px;
+          background: rgba(255,255,255,.06);
+          color: #dbeafe;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .vpAdminQuickBlock {
+          display: grid;
+          gap: 4px;
+          padding: 7px;
+          border: 1px solid rgba(255,255,255,.1);
+          border-radius: 10px;
+          background: rgba(2,6,23,.12);
+        }
+
+        .vpAdminQuickBlock > small,
+        .vpAdminRecent > summary {
+          color: #93c5fd;
+          font-size: 10px;
+          font-weight: 900;
+        }
+
+        .vpAdminQuickEmpty {
+          color: #bfdbfe;
+          font-size: 11px;
+          padding: 5px;
+        }
+
+        .vpAdminRecent {
+          border: 1px solid rgba(255,255,255,.1);
+          border-radius: 10px;
+          padding: 7px;
+        }
+
+        .vpAdminRecent > summary {
+          cursor: pointer;
+        }
+
+        .vpAdminRecent > div {
+          margin-top: 5px;
+          display: grid;
+          gap: 3px;
+        }
+
         .vpAdminNavLink {
           min-height: 45px;
           display: flex;
@@ -387,7 +457,8 @@ export default async function AdminLayout({
 
           .vpAdminLogoText,
           .vpAdminNavLabel,
-          .vpAdminSidebarHint {
+          .vpAdminSidebarHint,
+          .vpAdminPowerTools {
             display: none;
           }
 
