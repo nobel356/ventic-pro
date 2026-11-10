@@ -141,6 +141,12 @@ const navItems: NavItem[] = [
     reportsPermission: true,
   },
   {
+    href: "/admin/seo-actions",
+    label: "SEO Actions",
+    icon: "✅",
+    reportsPermission: true,
+  },
+  {
     href: "/admin/conversions",
     label: "Conversion Tracking",
     icon: "🎯",

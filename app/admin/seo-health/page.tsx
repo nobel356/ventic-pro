@@ -109,6 +109,9 @@ export default async function SeoHealthPage() {
             </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link href="/admin/seo-actions" style={action}>
+                Action Center
+              </Link>
               <Link href="/admin/blog" style={action}>
                 إدارة المقالات
               </Link>
