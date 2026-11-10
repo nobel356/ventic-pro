@@ -207,6 +207,90 @@ export default async function WorksPage() {
         paddingBottom: 40,
       }}
     >
+      <section
+        dir="rtl"
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto 24px",
+          padding: "48px 18px 0",
+        }}
+      >
+        <span
+          style={{
+            color: "#0284c7",
+            fontWeight: 900,
+            fontSize: 13,
+          }}
+        >
+          أعمال حقيقية بموافقة العميل
+        </span>
+
+        <h1
+          style={{
+            color: "#071a2b",
+            fontSize: "clamp(34px,6vw,52px)",
+            margin: "7px 0 10px",
+          }}
+        >
+          تنفيذات تهوية حقيقية من Ventic Pro
+        </h1>
+
+        <p
+          style={{
+            color: "#475569",
+            lineHeight: 1.9,
+            maxWidth: 860,
+          }}
+        >
+          هنا بنعرض أمثلة فعلية من شغل التهوية والهود وخطوط الطرد بعد موافقة أصحابها على النشر.
+          الهدف مش عرض فيديو وخلاص؛ شوف نوع المشكلة، مكان التنفيذ وطبيعة المسار قبل ما تقارن حالتك
+          بمشروع تاني. كل مطبخ أو حمام له طول دكت وعدد أكواع وفتحة خروج وتجهيز كهرباء مختلف، لذلك
+          الفيديو يساعدك تفهم شكل التنفيذ لكنه لا يعتبر مقايسة أو سعرًا ثابتًا لحالتك.
+        </p>
+
+        <p
+          style={{
+            color: "#64748b",
+            lineHeight: 1.9,
+            maxWidth: 860,
+          }}
+        >
+          قبل التنفيذ بنراجع صور المكان ومقاس الفتحات ومسار الطرد وإمكانية الوصول للصيانة. وبعد التركيب
+          يتم توثيق الطلب والفاتورة والضمان داخل النظام. لو شفت تنفيذ قريب من احتياجك، استخدمه كمرجع
+          بصري ثم ارفع صور مكانك في الطلب عشان تتراجع الحالة نفسها بدل نسخ حل من مكان مختلف.
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+            gap: 10,
+            marginTop: 16,
+          }}
+        >
+          {[
+            ["هود وخطوط طرد", "راجع اتجاه المسار والأكواع وفتحة الخروج."],
+            ["تهوية حمامات", "قارن مكان الشفاط وطول الدكت وإمكانية الصيانة."],
+            ["تنفيذ موثق", "الفيديوهات المعروضة مرتبطة بأعمال حقيقية منشورة بموافقة العميل."],
+          ].map(([title, text]) => (
+            <article
+              key={title}
+              style={{
+                background: "white",
+                border: "1px solid #dbe7ef",
+                borderRadius: 14,
+                padding: 14,
+              }}
+            >
+              <strong style={{ color: "#0b2f49" }}>{title}</strong>
+              <p style={{ color: "#64748b", lineHeight: 1.7, marginBottom: 0 }}>
+                {text}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import LegalShell, { LegalSection } from "../LegalShell";
+
+export const metadata: Metadata = {
+  title: "سياسة الاستبدال والاسترجاع",
+  description: "سياسة Ventic Pro للاستبدال والاسترجاع للسلع وخدمات التركيب والخامات المجهزة، وطريقة التعامل مع العيوب ورد المبالغ.",
+  alternates: {
+    canonical: "/legal/refund",
+  },
+};
 
 export default function RefundPage() {
   return (

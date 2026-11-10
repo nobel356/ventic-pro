@@ -56,6 +56,39 @@ export default async function AreasPage() {
           اختار منطقتك لفتح صفحة مخصصة فيها رسوم الانتقال وأيام الخدمة وروابط الطلب المباشر.
         </p>
 
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+            gap: 10,
+            margin: "18px 0 4px",
+          }}
+        >
+          <article style={infoCardStyle}>
+            <h2 style={infoHeadingStyle}>إزاي بنحدد إن المنطقة متاحة؟</h2>
+            <p style={infoTextStyle}>
+              المنطقة لا تتنشر هنا لمجرد استهداف اسم مدينة في Google. بنضيفها فقط لما تكون ضمن
+              التغطية التشغيلية الفعلية ويتوفر لها أيام خدمة ورسوم انتقال يمكن الالتزام بها.
+            </p>
+          </article>
+
+          <article style={infoCardStyle}>
+            <h2 style={infoHeadingStyle}>لو منطقتك مش ظاهرة</h2>
+            <p style={infoTextStyle}>
+              اعمل طلب مكالمة أو ابدأ الطلب واكتب العنوان الحقيقي. فريق Ventic Pro يراجع إمكانية
+              الوصول قبل تأكيد الموعد بدل ما نوعدك بتغطية غير موجودة في النظام.
+            </p>
+          </article>
+
+          <article style={infoCardStyle}>
+            <h2 style={infoHeadingStyle}>ليه رسوم الانتقال تختلف؟</h2>
+            <p style={infoTextStyle}>
+              الرسوم ترتبط بالمنطقة والمسافة والتشغيل، وليست سعرًا مخفيًا يضاف بعد التنفيذ. عندما
+              تكون المنطقة مفعلة بالنظام تظهر رسومها ضمن التقدير قبل اعتماد الطلب.
+            </p>
+          </article>
+        </section>
+
         {areas.length === 0 ? (
           <div style={emptyStyle}>
             لم يتم نشر مناطق خدمة محددة بعد. تقدر تعمل طلب أو تطلب مكالمة، وفريق Ventic Pro يؤكد لك التغطية.
@@ -151,4 +184,24 @@ const ctaStyle: React.CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   flexWrap: "wrap",
+};
+
+
+const infoCardStyle: React.CSSProperties = {
+  background: "white",
+  border: "1px solid #dbe7ef",
+  borderRadius: 14,
+  padding: 15,
+};
+
+const infoHeadingStyle: React.CSSProperties = {
+  color: "#0b2f49",
+  fontSize: 18,
+  margin: "0 0 7px",
+};
+
+const infoTextStyle: React.CSSProperties = {
+  color: "#64748b",
+  lineHeight: 1.85,
+  margin: 0,
 };

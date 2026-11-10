@@ -458,6 +458,9 @@ export default function SiteChrome() {
                   <Link style={footerLink} href="/offers">
                     العروض
                   </Link>
+                  <Link style={footerLink} href="/why-ventic">
+                    ليه Ventic Pro؟
+                  </Link>
                   <Link style={footerLink} href="/areas">
                     مناطق الخدمة
                   </Link>

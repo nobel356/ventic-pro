@@ -133,6 +133,9 @@ export default async function Home() {
             <Link className="outline" href="/customer">
               متابعة طلباتي وفواتيري
             </Link>
+            <Link className="outline" href="/why-ventic">
+              ليه Ventic Pro؟
+            </Link>
           </div>
 
           <div

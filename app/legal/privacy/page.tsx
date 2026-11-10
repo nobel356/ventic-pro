@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import LegalShell, { LegalSection } from "../LegalShell";
+
+export const metadata: Metadata = {
+  title: "سياسة الخصوصية",
+  description: "سياسة خصوصية Ventic Pro: البيانات التي نجمعها، أغراض استخدامها، التحليلات، الصور، الحماية وحقوق العميل.",
+  alternates: {
+    canonical: "/legal/privacy",
+  },
+};
 
 export default function PrivacyPage() {
   return (

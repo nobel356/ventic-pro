@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import LegalShell, { LegalSection } from "../LegalShell";
+
+export const metadata: Metadata = {
+  title: "الشروط والأحكام",
+  description: "شروط استخدام Ventic Pro وطلبات التركيب والمقايسات والمواعيد والدفع والفواتير والتوثيق والمسؤوليات المرتبطة بالخدمة.",
+  alternates: {
+    canonical: "/legal/terms",
+  },
+};
 
 export default function TermsPage() {
   return (

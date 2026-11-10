@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import LegalShell, { LegalSection } from "../LegalShell";
+
+export const metadata: Metadata = {
+  title: "سياسة الضمان",
+  description: "سياسة ضمان Ventic Pro لأعمال التركيب والأجهزة الموردة، وطريقة طلب الصيانة والضمان والحالات غير المغطاة.",
+  alternates: {
+    canonical: "/legal/warranty",
+  },
+};
 
 export default function WarrantyPage() {
   return (
