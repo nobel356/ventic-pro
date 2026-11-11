@@ -21,6 +21,7 @@ import ConversionTracker from "@/app/shared/ConversionTracker";
 import TrustBar from "@/app/shared/TrustBar";
 import CalculatorOrderSummary from "@/app/shared/CalculatorOrderSummary";
 import TrackingManager from "@/app/shared/TrackingManager";
+import WebVitalsReporter from "@/app/shared/WebVitalsReporter";
 import RuntimeSiteGate from "@/app/shared/RuntimeSiteGate";
 import {
   getRuntimeControl,
@@ -282,6 +283,7 @@ export default async function Layout({
             }
           >
             <TrackingManager />
+            <WebVitalsReporter />
             <MarketingAttribution />
             <ConversionTracker />
             <ReferralBanner />

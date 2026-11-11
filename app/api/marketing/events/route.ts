@@ -19,6 +19,11 @@ const allowedEvents = new Set([
   "works_cta",
   "offer_view",
   "referral_visit",
+  "order_started",
+  "order_submitted",
+  "callback_submitted",
+  "lead_submitted",
+  "web_vital",
 ]);
 
 function clean(value: unknown, max = 240) {

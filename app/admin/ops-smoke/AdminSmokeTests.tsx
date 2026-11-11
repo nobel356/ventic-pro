@@ -32,6 +32,51 @@ const checks = [
     kind: "public",
   },
   {
+    label: "Health",
+    path: "/api/health",
+    kind: "public",
+  },
+  {
+    label: "Calculator",
+    path: "/calculator",
+    kind: "public",
+  },
+  {
+    label: "Bathroom Service",
+    path: "/services/bathroom-ventilation",
+    kind: "public",
+  },
+  {
+    label: "Kitchen Service",
+    path: "/services/kitchen-ventilation",
+    kind: "public",
+  },
+  {
+    label: "Hood Service",
+    path: "/services/hood-exhaust",
+    kind: "public",
+  },
+  {
+    label: "Fan Replacement Service",
+    path: "/services/fan-replacement",
+    kind: "public",
+  },
+  {
+    label: "Ductwork Service",
+    path: "/services/ductwork",
+    kind: "public",
+  },
+  {
+    label: "Troubleshooting Service",
+    path: "/services/ventilation-troubleshooting",
+    kind: "public",
+  },
+  {
+    label: "Privacy",
+    path: "/legal/privacy",
+    kind: "public",
+  },
+  {
     label: "Areas API",
     path: "/api/admin/areas",
     kind: "protected",

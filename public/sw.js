@@ -1,4 +1,4 @@
-const CACHE = "ventic-pro-v16g-public-v1";
+const CACHE = "ventic-pro-v70-v97-public-v1";
 
 const PUBLIC_PAGES = new Set([
   "/",
@@ -8,6 +8,9 @@ const PUBLIC_PAGES = new Set([
   "/services/bathroom-ventilation",
   "/services/kitchen-ventilation",
   "/services/hood-exhaust",
+  "/services/fan-replacement",
+  "/services/ductwork",
+  "/services/ventilation-troubleshooting",
 ]);
 
 const STATIC_FILES = new Set([

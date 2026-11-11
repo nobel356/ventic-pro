@@ -316,6 +316,8 @@ export default function CalculatorClient() {
 
             {selectionMessage && (
               <div
+                role="status"
+                aria-live="polite"
                 style={{
                   marginTop: 12,
                   padding: 10,
@@ -344,6 +346,7 @@ export default function CalculatorClient() {
 
             {calculated && (
               <section
+                aria-live="polite"
                 style={{
                   ...cardStyle,
                   marginTop: 16,

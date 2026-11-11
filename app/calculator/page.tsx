@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import CalculatorClient from "./CalculatorClient";
+import AirflowAdvisor from "./AirflowAdvisor";
 
 export const metadata: Metadata = {
   title: "حاسبة السعر التقديري",
@@ -12,6 +13,7 @@ export default function CalculatorPage() {
   return (
     <>
       <CalculatorClient />
+      <AirflowAdvisor />
 
       <section
         dir="rtl"

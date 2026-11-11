@@ -59,6 +59,10 @@ export default async function ServiceLanding({
     bathroom_ventilation: "/services/bathroom-ventilation",
     kitchen_ventilation: "/services/kitchen-ventilation",
     hood_exhaust: "/services/hood-exhaust",
+    fan_replacement: "/services/fan-replacement",
+    ductwork: "/services/ductwork",
+    ventilation_troubleshooting:
+      "/services/ventilation-troubleshooting",
   };
 
   const servicePath =
@@ -84,6 +88,21 @@ export default async function ServiceLanding({
       "hood-exhaust-duct-guide",
       "duct-length-elbows-airflow",
       "hood-duct-size",
+    ],
+    fan_replacement: [
+      "bathroom-fan-running-but-humidity",
+      "wall-fan-vs-ducted-blower",
+      "duct-length-elbows-airflow",
+    ],
+    ductwork: [
+      "duct-length-elbows-airflow",
+      "hood-duct-size",
+      "hood-exhaust-duct-guide",
+    ],
+    ventilation_troubleshooting: [
+      "kitchen-odor-despite-exhaust",
+      "bathroom-fan-running-but-humidity",
+      "kitchen-exhaust-installation-mistakes",
     ],
   };
 
