@@ -3,7 +3,7 @@ import { siteConfig } from "@/lib/site-config";
 export default function SeoJsonLd() {
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
-    "https://ventic-pro-v11-7.vercel.app";
+    "https://ventic-pro.com";
 
   const baseUrl = appUrl.replace(/\/$/, "");
   const businessId = `${baseUrl}/#business`;
@@ -78,6 +78,30 @@ export default function SeoJsonLd() {
                 "@type": "Service",
                 name: "تركيب الهود وخطوط الطرد",
                 url: `${baseUrl}/services/hood-exhaust`,
+              },
+            },
+            {
+              "@type": "Offer",
+              itemOffered: {
+                "@type": "Service",
+                name: "استبدال الشفاط",
+                url: `${baseUrl}/services/fan-replacement`,
+              },
+            },
+            {
+              "@type": "Offer",
+              itemOffered: {
+                "@type": "Service",
+                name: "الدكت ومسارات الطرد",
+                url: `${baseUrl}/services/ductwork`,
+              },
+            },
+            {
+              "@type": "Offer",
+              itemOffered: {
+                "@type": "Service",
+                name: "تشخيص مشاكل التهوية",
+                url: `${baseUrl}/services/ventilation-troubleshooting`,
               },
             },
           ],

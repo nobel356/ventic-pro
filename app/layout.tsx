@@ -30,7 +30,7 @@ import {
 
 const appUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
-  "https://ventic-pro-v11-7.vercel.app";
+  "https://ventic-pro.com";
 
 const gtmId =
   String(process.env.NEXT_PUBLIC_GTM_ID || "").trim();

@@ -443,6 +443,13 @@ export default function TrackingManager() {
           font-size:12px;
           font-weight:900;
         }
+        @media(max-width:760px){
+          .vpPrivacySettingsButton{
+            right:auto;
+            left:14px;
+            bottom:max(82px,calc(env(safe-area-inset-bottom) + 76px));
+          }
+        }
       `}</style>
     </>
   );

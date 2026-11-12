@@ -8,7 +8,7 @@ export const revalidate = 3600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = (
     process.env.NEXT_PUBLIC_APP_URL ||
-    "https://ventic-pro-v11-7.vercel.app"
+    "https://ventic-pro.com"
   ).replace(/\/$/, "");
 
   const publishedArticles = await getPublishedBlogArticles();
@@ -26,6 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ["/faq", "monthly", 0.7],
     ["/areas", "weekly", 0.8],
     ["/blog", "weekly", 0.85],
+    ["/services", "monthly", 0.95],
     ["/services/bathroom-ventilation", "monthly", 0.9],
     ["/services/kitchen-ventilation", "monthly", 0.9],
     ["/services/hood-exhaust", "monthly", 0.9],

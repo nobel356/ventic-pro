@@ -261,9 +261,15 @@ export default async function Home() {
             <span className="tag">اختار احتياجك</span>
             <h2>خدماتنا</h2>
           </div>
-          <Link href="/faq" style={{ color: "#075985", fontWeight: 900 }}>
-            عندك سؤال قبل الطلب؟
-          </Link>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {/* V98_SERVICES_HUB_LINK */}
+            <Link href="/services" style={{ color: "#075985", fontWeight: 900 }}>
+              كل الخدمات ←
+            </Link>
+            <Link href="/faq" style={{ color: "#075985", fontWeight: 900 }}>
+              عندك سؤال قبل الطلب؟
+            </Link>
+          </div>
         </div>
 
         <div className="grid">

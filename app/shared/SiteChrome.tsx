@@ -100,6 +100,26 @@ const serviceLinks = [
     icon: "↗",
   },
   {
+    href: "/services",
+    label: "كل الخدمات",
+    icon: "▦",
+  },
+  {
+    href: "/services/fan-replacement",
+    label: "استبدال الشفاط",
+    icon: "⟳",
+  },
+  {
+    href: "/services/ductwork",
+    label: "الدكت ومسارات الطرد",
+    icon: "▰",
+  },
+  {
+    href: "/services/ventilation-troubleshooting",
+    label: "حل مشاكل التهوية",
+    icon: "⌕",
+  },
+  {
     href: "/areas",
     label: "مناطق الخدمة",
     icon: "⌖",
@@ -136,6 +156,9 @@ function whatsappMessageForPath(pathname: string) {
   if (pathname.startsWith("/services/bathroom-ventilation")) return "مرحبًا Ventic Pro، أنا في صفحة تهوية الحمامات وعاوز أعرف أنسب حل للمكان عندي.";
   if (pathname.startsWith("/services/kitchen-ventilation")) return "مرحبًا Ventic Pro، أنا في صفحة تهوية المطابخ وعاوز استفسر عن الحل المناسب للمطبخ عندي.";
   if (pathname.startsWith("/services/hood-exhaust")) return "مرحبًا Ventic Pro، أنا في صفحة الهود وخطوط الطرد وعاوز استفسر عن التركيب.";
+  if (pathname.startsWith("/services/fan-replacement")) return "مرحبًا Ventic Pro، أنا في صفحة استبدال الشفاط وعاوز أراجع الحالة قبل تغيير الجهاز.";
+  if (pathname.startsWith("/services/ductwork")) return "مرحبًا Ventic Pro، أنا في صفحة الدكت ومسارات الطرد وعاوز أراجع المسار والمقاسات.";
+  if (pathname.startsWith("/services/ventilation-troubleshooting")) return "مرحبًا Ventic Pro، عندي مشكلة في السحب أو الرطوبة أو الروائح وعاوز أشخص السبب.";
   if (pathname.startsWith("/works")) return "مرحبًا Ventic Pro، شفت أعمالكم وعاوز تنفيذ مشابه عندي.";
   if (pathname.startsWith("/calculator")) return "مرحبًا Ventic Pro، استخدمت حاسبة السعر وعاوز أتأكد من التقدير.";
   if (pathname.startsWith("/offers")) return "مرحبًا Ventic Pro، شفت العروض وعاوز أعرف الأنسب لطلبي.";
@@ -259,7 +282,7 @@ export default function SiteChrome() {
                     onClick={() => setMenuOpen(false)}
                   >
                     <img
-                      src="/brand/vp-metallic.png"
+                      src="/brand/ventic-logo-light.png"
                       alt=""
                       aria-hidden="true"
                     />
@@ -420,7 +443,7 @@ export default function SiteChrome() {
               <div>
                 <div className="vpFooterBrand">
                   <img
-                    src="/brand/vp-metallic.png"
+                    src="/brand/ventic-logo-dark.png"
                     alt="Ventic Pro"
                   />
                   <div className="vpFooterBrandText">
@@ -451,6 +474,9 @@ export default function SiteChrome() {
                 >
                   <Link style={footerLink} href="/order">
                     اطلب تركيب
+                  </Link>
+                  <Link style={footerLink} href="/services">
+                    كل الخدمات
                   </Link>
                   <Link style={footerLink} href="/calculator">
                     حاسبة السعر

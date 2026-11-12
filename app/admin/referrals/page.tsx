@@ -19,7 +19,7 @@ export default async function ReferralsPage() {
   const codes = await loadReferralCodes(prisma);
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
-    "https://ventic-pro-v11-7.vercel.app";
+    "https://ventic-pro.com";
 
   return (
     <main className="admin" dir="rtl">

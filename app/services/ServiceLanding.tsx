@@ -52,7 +52,7 @@ export default async function ServiceLanding({
 
   const baseUrl = (
     process.env.NEXT_PUBLIC_APP_URL ||
-    "https://ventic-pro-v11-7.vercel.app"
+    "https://ventic-pro.com"
   ).replace(/\/$/, "");
 
   const servicePathBySlug: Record<string, string> = {
